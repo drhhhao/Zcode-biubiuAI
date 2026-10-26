@@ -206,9 +206,18 @@ async function releaseShot() {
     await page.view(1280, 900, 1.5);
     await page.go(`${REPO}/releases/latest`);
     await page.until(`[...document.querySelectorAll('a')].some(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || ''))`, 'the release assets', 60000);
-    // The installer's row in Assets, outlined so the tutorial can point at it.
-    await page.run(`(() => { const a = [...document.querySelectorAll('a')].find(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || '')); const row = a.closest('li') || a; row.style.outline = '3px solid #ea580c'; row.style.outlineOffset = '2px'; row.style.borderRadius = '6px'; row.scrollIntoView({ block: 'center' }); return true; })()`);
-    await page.shot('github-release.png', '[data-test-selector="release-card"], .Box, main', { width: 1280 });
+    // From the release's title to its Assets, with the installer's row outlined so the tutorial can point at it.
+    await page.run(`(() => {
+      const a = [...document.querySelectorAll('a')].find(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || ''));
+      const row = a.closest('li') || a;
+      row.style.outline = '3px solid #ea580c'; row.style.outlineOffset = '2px'; row.style.borderRadius = '6px';
+      row.id = 'docsAsset';
+      const title = [...document.querySelectorAll('h1, h2')].find(h => /biubiu AI \\d/.test(h.textContent));
+      (title || document.querySelector('main') || document.body).id ||= 'docsTitle';
+      return true;
+    })()`);
+    const from = await page.run(`'#' + CSS.escape(([...document.querySelectorAll('h1, h2')].find(h => /biubiu AI \\d/.test(h.textContent)) || document.querySelector('main') || document.body).id)`);
+    await page.shot('github-release.png', { from, to: '#docsAsset', margin: 28, width: 1280 });
   });
 }
 
