@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>biubiu AI</title>
+<style>
+:root{color-scheme:light;--bg:#f9f8f6;--ink:#1c1c1c;--rgb:28 28 28;--muted:rgb(var(--rgb)/.66);--edge:rgb(var(--rgb)/.5);--hover:rgb(var(--rgb)/.4);--line:rgb(var(--rgb)/.1);--wash:rgb(var(--rgb)/.025);--pick:rgb(var(--rgb)/.045);--ease:cubic-bezier(.19,1,.22,1);--round-lg:12px;--round:10px;--round-sm:8px;--round-xs:4px;--han:"Noto Serif SC","Source Han Serif SC","Songti SC",STSong,SimSun,serif;--serif:"Sitka Heading",Georgia,var(--han);--serif-body:"Sitka Text",Georgia,var(--han);--italic:"Sitka Text",Georgia,KaiTi,STKaiti,"Kaiti SC",var(--han);--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;--mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font:14px/1.65 var(--sans);font-synthesis:none}
+html[data-theme=dark]{color-scheme:dark;--bg:#1c1c1c;--ink:#f9f8f6;--rgb:249 248 246;--muted:rgb(var(--rgb)/.6);--edge:rgb(var(--rgb)/.45);--wash:rgb(var(--rgb)/.03);--pick:rgb(var(--rgb)/.06)}
+*,::before,::after{box-sizing:border-box}[hidden]{display:none!important}
+/* The window has the rounded corners of ZCode's own (Windows 11 draws them), so the boxes inside are rounded too:
+   buttons, notices, check boxes and the scroll bar. Fields keep their single underline. */
+::-webkit-scrollbar{width:8px;height:8px;background:transparent}::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:var(--edge) padding-box}::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{background-color:var(--ink)}::-webkit-scrollbar-corner{background:transparent}
+body{margin:0;background:var(--bg);color:var(--ink)}
+::selection{background:var(--ink);color:var(--bg)}
+button,input,select{margin:0;border-radius:0;font:inherit;color:inherit;letter-spacing:inherit}button,select{cursor:pointer}
+button:disabled,input:disabled,select:disabled{cursor:default}button:disabled{opacity:.45}
+:focus-visible{outline:1px solid var(--ink);outline-offset:3px}:is(.link,.hide,.pagetab,.eye,button.svcmeta):focus-visible{border-radius:var(--round-xs)}
+.shell{max-width:640px;margin:0 auto;padding:20px 28px 26px}
+.top{padding-bottom:12px}
+.bar{display:flex;align-items:center;gap:14px;min-height:38px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:11px;line-height:1.5;letter-spacing:.2em;color:var(--muted)}
+.state{display:flex;align-items:center;gap:10px;min-width:0}
+.dot{flex:none;width:7px;height:7px;border:1px solid currentColor;border-radius:50%;transition:background-color .5s var(--ease),border-color .5s var(--ease)}.dot.on{border-color:var(--ink);background:var(--ink)}
+.tag{display:none;padding:0 7px;border:1px solid var(--ink);border-radius:var(--round-xs);color:var(--ink);font-size:10px;line-height:18px}
+.link,.hide,button.svcmeta{position:relative;padding:3px 0;border:0;background:none;color:var(--muted);font-size:12px;line-height:1.5;letter-spacing:.08em;transition:color .5s var(--ease)}
+.link{border-bottom:1px solid var(--line)}.hide{margin-left:auto;font-size:11px;letter-spacing:.2em}
+:is(.link,.hide,button.svcmeta)::before{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:currentColor;transform:scaleX(0);transform-origin:right;transition:transform .5s var(--ease)}
+:is(.link,.hide,button.svcmeta):hover:not(:disabled){color:var(--ink)}
+:is(.link,.hide,button.svcmeta):hover:not(:disabled)::before{transform:scaleX(1);transform-origin:left}
+.part{padding:40px 0 48px;border-top:1px solid var(--line)}
+.part h2{display:flex;align-items:baseline;gap:14px;margin:0 0 30px;font:400 28px/1.2 var(--serif);letter-spacing:-.02em}
+.num{flex:none;font:italic 15px/1 var(--italic);letter-spacing:0;color:var(--muted)}
+.count{margin-left:auto;font:11px/1 var(--sans);letter-spacing:.2em;color:var(--muted)}
+/* The page tabs stay at the top of the panel while a page scrolls under them. Scroll anchoring is off: with a focused tab
+   stuck there, Chrome's anchoring threw the panel to its top or bottom when a page switched or grew. */
+html{overflow-anchor:none}
+.pages{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 30px;padding-top:14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.pagetab{position:relative;display:flex;align-items:baseline;gap:10px;padding:0 0 13px;border:0;background:none;color:var(--muted);font:400 20px/1.3 var(--serif);letter-spacing:-.01em;white-space:nowrap;transition:color .5s var(--ease)}
+.pagetab::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--ink);transform:scaleX(0);transform-origin:right;transition:transform .5s var(--ease)}
+.pagetab:hover,.pagetab[aria-selected=true]{color:var(--ink)}
+.pagetab[aria-selected=true]::after{transform:scaleX(1);transform-origin:left}
+.pagenote{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}
+.page>.part:first-child{border-top:0}
+.field{position:relative;margin-bottom:28px;padding-top:20px}
+.field>label,.sub,.svcinfo dt{font-size:11px;line-height:16px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.field>label{position:absolute;top:0;left:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none;transform-origin:0 0;transition:transform .5s var(--ease),letter-spacing .5s var(--ease)}
+.input,.select{display:block;width:100%;height:42px;padding:8px 0 7px;border:0;border-bottom:1px solid var(--edge);background:transparent;color:var(--ink);font:17px/1.4 var(--serif-body);outline:none;transition:border-color .5s var(--ease)}
+.input:hover:not(:disabled,:focus),.select:hover:not(:disabled,:focus){border-bottom-color:var(--muted)}
+.input:focus,.select:focus{border-bottom-color:var(--ink)}
+.input::placeholder{color:var(--muted);opacity:1;font-style:italic}
+.input:disabled,.select:disabled{color:var(--muted);border-bottom-style:dotted}
+/* An empty field shows its label where the text goes, and the label moves up on focus. A placeholder that says what an
+   empty field does (it starts with 留空) stays visible instead, with the label up. */
+.float:has(.input:placeholder-shown:not(:focus):not([placeholder^="留空"]))>label{transform:translateY(29px) scale(1.36);letter-spacing:.04em}
+.float .input:not(:focus):not([placeholder^="留空"])::placeholder{color:transparent}
+/* A native popup takes its background from the select, so the select carries the page color rather than none. */
+.select{appearance:none;padding-right:26px;background-color:var(--bg)}.select option{background:var(--bg);color:var(--ink)}
+.field:has(>.select)::after{content:'';position:absolute;top:34px;right:5px;width:7px;height:7px;border:solid var(--muted);border-width:0 1px 1px 0;transform:rotate(45deg);pointer-events:none}
+.keybox{position:relative}.keybox .input{padding-right:36px}.keybox .eye{position:absolute;top:5px;right:-7px}
+.eye{display:inline-grid;place-items:center;flex:none;width:32px;height:32px;padding:0;border:0;background:none;color:var(--muted);transition:color .5s var(--ease)}
+.eye:hover:not(:disabled){color:var(--ink)}
+.eye svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square}
+.eye[aria-pressed=true] .eye-open,.eye:not([aria-pressed=true]) .eye-shut{display:none}
+.note{margin-top:8px;font-size:12px;line-height:1.65;color:var(--muted);text-wrap:pretty}
+.note.fail{margin-top:14px;padding:10px 14px;border-radius:var(--round-sm);background:var(--ink);color:var(--bg)}
+details{margin:-4px 0 32px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}
+details:has(>summary:hover){border-color:var(--hover)}
+summary{display:flex;align-items:center;justify-content:space-between;padding:14px 0;list-style:none;cursor:pointer;user-select:none;font-size:11px;line-height:16px;letter-spacing:.2em;color:var(--muted);transition:color .5s var(--ease)}
+summary::-webkit-details-marker{display:none}summary:hover{color:var(--ink)}
+summary::after{content:'+';font:300 18px/16px var(--sans);letter-spacing:0}details[open]>summary::after{content:'−'}
+details[open]>summary{margin-bottom:4px}details .field:last-child{margin-bottom:24px}
+.primary{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;height:54px;padding:0 22px;border:1px solid var(--ink);border-radius:var(--round);background:var(--ink);color:var(--bg);font-size:13px;letter-spacing:.1em;text-align:left;transition:background-color .5s var(--ease),color .5s var(--ease),border-color .5s var(--ease)}
+.primary::after{content:'→';flex:none;font:17px/1 var(--sans);letter-spacing:0;transition:transform .5s var(--ease)}
+.primary:hover:not(:disabled){background:transparent;color:var(--ink)}.primary:hover:not(:disabled)::after{transform:translateX(8px)}
+.primary:disabled{opacity:1;border-color:var(--line);background:transparent;color:var(--muted)}
+.listhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px 16px;margin-bottom:18px}
+#found,.found{font:italic 15px/1.6 var(--italic);color:var(--muted)}
+.listhead span:last-child{display:flex;gap:18px;white-space:nowrap}
+#search,.search{height:38px;margin-bottom:16px;font-size:15px}:is(#search,.search)::-webkit-search-cancel-button{appearance:none}
+.list{max-height:440px;overflow:auto;border-top:1px solid var(--line)}
+.model{border-bottom:1px solid var(--line);transition:background-color .5s var(--ease)}.model:hover{background:var(--wash)}.model.picked{background:var(--pick)}
+.row{display:flex;align-items:flex-start;gap:14px;padding:15px 8px 15px 4px;cursor:pointer}
+.row input{appearance:none;display:grid;place-content:center;flex:none;width:16px;height:16px;margin:5px 0 0;border:1px solid var(--edge);border-radius:var(--round-xs);background:transparent;cursor:pointer;transition:background-color .3s var(--ease),border-color .3s var(--ease)}
+.row input::after{content:'';width:9px;height:5px;margin-top:-2px;border:solid var(--bg);border-width:0 0 1.5px 1.5px;transform:rotate(-45deg);opacity:0}
+.row input:checked{border-color:var(--ink);background:var(--ink)}.row input:checked::after{opacity:1}
+.row:hover input:not(:disabled){border-color:var(--ink)}.row input:disabled{opacity:.45}
+.info{flex:1;min-width:0}
+.id{display:block;font:16px/1.45 var(--serif-body);overflow-wrap:anywhere}.row:hover .id{font-style:italic}
+.meta{display:block;margin-top:3px;font-size:12px;line-height:1.6;color:var(--muted)}
+.sub{display:block}
+/* A model row: its tick and name, and 测试 beside them, outside the label so a test never ticks the model. */
+.line{display:flex;align-items:flex-start}.line .row{flex:1;min-width:0}.line>.link{flex:none;margin:15px 8px 0 0}
+.small{height:34px;padding:0 16px;border:1px solid var(--edge);border-radius:var(--round-sm);background:transparent;color:var(--ink);font-size:12px;letter-spacing:.12em;transition:background-color .5s var(--ease),border-color .5s var(--ease),color .5s var(--ease)}
+.small:hover:not(:disabled){border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.small.go,.small.stop{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.small.go:hover:not(:disabled),.small.stop:hover:not(:disabled){background:transparent;color:var(--ink)}
+.small.go:disabled{opacity:1;border-color:var(--line);background:transparent;color:var(--muted)}
+.testnote{display:block;margin-top:-7px;padding:0 8px 13px 34px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.testnote.fail{font-style:italic}
+.empty{padding:28px 0;font:italic 15px/1.6 var(--italic);color:var(--muted);text-align:center}
+#savedList{border-top:1px solid var(--line)}
+.svc{padding:22px 0 20px;border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}.svc:hover{border-bottom-color:var(--hover)}
+.svchead{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.svcidx{flex:none;font:italic 14px/1 var(--italic);color:var(--muted)}
+.svcname{min-width:0;font:21px/1.3 var(--serif);letter-spacing:-.01em;overflow-wrap:anywhere}
+.svcmeta{flex:none;margin-left:auto;font-size:12px;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+button.svcmeta::after{content:'';display:inline-block;width:5px;height:5px;margin:0 2px 3px 9px;border:solid currentColor;border-width:0 1px 1px 0;transform:rotate(45deg)}
+button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135deg)}
+.svcinfo{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:6px 18px;margin:0}
+.svcinfo dt{white-space:nowrap}
+.svcinfo dd{min-width:0;margin:0;font:12.5px/1.7 var(--mono);overflow-wrap:anywhere}
+.secret{display:flex;align-items:center;gap:8px}.secret span{flex:1;min-width:0}.secret .eye{margin:-7px -7px -7px 0}
+.masked{color:var(--muted);letter-spacing:.1em}.revealed{user-select:all}
+.svcfoot{display:flex;justify-content:flex-end;gap:22px;margin-top:12px}
+.svcfoot.open{display:block;margin-top:6px}
+.svcedit .field{margin-bottom:22px}
+.svcask{font:italic 15px/1.75 var(--italic);text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
+.svcbar{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.svcmodels{max-height:240px;overflow:auto;margin:16px 0 0;padding:0;border-top:1px solid var(--line);list-style:none}
+.svcmodels li{padding:6px 0;border-bottom:1px solid var(--line);font:12.5px/1.6 var(--mono);overflow-wrap:anywhere}.svcmodels li:last-child{border-bottom:0}
+.foot{margin-top:28px}.foot .note{margin-top:12px}
+#siteLogin .note{margin-top:12px}
+/* The account page opens with the account and its total top-ups, then the balance and the link that opens the site. */
+#siteInfo{margin-bottom:30px}
+.balance{margin:0 0 28px}.balance .sub{display:block}
+.amount{display:block;margin-top:4px;font:400 46px/1.1 var(--serif);letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums;overflow-wrap:anywhere}
+.siteopen{display:inline-flex;align-items:baseline;gap:7px;margin-top:12px;font-size:12.5px}
+.siteopen .arrow{font:13px/1 var(--sans);letter-spacing:0;transition:transform .5s var(--ease)}.siteopen:hover .arrow{transform:translate(2px,-2px)}
+#siteError{scroll-margin-top:72px}
+.sitehead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:34px;padding-bottom:10px;border-bottom:1px solid var(--line)}.sitehead .count{margin-left:0}
+/* 分组: one list by platform; a row asks its own questions below its name. */
+.gplat{margin-top:22px}.gplathead{padding-bottom:4px;font-size:11px;line-height:16px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.grow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:13px 0;border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}.grow:hover{border-bottom-color:var(--hover)}
+.gmain{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.gname{font:17px/1.45 var(--serif-body);overflow-wrap:anywhere}
+.gnote{font-size:12px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}.grow.on .gnote{color:var(--ink)}
+.gside{display:flex;align-items:center;gap:16px;flex:none}
+.grate{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}.gact{display:flex;justify-content:flex-end;min-width:62px}
+.gask{flex-basis:100%;padding-bottom:2px}
+#siteGroupsPart>.note{margin-top:14px}#siteStatus{margin:16px 0 0}
+.sitefoot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px}.sitefoot .note{flex:1;min-width:0;margin:0}
+/* 站内 Key: 删除 asks under the key, and a key's models open under it, on this page. A model already in ZCode stays ticked. */
+.keyact{display:flex;align-items:center;gap:20px;flex:none}
+.keyask{margin-top:14px}
+.keypick{margin-top:24px}.keypick .list{max-height:320px}.keypick .foot{margin-top:22px}
+.row:has(input:disabled){cursor:default}
+#siteKeyStatus{margin:16px 0 0;scroll-margin-top:72px}
+#siteAccount>.svcfoot{margin-top:18px}
+.status{display:none;margin:0 0 36px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--round-lg);font-size:13px;line-height:1.7;overflow-wrap:anywhere;text-wrap:pretty;word-break:keep-all}
+.status.error{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.ver{display:flex;align-items:center;gap:8px;padding-top:22px;border-top:1px solid var(--line);font-size:11px;letter-spacing:.2em;color:var(--muted)}
+.ver .mark{width:19px;height:auto;flex:none;color:var(--ink)}
+@media(max-width:380px){.shell{padding:16px 20px 22px}.part h2{font-size:25px}.pages{column-gap:22px}.pagetab{font-size:18px}}
+@media(min-width:560px){.shell{padding:28px 48px 30px}}
+@media(prefers-reduced-motion:reduce){*,::before,::after{transition-duration:0s!important}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top">
+<div class="bar"><span class="state"><i class="dot" id="dot"></i><span id="stateText">正在连接…</span></span><span class="tag" id="previewTag">预览</span><button class="hide" id="appHide" type="button" aria-label="收起 biubiu AI" title="收起（Ctrl+Alt+M）" hidden>收起</button></div>
+</header>
+<div class="pages" id="pageTabs" role="tablist" aria-label="面板页面">
+<button class="pagetab" id="siteTab" type="button" role="tab" aria-selected="true" aria-controls="sitePage"><span id="siteTabName">站点账户</span><span class="pagenote" id="siteTabNote"></span></button>
+<button class="pagetab" id="connectTab" type="button" role="tab" aria-selected="false" aria-controls="connectPage" tabindex="-1">连接服务</button>
+</div>
+<div class="page" id="sitePage" role="tabpanel" aria-labelledby="siteTab">
+<section class="part" id="siteCard">
+<div class="empty" id="siteLoading">正在读取账户…</div>
+<form id="siteLogin" novalidate hidden>
+<div class="field float"><label for="siteEmail">邮箱</label><input class="input" id="siteEmail" type="email" placeholder="注册时用的邮箱" autocomplete="username" spellcheck="false" maxlength="254"></div>
+<div class="field float"><label for="sitePassword">密码</label><input class="input" id="sitePassword" type="password" placeholder="网站的登录密码" autocomplete="current-password" maxlength="256"></div>
+<button class="primary" id="siteLoginBtn" type="submit" disabled>登录</button>
+<div class="note fail" id="siteLoginError" role="alert" hidden></div>
+<div class="note" id="siteNote">登录后自动读取余额和站内 Key。密码只用来登录，不会保存。</div>
+</form>
+<div id="siteAccount" hidden>
+<dl class="svcinfo" id="siteInfo"></dl>
+<div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div>
+<div class="note fail" id="siteError" hidden></div>
+<div id="siteGroupsPart" hidden>
+<div class="sitehead"><span class="sub">分组</span><span class="count" id="siteGroupCount"></span></div>
+<div id="siteGroups"></div>
+<div class="note">添加会用分组里已有的 Key，把它的全部模型直接加入 ZCode；删除只从 ZCode 移除，网站上的 Key 保留，可以在下面的站内 Key 里删除。</div>
+<div class="status" id="siteStatus" role="status" aria-live="polite"></div>
+</div>
+<div class="sitehead"><span class="sub">站内 Key</span><span class="count" id="siteKeyCount"></span></div>
+<div id="siteKeys" role="list" aria-label="站内 Key"></div>
+<div class="status" id="siteKeyStatus" role="status" aria-live="polite"></div>
+<div class="svcfoot"><button class="link" id="siteRefresh" type="button" data-site>刷新</button><button class="link" id="siteLogout" type="button" data-site>退出登录</button></div>
+</div>
+</section>
+</div>
+<div class="page" id="connectPage" role="tabpanel" aria-labelledby="connectTab" hidden>
+<section class="part">
+<h2><span class="num">01</span>连接服务</h2>
+<form id="connectForm" novalidate>
+<div class="field" id="savedField" hidden><label for="savedProvider">已保存的服务</label><select class="select" id="savedProvider"><option value="">添加新的服务</option></select></div>
+<div class="field float"><label for="baseUrl">服务地址</label><input class="input" id="baseUrl" type="url" placeholder="例如 https://api.example.com/v1" autocomplete="off" spellcheck="false"></div>
+<div class="field float"><label for="apiKey">API Key</label><div class="keybox"><input class="input" id="apiKey" type="password" placeholder="粘贴你的 API Key" autocomplete="off" spellcheck="false"><button class="eye" id="toggleKey" type="button" aria-pressed="false" aria-label="显示 Key" title="显示 Key"></button></div><div class="note" id="keyNote">Key 只保存在本机，不需要发到聊天里。</div></div>
+<details id="more"><summary>更多设置</summary>
+<div class="field"><label for="protocol">接口类型</label><select class="select" id="protocol"><option value="openai-chat-completions">OpenAI 兼容（最常见）</option><option value="anthropic-messages">Anthropic（Claude）</option><option value="openai-responses">OpenAI Responses</option></select><div class="note">通常会根据服务地址自动选择。</div></div>
+<div class="field float"><label for="providerName">显示名称</label><input class="input" id="providerName" maxlength="100" placeholder="不填则使用网址域名" autocomplete="off"></div>
+</details>
+<button class="primary" id="fetchBtn" type="submit" disabled>获取模型</button>
+</form>
+</section>
+<section class="part" id="pickCard" hidden>
+<h2><span class="num">02</span>选择模型</h2>
+<div class="listhead"><span id="found"></span><span><button class="link" id="selectAll" type="button">全选</button></span></div>
+<input class="input" id="search" type="search" placeholder="搜索模型" aria-label="搜索模型" autocomplete="off" hidden>
+<div class="list" id="list" role="group" aria-label="可用模型"></div>
+<div class="foot"><button class="primary" id="importBtn" type="button" disabled>添加到 ZCode</button><div class="note">勾选的模型按每行列出的参数加入 ZCode，要改请到 ZCode 的模型设置里改；已有的模型和设置不变，修改前自动备份。「测试」只发一条很短的请求，会消耗少量额度。</div></div>
+</section>
+<div class="status" id="status" role="status" aria-live="polite"></div>
+<section class="part" id="savedCard" hidden>
+<h2>已导入的服务<span class="count" id="savedCount"></span></h2>
+<div id="savedList" role="list" aria-label="已导入的服务"></div>
+</section>
+</div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.8</span></div>
+</main>
+<template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const LEVEL_NAMES = { disabled: '关闭', none: '关闭', minimal: '最小', low: '低', medium: '中', high: '高', xhigh: '极高', max: '最高', enabled: '开启' };
+  const LIMIT = 100000000;
+  const MASK = '••••••••••••', KEY_NOTE = $('keyNote').textContent;
+  let bridge = null, providers = [], result = null, busy = false, action = '', protocolTouched = false;
+  // site is the last site_account result; asking is the group row waiting on the user, { id, kind }: may a key be made on
+  // the site for it (key), may it leave ZCode (delete). keyAsking is the site key whose 删除 waits for 确认删除, { id,
+  // error }. pick is the site key whose models show under it, by id only: { id, loading } while they are read, then
+  // { id, result, selected, query, message, error, tests, testing }, or { id, error } when they could not be read.
+  let site = null, siteSeq = 0, siteAt = 0, asking = null, keyAsking = null, pick = null;
+  // openSite opens the site from the link under the balance: the desktop host opens it in a window of its own, signed in
+  // as this account; the preview, which has no host, can only open the site's login page in a new tab. tellHost sends
+  // the host a message; signing out tells it to close that window.
+  let openSite = null, tellHost = null;
+  // shown is whether the panel is in sight; only then is the balance read on its own, every BALANCE_EVERY milliseconds
+  // after the last read of it (balanceAt), full or alone.
+  const BALANCE_EVERY = 30000;
+  let shown = !document.hidden, balanceTimer = 0, balanceAt = 0, balanceReading = false;
+  // page is the page the tabs show. siteMissing means there is no site account to show (a local server older than this
+  // panel, or no local service at all), so only the connect page is left, without the tabs.
+  let page = 'site', siteMissing = false;
+  // selected and tests are the connect page's ticked models and 测试 results, by model id.
+  const selected = new Set(), tests = new Map(), openModels = new Set();
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const tokens = n => n >= 1000000 ? `${+(n / 1000000).toFixed(2)}M` : n >= 1000 ? `${+(n / 1000).toFixed(1)}K` : String(n);
+  const validCount = n => Number.isInteger(n) && n >= 1 && n <= LIMIT;
+  const hostname = url => { try { return new URL(url).hostname; } catch { return ''; } };
+  const guessProtocol = url => /anthropic|claude/i.test(url) ? 'anthropic-messages' : 'openai-chat-completions';
+  const money = n => typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const eyeIcons = () => $('eyeIcons').content.cloneNode(true);
+  // A model's parameters in one line, as ZCode will have them once it is added: ZCode's own values for a model it knows,
+  // else 256K / 128K / 低·高·最高 or less (metadata.mjs). biubiu AI sets nothing more; the rest is changed in ZCode.
+  function describe(v) {
+    const parts = [];
+    if (validCount(v.contextWindow)) parts.push(`上下文 ${tokens(v.contextWindow)}`);
+    if (validCount(v.maxOutputTokens)) parts.push(`输出 ${tokens(v.maxOutputTokens)}`);
+    if (Array.isArray(v.reasoningLevels)) { const on = v.reasoningLevels.filter(l => l !== 'disabled' && l !== 'none'); parts.push(on.length ? `思考 ${on.map(l => LEVEL_NAMES[l] || l).join(' / ')}` : '不支持思考'); }
+    return parts.length ? parts.join(' · ') : '按 ZCode 默认设置';
+  }
+  // 测试 beside a model: one short request through the service, whose outcome shows under the model.
+  function testLink(m, label, run) {
+    const b = el('button', 'link', label);
+    b.type = 'button'; b.disabled = busy || !bridge; b.dataset.test = m.id; b.title = '发一条很短的请求，看这个模型能不能用；会消耗少量额度';
+    b.setAttribute('aria-label', `测试 ${m.id}`); b.onclick = () => run(m);
+    return b;
+  }
+  function testNote(r) {
+    const secs = Number.isFinite(r.elapsedMs) ? `（${+(r.elapsedMs / 1000).toFixed(1)} 秒）` : '';
+    return el('span', 'testnote ' + (r.ok ? 'pass' : 'fail'), r.ok ? `✓ 可以正常调用${secs}` : `✗ ${r.error || r.reply || '没有收到预期回复'}`);
+  }
+  function status(text, error = false) { const box = $('status'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.textContent = text; }
+  function theme(value) { document.documentElement.dataset.theme = value === 'dark' ? 'dark' : 'light'; }
+  // The tabs switch between the site account page and the connect page (connecting a service, picking its models and the
+  // imported services). A page opens at its top, under the tabs, which stay at the top of the panel while it scrolls.
+  const PAGES = { site: ['siteTab', 'sitePage'], connect: ['connectTab', 'connectPage'] };
+  function renderPages() {
+    $('pageTabs').hidden = siteMissing;
+    // Changing a focused tab's tabIndex lays the panel out at once, so the chosen page shows before the other hides: a
+    // panel with no page at all would pull a scrolled panel back to its top.
+    $(PAGES[page][1]).hidden = false;
+    for (const [name, [tab, panel]] of Object.entries(PAGES)) { const on = name === page; $(tab).setAttribute('aria-selected', String(on)); $(tab).tabIndex = on ? 0 : -1; $(panel).hidden = !on; }
+  }
+  function showPage(name, focus = false) {
+    page = siteMissing ? 'connect' : name; renderPages();
+    const top = document.querySelector('.top').getBoundingClientRect().bottom + scrollY;
+    if (scrollY > top) scrollTo(0, top);
+    if (focus) $(PAGES[page][0]).focus();
+  }
+  function noSite() { siteMissing = true; page = 'connect'; renderPages(); }
+  for (const [name, [tab]] of Object.entries(PAGES)) $(tab).onclick = () => showPage(name);
+  // The arrow keys, Home and End move between the tabs, as in other tab lists.
+  $('pageTabs').addEventListener('keydown', e => {
+    const names = Object.keys(PAGES), i = names.indexOf(page);
+    const next = { ArrowRight: names[(i + 1) % names.length], ArrowLeft: names[(i + names.length - 1) % names.length], Home: names[0], End: names[names.length - 1] }[e.key];
+    if (next) { e.preventDefault(); showPage(next, true); }
+  });
+  async function call(name, args = {}) {
+    const response = await bridge(name, args);
+    if (response.isError) throw new Error(response.content?.find(c => c.type === 'text')?.text || '操作未完成，请重试。');
+    return response.structuredContent || {};
+  }
+  // fetch_models answers with the first page of models; get_models brings the rest.
+  async function allModels(fetched) {
+    const models = [...(fetched.models || [])]; let next = fetched.nextOffset;
+    while (next != null) {
+      const page = await call('get_models', { sessionId: fetched.sessionId, offset: next });
+      models.push(...(page.models || []));
+      if (page.nextOffset != null && page.nextOffset <= next) break;
+      next = page.nextOffset;
+    }
+    return models;
+  }
+  function updateControls() {
+    for (const id of ['savedProvider', 'baseUrl', 'apiKey', 'toggleKey', 'protocol', 'providerName']) $(id).disabled = busy || !bridge;
+    $('fetchBtn').disabled = busy || !bridge || !$('baseUrl').value.trim();
+    $('fetchBtn').textContent = busy && action === 'fetch' ? '正在获取模型…' : '获取模型';
+    $('importBtn').disabled = busy || !result || !selected.size;
+    $('importBtn').textContent = busy && action === 'import' ? '正在添加…' : selected.size ? `添加到 ZCode（${selected.size} 个）` : '添加到 ZCode';
+    $('search').disabled = busy;
+    for (const n of $('savedList').querySelectorAll('[data-change]')) n.disabled = busy || !bridge;
+    for (const id of ['siteEmail', 'sitePassword']) $(id).disabled = busy || !bridge;
+    $('siteLoginBtn').disabled = busy || !bridge || !$('siteEmail').value.trim() || !$('sitePassword').value;
+    $('siteLoginBtn').textContent = busy && action === 'site-login' ? '正在登录…' : '登录';
+    for (const n of $('siteCard').querySelectorAll('[data-site]')) n.disabled = busy || !bridge;
+    addButton($('keyPickAdd'));
+  }
+  function setBusy(value, kind = '') { busy = value; action = value ? kind : ''; updateControls(); }
+  function eye(button, shown, what = ' Key') { button.setAttribute('aria-pressed', String(shown)); button.setAttribute('aria-label', (shown ? '隐藏' : '显示') + what); button.title = shown ? '隐藏 Key' : '显示 Key'; }
+  function hideKey() { $('apiKey').type = 'password'; eye($('toggleKey'), false); }
+  function invalidate() { result = null; selected.clear(); tests.clear(); $('search').value = ''; render(); status(''); }
+  function visible() { const q = $('search').hidden ? '' : $('search').value.toLowerCase().trim(); return (result?.models || []).filter(m => m.id.toLowerCase().includes(q)); }
+  function render() {
+    const has = !!result;
+    $('pickCard').hidden = !has;
+    updateControls();
+    const list = $('list'); list.replaceChildren();
+    if (!has) return;
+    const total = result.models.length;
+    $('found').textContent = !total ? '这个服务没有返回模型' : selected.size ? `找到 ${total} 个，已选 ${selected.size} 个` : `找到 ${total} 个，勾选要用的模型`;
+    $('search').hidden = total <= 8;
+    const models = visible();
+    for (const m of models) list.append(modelItem(m));
+    if (total && !models.length) list.append(el('div', 'empty', '没有匹配的模型'));
+    const all = models.length > 0 && models.every(m => selected.has(m.id));
+    $('selectAll').textContent = all ? '取消全选' : '全选';
+    $('selectAll').disabled = busy || !models.length;
+  }
+  function focusModel(id) { for (const n of $('list').querySelectorAll('input[type=checkbox]')) if (n.dataset.id === id) { n.focus(); break; } }
+  // A model of the fetch: its tick, its name with the parameters it would get, and 测试, whose outcome shows below it.
+  function modelItem(m) {
+    const picked = selected.has(m.id), item = el('div', 'model' + (picked ? ' picked' : '')), line = el('div', 'line');
+    const row = el('label', 'row'), box = el('input'), info = el('span', 'info'), tested = tests.get(m.id);
+    box.type = 'checkbox'; box.checked = picked; box.disabled = busy; box.dataset.id = m.id;
+    box.addEventListener('change', () => { if (box.checked) selected.add(m.id); else selected.delete(m.id); render(); focusModel(m.id); });
+    info.append(el('span', 'id', m.id), el('span', 'meta', describe(m.metadata || {}))); row.append(box, info);
+    line.append(row, testLink(m, '测试', runTest)); item.append(line);
+    if (tested) item.append(testNote(tested));
+    return item;
+  }
+  async function runTest(m) {
+    if (busy || !result) return;
+    setBusy(true, 'test'); render(); status(`正在测试 ${m.id}…`);
+    try { tests.set(m.id, await call('test_model', { sessionId: result.sessionId, modelId: m.id })); status(''); }
+    catch (e) { status(e.message, true); }
+    finally { setBusy(false); render(); $('list').querySelector(`[data-test="${CSS.escape(m.id)}"]`)?.focus(); }
+  }
+  $('toggleKey').append(eyeIcons());
+  $('toggleKey').onclick = () => { const show = $('apiKey').type === 'password'; $('apiKey').type = show ? 'text' : 'password'; eye($('toggleKey'), show); };
+  function pickSaved() {
+    const p = providers.find(x => x.id === $('savedProvider').value);
+    $('baseUrl').value = p?.baseUrl || ''; $('providerName').value = p?.name || '';
+    $('protocol').value = p?.protocol || 'openai-chat-completions'; if (!$('protocol').value) $('protocol').value = 'openai-chat-completions';
+    protocolTouched = !!p; $('apiKey').value = ''; hideKey();
+    $('apiKey').placeholder = p?.hasKey ? '留空即使用已保存的 Key' : '粘贴你的 API Key';
+    invalidate();
+  }
+  $('savedProvider').addEventListener('change', pickSaved);
+  $('baseUrl').addEventListener('input', () => {
+    if ($('savedProvider').value) { $('savedProvider').value = ''; $('apiKey').placeholder = '粘贴你的 API Key'; }
+    if (!protocolTouched) $('protocol').value = guessProtocol($('baseUrl').value);
+    invalidate();
+  });
+  $('protocol').addEventListener('change', () => {
+    protocolTouched = true;
+    if ($('savedProvider').value) { $('savedProvider').value = ''; $('apiKey').placeholder = '粘贴你的 API Key'; }
+    invalidate();
+  });
+  $('apiKey').addEventListener('input', invalidate);
+  $('search').addEventListener('input', render);
+  // Collapsing or hiding the panel masks every key again and stops reading the balance; showing it re-reads the saved
+  // services and starts again. The desktop host also reports this in a message, because its web view still counts as
+  // visible to the page while the panel is hidden; it answers the page's 'ready' with the panel's state, since the page
+  // may load in a hidden panel. Only a change counts, so that answer does not read everything twice at start-up.
+  function panelShown(visible) {
+    if (visible === shown) return;
+    shown = visible;
+    if (!bridge) return;
+    if (visible) { loadProviders(); loadSite(false); } else { hideKey(); renderServices(); asking = keyAsking = null; renderSite(); $('sitePassword').value = ''; updateControls(); }
+    watchBalance();
+  }
+  document.addEventListener('visibilitychange', () => panelShown(!document.hidden));
+  $('selectAll').onclick = () => { const models = visible(), all = models.every(m => selected.has(m.id)); for (const m of models) if (all) selected.delete(m.id); else selected.add(m.id); render(); };
+  $('connectForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (busy || !bridge || !$('baseUrl').value.trim()) return;
+    invalidate(); setBusy(true, 'fetch'); status('正在连接服务，通常只要几秒…');
+    try {
+      const fetched = await call('fetch_models', { baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), protocol: $('protocol').value, existingProviderId: $('savedProvider').value });
+      const models = await allModels(fetched);
+      result = { ...fetched, models, nextOffset: null };
+      hideKey(); $('search').value = '';
+      if (!$('providerName').value.trim()) $('providerName').value = hostname(result.baseUrl) || hostname($('baseUrl').value.trim());
+      if (models.length === 1) selected.add(models[0].id);
+      status('');
+    } catch (err) { status(err.message, true); }
+    finally { setBusy(false); render(); }
+  });
+  $('importBtn').onclick = async () => {
+    if (busy || !result || !selected.size) return;
+    const ids = [...selected];
+    setBusy(true, 'import'); render();
+    try {
+      const providerName = $('providerName').value.trim() || hostname(result.baseUrl) || '我的模型服务';
+      const data = await call('import_models', { sessionId: result.sessionId, modelIds: ids, providerName });
+      status(window.__HARBOR_PREVIEW__ ? `预览：已添加 ${data.added} 个模型。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份。在 ZCode 的模型选择器里就能选到；如果没看到，重新打开模型选择器。`);
+      await loadProviders();
+    } catch (e) { status(e.message, true); }
+    finally { setBusy(false); render(); }
+  };
+  function renderServices() {
+    $('savedCard').hidden = !providers.length; $('savedCount').textContent = `${providers.length} 个`;
+    $('savedList').replaceChildren(...providers.map(serviceItem));
+  }
+  // The list never holds a key: one is fetched when its eye is clicked and dropped when it is hidden again.
+  // Model names arrive with list_providers, so opening a service's model list sends no request; it stays open across re-renders.
+  function serviceItem(p, i) {
+    const item = el('div', 'svc'), head = el('div', 'svchead'), info = el('dl', 'svcinfo'), secret = el('dd', 'secret'), text = el('span', 'masked', p.hasKey ? MASK : '未保存');
+    const models = Array.isArray(p.models) ? p.models : [], count = `${p.modelCount} 个模型`;
+    // A local server started before this panel version sends no model names and has no tools to change or delete
+    // a service, so the count stays plain text and the item offers neither.
+    const toggle = el(models.length ? 'button' : 'span', 'svcmeta', count);
+    item.setAttribute('role', 'listitem');
+    const index = el('span', 'svcidx', String(i + 1).padStart(2, '0'));
+    index.setAttribute('aria-hidden', 'true');
+    head.append(index, el('span', 'svcname', p.name), toggle);
+    secret.append(text);
+    if (p.hasKey) secret.append(keyEye(text, `「${p.name}」的 Key`, { providerId: p.id }, message => { status(message, true); loadProviders(); }));
+    info.append(el('dt', '', '地址'), el('dd', '', p.baseUrl), el('dt', '', 'Key'), secret);
+    item.append(head, info);
+    if (Array.isArray(p.models)) item.append(serviceChanges(p, i, info));
+    if (models.length) {
+      const list = el('ul', 'svcmodels');
+      list.id = `svcModels${i}`; list.setAttribute('aria-label', `「${p.name}」的模型`); list.append(...models.map(id => el('li', '', id)));
+      toggle.type = 'button'; toggle.setAttribute('aria-label', `「${p.name}」的 ${count}`); toggle.setAttribute('aria-controls', list.id);
+      const show = open => { list.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); toggle.title = open ? '收起模型列表' : '显示模型列表'; if (open) openModels.add(p.id); else openModels.delete(p.id); };
+      toggle.onclick = () => show(list.hidden);
+      show(openModels.has(p.id)); item.append(list);
+    }
+    return item;
+  }
+  // 修改 and 删除 open inside the item. Neither survives a re-render, so a typed key is dropped whenever the list is
+  // rebuilt, which includes the panel hiding. The key field starts empty; leaving it empty keeps the saved key.
+  function serviceChanges(p, i, info) {
+    const foot = el('div', 'svcfoot');
+    const button = (cls, text, onclick) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.change = ''; b.disabled = busy; if (onclick) b.onclick = onclick; return b; };
+    const bar = (...buttons) => { const row = el('div', 'svcbar'); row.append(...buttons); return row; };
+    const open = (...nodes) => { foot.className = 'svcfoot open'; foot.replaceChildren(...nodes); };
+    // A change waits for any other write, like an import does. Afterwards the list is rebuilt, and a connect form that
+    // had this service selected starts over from what is saved now, so an earlier fetch cannot write the old key back.
+    // A refusal shows in the item, or in the status line when the list was rebuilt meanwhile, as when the panel hides.
+    async function run(trigger, label, work, error) {
+      if (busy) return;
+      const text = trigger.textContent;
+      setBusy(true, 'change'); render(); error.hidden = true; trigger.textContent = label;
+      try {
+        const message = await work(), here = $('savedProvider').value === p.id;
+        await loadProviders(); if (here) pickSaved();
+        status(message);
+      } catch (e) { if (error.isConnected) { error.textContent = e.message; error.hidden = false; } else status(e.message, true); }
+      finally { trigger.textContent = text; setBusy(false); render(); }
+    }
+    function view(focus) {
+      const edit = button('link', '修改', editing), drop = button('link danger', '删除', confirming);
+      edit.setAttribute('aria-label', `修改「${p.name}」`); drop.setAttribute('aria-label', `删除「${p.name}」`);
+      info.hidden = false; foot.className = 'svcfoot'; foot.replaceChildren(edit, drop);
+      if (focus) (focus === 'drop' ? drop : edit).focus();
+    }
+    function editing() {
+      const form = el('form', 'svcedit'), url = el('input', 'input'), key = el('input', 'input'), box = el('div', 'keybox'), show = el('button', 'eye'), error = el('div', 'note fail');
+      const field = (label, input, body = input) => { const f = el('div', 'field float'), l = el('label', '', label); l.htmlFor = input.id; f.append(l, body); return f; };
+      url.id = `svcUrl${i}`; url.type = 'url'; url.value = p.baseUrl; url.autocomplete = 'off'; url.spellcheck = false;
+      if (p.fixedAddress) url.disabled = true; else { url.dataset.change = ''; url.disabled = busy; }
+      key.id = `svcKey${i}`; key.type = 'password'; key.autocomplete = 'off'; key.spellcheck = false; key.dataset.change = ''; key.disabled = busy;
+      key.placeholder = p.hasKey ? '留空则保持原 Key' : '粘贴 API Key';
+      show.type = 'button'; show.append(eyeIcons()); eye(show, false);
+      show.onclick = () => { const on = key.type === 'password'; key.type = on ? 'text' : 'password'; eye(show, on); };
+      box.append(key, show); error.hidden = true;
+      const save = button('small go', '保存'); save.type = 'submit';
+      form.noValidate = true;
+      form.append(field('服务地址', url), field('API Key', key, box));
+      if (p.fixedAddress) form.append(el('div', 'note', '地址来自 ZCode 内置模板，这里只能修改 Key。'));
+      form.append(error, bar(button('small', '取消', () => view('edit')), save));
+      form.onsubmit = e => { e.preventDefault(); run(save, '正在保存…', async () => {
+        const data = await call('update_provider', { providerId: p.id, baseUrl: url.value.trim(), apiKey: key.value.trim() });
+        const what = data.urlChanged && data.keyChanged ? '地址和 Key' : data.urlChanged ? '地址' : ' Key';
+        return data.unchanged ? '地址和 Key 都没有变化，配置没有改动。' : window.__HARBOR_PREVIEW__ ? `预览：已更新「${data.providerName}」的${what}。真实 ZCode 配置没有改动。` : `已更新「${data.providerName}」的${what}。原配置已自动备份。`;
+      }, error); };
+      info.hidden = true; open(form);
+      (p.fixedAddress ? key : url).focus();
+    }
+    function confirming() {
+      const error = el('div', 'note fail'), cancel = button('small', '取消', () => view('drop')), drop = button('small stop', '确认删除');
+      error.hidden = true;
+      drop.onclick = () => run(drop, '正在删除…', async () => {
+        const data = await call('delete_provider', { providerId: p.id });
+        openModels.delete(p.id);
+        return window.__HARBOR_PREVIEW__ ? `预览：已删除「${data.providerName}」。真实 ZCode 配置没有改动。` : `已从 ZCode 删除「${data.providerName}」。原配置已自动备份。`;
+      }, error);
+      open(el('div', 'svcask', `从 ZCode 删除「${p.name}」和它的 ${p.modelCount} 个模型？删除前会自动备份。`), error, bar(cancel, drop));
+      cancel.focus();
+    }
+    view();
+    return foot;
+  }
+  // A key is read only when its eye is clicked, shown in place, and masked again on the next click or re-render.
+  // failed reports a refusal on the page the key is on.
+  function keyEye(text, what, args, failed) {
+    const button = el('button', 'eye');
+    button.type = 'button'; button.append(eyeIcons()); eye(button, false, what);
+    button.onclick = async () => {
+      if (button.getAttribute('aria-pressed') === 'true') { text.className = 'masked'; text.textContent = MASK; eye(button, false, what); return; }
+      button.disabled = true;
+      try { const { apiKey } = await call('reveal_key', args); if (button.isConnected) { text.className = 'revealed'; text.textContent = apiKey; eye(button, true, what); } }
+      catch (e) { failed(e.message); }
+      finally { button.disabled = false; }
+    };
+    return button;
+  }
+  // The site account page: the account and its total top-ups, the balance with the link that opens the site, then the
+  // groups and keys. The page has no heading: the tab names the site, and the link and the login note its address.
+  // Keys arrive without their value: an eye reveals one, and a key's models are read by its id alone, so the server
+  // fills the key in itself. The site tab carries the balance, so it stays in sight on the connect page.
+  function renderSite() {
+    $('siteLoading').hidden = !!site;
+    watchBalance();
+    if (!site) return;
+    renderBalance();
+    $('siteLogin').hidden = !!site.signedIn; $('siteAccount').hidden = !site.signedIn;
+    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `登录 ${site.site?.host || '网站'} 的账号后，自动读取余额和站内 Key。密码只用来登录，不会保存。`; updateControls(); return; }
+    renderOpen();
+    $('siteError').textContent = site.error || ''; $('siteError').hidden = !site.error;
+    renderGroups();
+    renderKeys();
+    updateControls();
+  }
+  // The link under the balance, shown where there is a way to open the site (openSite).
+  function renderOpen() {
+    const host = site.site?.host || '', link = $('siteOpen');
+    link.hidden = !openSite || !host;
+    $('siteOpenText').textContent = `打开 ${host}`;
+    link.setAttribute('aria-label', `打开 ${host}，已登录 ${site.email || '这个账户'}`);
+    link.title = window.__HARBOR_PREVIEW__ ? '预览没有桌面外挂，只在新标签页打开网站的登录页。' : '在单独的窗口里打开网站，已登录这个账户';
+  }
+  $('siteOpen').onclick = () => { if (openSite && site?.signedIn) openSite(); };
+  // The balance on the site tab and on the site page, with the account and its total top-ups above it. Reading the
+  // balance alone redraws only this, so a revealed key, an open question or the focus in the lists below stay as they are.
+  function renderBalance() {
+    const name = site.site?.name || '站点', balance = site.signedIn && Number.isFinite(site.balance) ? money(site.balance) : '';
+    $('siteTabName').textContent = name; $('siteTabNote').textContent = site.signedIn ? balance : '未登录';
+    $('siteTab').setAttribute('aria-label', !site.signedIn ? `${name}，未登录` : balance ? `${name}，余额 ${balance}` : name);
+    if (!site.signedIn) return;
+    $('siteBalance').textContent = money(site.balance);
+    const info = [el('dt', '', '账户'), el('dd', '', site.email || '—')];
+    if (site.totalRecharged != null) info.push(el('dt', '', '累计充值'), el('dd', '', money(site.totalRecharged)));
+    $('siteInfo').replaceChildren(...info);
+  }
+  // While the panel is shown and signed in, the balance is read on its own BALANCE_EVERY after the last read of it.
+  // Hiding the panel, signing out or a read under way stops the timer; the read's end sets the next one.
+  function watchBalance() {
+    clearTimeout(balanceTimer); balanceTimer = 0;
+    if (shown && bridge && site?.signedIn && !balanceReading) balanceTimer = setTimeout(readBalance, Math.max(0, balanceAt + BALANCE_EVERY - Date.now()));
+  }
+  // A full read, a login or a logout that starts meanwhile wins over this one. A failed read keeps the last balance in
+  // sight and the next one tries again; a lost sign-in turns the site page into the login form, which says so.
+  async function readBalance() {
+    balanceTimer = 0;
+    if (balanceReading || !shown || !bridge || !site?.signedIn) return;
+    const seq = siteSeq; balanceReading = true;
+    try {
+      const data = await call('site_account', { balanceOnly: true });
+      if (seq !== siteSeq) return;
+      if (!data.signedIn) { site = data; siteAt = Date.now(); renderSite(); }
+      else if (!data.error) { site.balance = data.balance; site.totalRecharged = data.totalRecharged; renderBalance(); }
+    } catch {}
+    finally { balanceReading = false; balanceAt = Date.now(); watchBalance(); }
+  }
+  // 站内 Key: a key's models open under it and 删除 asks under it, both here on the site page. Both stay open when the
+  // list is drawn again, as long as the key is still listed; focus goes back to the button named.
+  function renderKeys(focus) {
+    const keys = site?.keys || [];
+    if (pick && !keys.some(k => k.id === pick.id && !k.blocked)) pick = null;
+    if (keyAsking && !keys.some(k => k.id === keyAsking.id && !k.testKey)) keyAsking = null;
+    $('siteKeyCount').textContent = keys.length ? `${keys.length} 个` : '';
+    $('siteKeys').replaceChildren(...(keys.length ? keys.map(siteKeyItem) : site?.error ? [] : [el('div', 'empty', site?.groups ? '这个账户还没有 Key，添加分组时可以新建一个。' : '这个账户还没有 Key，可以先在网站上创建。')]));
+    if (focus) $('siteKeys').querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus();
+  }
+  // A site key: its group, its value behind the eye, its quota and expiry. 添加到 ZCode (选择模型 once it is in ZCode)
+  // reads its models and lists them under it, and 删除 asks under it first. The site's own test keys have no 删除, as on
+  // the site; a key ZCode cannot use says why instead of offering its models.
+  function siteKeyItem(k, i) {
+    const item = el('div', 'svc'), head = el('div', 'svchead'), info = el('dl', 'svcinfo'), secret = el('dd', 'secret'), text = el('span', 'masked', k.hasKey ? MASK : '未提供');
+    const index = el('span', 'svcidx', String(i + 1).padStart(2, '0')), foot = el('div', 'sitefoot'), side = el('span', 'keyact'), open = pick?.id === k.id;
+    const button = (cls, label, focus, onclick) => { const b = el('button', cls, label); b.type = 'button'; b.dataset.site = ''; b.dataset.focus = `${k.id}:${focus}`; b.disabled = busy || !bridge; b.onclick = onclick; return b; };
+    item.setAttribute('role', 'listitem'); index.setAttribute('aria-hidden', 'true');
+    head.append(index, el('span', 'svcname', k.name), el('span', 'svcmeta', k.statusLabel));
+    secret.append(text);
+    if (k.hasKey) secret.append(keyEye(text, `「${k.name}」的 Key`, { siteKeyId: k.id }, siteFailed));
+    info.append(el('dt', '', '分组'), el('dd', '', [k.group, k.platformName].filter(Boolean).join(' · ') || '—'), el('dt', '', 'Key'), secret);
+    if (k.quota > 0) info.append(el('dt', '', '额度'), el('dd', '', `已用 ${money(k.quotaUsed ?? 0)} / ${money(k.quota)}`));
+    const expires = k.expiresAt ? new Date(k.expiresAt) : null;
+    if (expires && !Number.isNaN(expires.getTime())) info.append(el('dt', '', '到期'), el('dd', '', expires.toLocaleDateString('zh-CN')));
+    foot.append(el('span', 'note', k.blocked || (k.inZCode ? `已在 ZCode：「${k.inZCode}」` : '')), side);
+    if (!k.testKey) {
+      const drop = button('link', '删除', 'delete', () => askKey(k));
+      drop.setAttribute('aria-label', `删除站内 Key「${k.name}」`);
+      side.append(drop);
+    }
+    if (!k.blocked) {
+      const name = k.inZCode ? '选择模型' : '添加到 ZCode', models = button('small', open ? pick.loading ? '正在读取…' : '收起' : name, 'models', () => open ? closePick(k) : openPick(k));
+      models.setAttribute('aria-label', open ? `收起「${k.name}」的模型` : `${k.inZCode ? '为' : '把'}「${k.name}」${name}`);
+      models.setAttribute('aria-expanded', String(open));
+      if (open) models.setAttribute('aria-controls', 'keyPick');
+      side.append(models);
+    }
+    item.append(head, info, foot);
+    if (keyAsking?.id === k.id) item.append(keyAsk(k, button));
+    if (open) item.append(keyModels(k, button));
+    return item;
+  }
+  // 删除 asks under the key: the key goes on the site too, with the services in ZCode that use it, without a backup once
+  // confirmed. A refusal shows here.
+  function keyAsk(k, button) {
+    const ask = el('div', 'keyask'), bar = el('div', 'svcbar'), yes = button('small stop', '确认删除', 'yes', () => deleteKey(k, yes));
+    bar.append(button('small', '取消', 'cancel', () => { keyAsking = null; renderKeys(`${k.id}:delete`); }), yes);
+    ask.append(el('div', 'svcask', `删除站内 Key「${k.name}」？网站上的这个 Key 会一起删除，之后不能再用${k.inZCode ? `；ZCode 里使用它的「${k.inZCode}」也会删除` : ''}。`));
+    if (keyAsking.error) ask.append(el('div', 'note fail', keyAsking.error));
+    ask.append(bar);
+    return ask;
+  }
+  // The key's models under it. Ticked ones go to the key's own service in ZCode (named after the key the first time);
+  // the ones already there stay ticked and cannot be unticked, since adding never removes a model. More than eight get a
+  // search box. A tick redraws only the list and the count on 添加到 ZCode.
+  function keyModels(k, button) {
+    const box = el('div', 'keypick');
+    box.id = 'keyPick'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `「${k.name}」的模型`);
+    if (pick.loading) { box.append(el('div', 'empty', '正在读取模型…')); return box; }
+    if (!pick.result) { const bar = el('div', 'svcbar'); bar.append(button('small', '重试', 'retry', () => openPick(k))); box.append(el('div', 'note fail', pick.error || '没有读到模型，请重试。'), bar); return box; }
+    const models = pick.result.models, head = el('div', 'listhead'), found = el('span', 'found'), links = el('span'), list = el('div', 'list'), foot = el('div', 'foot'), add = el('button', 'primary', '添加到 ZCode');
+    const shown = () => { const q = pick.query.toLowerCase().trim(); return models.filter(m => m.id.toLowerCase().includes(q)); };
+    const all = button('link', '全选', 'all', () => { const free = shown().filter(m => !m.inZCode), every = free.every(m => pick.selected.has(m.id)); for (const m of free) if (every) pick.selected.delete(m.id); else pick.selected.add(m.id); draw(); });
+    add.id = 'keyPickAdd'; add.type = 'button'; add.dataset.focus = `${k.id}:add`; add.onclick = () => addPicked(k);
+    list.setAttribute('role', 'group'); list.setAttribute('aria-label', `「${k.name}」可添加的模型`);
+    links.append(all); head.append(found, links); box.append(head);
+    if (models.length > 8) {
+      const search = el('input', 'input search');
+      search.type = 'search'; search.placeholder = '搜索模型'; search.autocomplete = 'off'; search.value = pick.query; search.dataset.site = ''; search.disabled = busy || !bridge;
+      search.setAttribute('aria-label', `搜索「${k.name}」的模型`);
+      search.oninput = () => { pick.query = search.value; draw(); };
+      box.append(search);
+    }
+    function draw(focus) {
+      const visible = shown(), free = visible.filter(m => !m.inZCode), saved = models.filter(m => m.inZCode).length, n = pick.selected.size;
+      found.textContent = saved === models.length ? `找到 ${models.length} 个，都已在 ZCode` : `找到 ${models.length} 个${saved ? `，${saved} 个已在 ZCode` : ''}${n ? `，已选 ${n} 个` : '，勾选要添加的模型'}`;
+      all.hidden = !free.length; all.textContent = free.length && free.every(m => pick.selected.has(m.id)) ? '取消全选' : '全选';
+      list.replaceChildren(...visible.map(m => {
+        const item = el('div', 'model' + (pick.selected.has(m.id) ? ' picked' : '')), line = el('div', 'line'), row = el('label', 'row'), tick = el('input'), info = el('span', 'info'), tested = pick.tests?.get(m.id);
+        tick.type = 'checkbox'; tick.checked = Boolean(m.inZCode) || pick.selected.has(m.id); tick.dataset.id = m.id;
+        if (m.inZCode) tick.disabled = true;
+        else { tick.dataset.site = ''; tick.disabled = busy || !bridge; tick.onchange = () => { if (tick.checked) pick.selected.add(m.id); else pick.selected.delete(m.id); draw(m.id); }; }
+        info.append(el('span', 'id', m.id), el('span', 'meta', `${m.inZCode ? '已在 ZCode · ' : ''}${describe(m.metadata || {})}`));
+        const test = testLink(m, pick.testing === m.id ? '测试中…' : '测试', model => testPicked(k, model));
+        test.dataset.site = ''; test.dataset.focus = `${k.id}:test:${m.id}`;
+        row.append(tick, info); line.append(row, test); item.append(line);
+        if (tested) item.append(testNote(tested));
+        return item;
+      }), ...(visible.length ? [] : [el('div', 'empty', '没有匹配的模型')]));
+      addButton(add);
+      if (focus) for (const n of list.querySelectorAll('input[type=checkbox]')) if (n.dataset.id === focus) { n.focus(); break; }
+    }
+    foot.append(add, el('div', 'note', '只添加勾选的模型，按每行列出的参数加入 ZCode，要改请到 ZCode 的模型设置里改；已有的模型和设置不变，修改前自动备份。「测试」只发一条很短的请求，会消耗少量额度。'));
+    if (pick.message) foot.append(el('div', 'note', pick.message));
+    if (pick.error) foot.append(el('div', 'note fail', pick.error));
+    box.append(list, foot);
+    draw();
+    return box;
+  }
+  // 添加到 ZCode under a key's models counts the ticked ones; it waits for one, and for the panel to be free.
+  function addButton(add) {
+    if (!add) return;
+    const n = pick?.selected?.size || 0;
+    add.disabled = busy || !bridge || !n;
+    add.textContent = busy && action === 'pick-add' ? '正在添加…' : n ? `添加到 ZCode（${n} 个）` : '添加到 ZCode';
+  }
+  // Reads a key's models from the site's gateway by the key's id alone and lists them under it; another key's close.
+  async function openPick(k) {
+    if (busy || !bridge || !site?.signedIn || k.blocked) return;
+    pick = { id: k.id, loading: true }; keyAsking = null; keyStatus(''); siteStatus('');
+    setBusy(true, 'pick'); renderKeys();
+    try {
+      const fetched = await call('fetch_models', { baseUrl: k.baseUrl, protocol: k.protocol, siteKeyId: k.id });
+      const models = await allModels(fetched);
+      if (pick?.id === k.id) pick = { id: k.id, result: { ...fetched, models, nextOffset: null }, selected: new Set(models.length === 1 && !models[0].inZCode ? [models[0].id] : []), query: '', message: '', error: '' };
+    } catch (e) { if (pick?.id === k.id) pick = { id: k.id, error: e.message }; }
+    finally { setBusy(false); renderKeys(`${k.id}:models`); }
+  }
+  function closePick(k) { pick = null; renderKeys(`${k.id}:models`); }
+  // Adds the ticked models and keeps the list open, with them shown as in ZCode. The account and the services are read
+  // again while the panel is still busy, so the key, and its group, show as in ZCode.
+  async function addPicked(k) {
+    if (busy || !bridge || pick?.id !== k.id || !pick.result || !pick.selected.size) return;
+    const current = pick, ids = [...current.selected];
+    setBusy(true, 'pick-add'); current.message = current.error = '';
+    try {
+      const data = await call('import_models', { sessionId: current.result.sessionId, modelIds: ids, providerName: `${site.site?.name || hostname(k.baseUrl)} · ${k.name}`.slice(0, 100) });
+      for (const m of current.result.models) if (ids.includes(m.id)) m.inZCode = true;
+      current.selected.clear();
+      current.message = window.__HARBOR_PREVIEW__ ? `预览：已把 ${data.added} 个模型添加到「${data.providerName}」。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份；在 ZCode 的模型选择器里就能选到。`;
+      await Promise.all([loadSite(), loadProviders()]);
+    } catch (e) { current.error = e.message; }
+    finally { setBusy(false); renderKeys(`${k.id}:models`); }
+  }
+  // 测试 under a key: one short request to one of its models through the site's gateway; the outcome stays under it.
+  async function testPicked(k, m) {
+    if (busy || !bridge || pick?.id !== k.id || !pick.result) return;
+    const current = pick;
+    current.tests ||= new Map(); current.testing = m.id;
+    setBusy(true, 'pick-test'); renderKeys();
+    try { current.tests.set(m.id, await call('test_model', { sessionId: current.result.sessionId, modelId: m.id })); }
+    catch (e) { current.tests.set(m.id, { ok: false, error: e.message }); }
+    finally { current.testing = ''; setBusy(false); renderKeys(`${k.id}:test:${m.id}`); }
+  }
+  function askKey(k) { keyAsking = { id: k.id, error: '' }; if (pick?.id === k.id) pick = null; renderKeys(`${k.id}:cancel`); }
+  // 确认删除: the key's services leave ZCode, then the key leaves the site. The account and the services are read again
+  // while the panel is still busy. The outcome shows under the list; a refusal shows in the question, which stays open.
+  async function deleteKey(k, trigger) {
+    if (busy || !bridge) return;
+    let done = false;
+    setBusy(true, 'key'); trigger.textContent = '正在删除…'; keyStatus(''); siteStatus('');
+    try {
+      const r = await call('site_delete_key', { siteKeyId: k.id }), services = r.removed?.length ? `「${r.removed.join('」「')}」` : '';
+      keyAsking = null; done = true;
+      keyStatus(window.__HARBOR_PREVIEW__ ? `预览：已删除站内 Key「${r.keyName}」${services ? `，临时配置里的${services}也已删除` : ''}。真实 ZCode 配置没有改动。` : `已删除站内 Key「${r.keyName}」${services ? `，并从 ZCode 删除了${services}` : ''}。`);
+    } catch (e) { keyAsking = { id: k.id, error: e.message }; }
+    finally {
+      await Promise.all([loadSite(), loadProviders()]); setBusy(false); renderKeys(done ? '' : `${k.id}:cancel`);
+      if (done) $('siteKeyStatus').scrollIntoView({ block: 'nearest' });
+    }
+  }
+  // The outcome of deleting a key, under the list of keys.
+  function keyStatus(text, error = false) { const box = $('siteKeyStatus'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.textContent = text; }
+  // 分组: all of the account's groups in one list, by platform as the site's group page has them. A group in ZCode has
+  // 删除; the others have 添加, which puts all of the group's models in ZCode with one of its working keys, and for a
+  // group without one asks in its row before a key is made on the site. 删除 asks in the row too. A local server older
+  // than this panel sends no groups, and the part stays hidden.
+  function renderGroups(focus) {
+    const groups = site?.groups;
+    $('siteGroupsPart').hidden = !Array.isArray(groups);
+    if (!Array.isArray(groups)) return;
+    if (asking && !groups.some(g => g.id === asking.id && !g.blocked && (asking.kind === 'delete') === Boolean(g.inZCode?.length))) asking = null;
+    $('siteGroupCount').textContent = groups.length ? `已添加 ${groups.filter(g => g.inZCode?.length).length} / ${groups.length} 个` : '';
+    const platforms = new Map();
+    for (const g of groups) { const name = g.platformName || '其他'; if (!platforms.has(name)) platforms.set(name, []); platforms.get(name).push(g); }
+    $('siteGroups').replaceChildren(...(groups.length ? [...platforms].map(([name, list]) => {
+      const block = el('div', 'gplat'), rows = el('div');
+      block.setAttribute('role', 'group'); block.setAttribute('aria-label', `${name} 分组`); rows.setAttribute('role', 'list');
+      rows.append(...list.map(groupRow)); block.append(el('div', 'gplathead', name), rows);
+      return block;
+    }) : [el('div', 'empty', '这个账户还没有可用的分组。')]));
+    if (focus) $('siteGroups').querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus();
+  }
+  function groupRow(g) {
+    const held = g.inZCode?.length ? g.inZCode : null, row = el('div', held ? 'grow on' : 'grow'), main = el('div', 'gmain'), side = el('div', 'gside');
+    const models = held ? held.reduce((n, p) => n + p.modelCount, 0) : 0, names = held ? held.map(p => `「${p.name}」`).join('、') : '';
+    const button = (cls, text, focus, onclick) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.site = ''; b.dataset.focus = `${g.id}:${focus}`; b.disabled = busy || !bridge; b.onclick = onclick; return b; };
+    row.setAttribute('role', 'listitem');
+    main.append(el('span', 'gname', g.name));
+    const note = g.blocked || (held ? `已加入 ZCode：${names} · ${models} 个模型` : g.remark);
+    if (note) main.append(el('span', 'gnote', note));
+    if (g.multiplier != null) { const rate = el('span', 'grate', `×${g.multiplier}`); rate.title = '计费倍率'; side.append(rate); }
+    // The button sits in a slot of one width, so the rates line up whether a row has 添加, 删除 or nothing.
+    const slot = el('span', 'gact');
+    if (!g.blocked) {
+      const action = held ? button('link', '删除', 'action', () => openAsk(g, 'delete')) : button('small', '添加', 'action', () => g.hasUsableKey ? addGroup(g, false, action) : openAsk(g, 'key'));
+      action.setAttribute('aria-label', `${held ? '删除' : '添加'}分组「${g.name}」`);
+      slot.append(action);
+    }
+    side.append(slot);
+    row.append(main, side);
+    if (asking?.id === g.id) {
+      const ask = el('div', 'gask'), bar = el('div', 'svcbar'), key = asking.kind === 'key';
+      const yes = key ? button('small go', '新建 Key 并添加', 'yes', () => addGroup(g, true, yes)) : button('small stop', '确认删除', 'yes', () => removeGroup(g, yes));
+      bar.append(button('small', '取消', 'cancel', () => { asking = null; renderGroups(`${g.id}:action`); }), yes);
+      ask.append(el('div', 'svcask', key ? `「${g.name}」还没有可用的 Key。要在网站上为它新建一个 Key（不限额度、不过期），再把它的全部模型加入 ZCode 吗？` : `从 ZCode 删除分组「${g.name}」：${names}和它的 ${models} 个模型？删除前会自动备份，网站上的 Key 保留。`), bar);
+      row.append(ask);
+    }
+    return row;
+  }
+  function openAsk(g, kind) { asking = { id: g.id, kind }; renderGroups(`${g.id}:cancel`); }
+  // A group change reports in the line under the list, and a key's deletion under the keys; a new one clears both. The account and the services list are read again while the
+  // panel is still busy, so the row that asked cannot be clicked twice.
+  function siteStatus(text, error = false) { const box = $('siteStatus'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.textContent = text; }
+  async function groupChange(trigger, label, work) {
+    if (busy || !bridge) return;
+    const text = trigger.textContent;
+    setBusy(true, 'group'); trigger.textContent = label; siteStatus(''); keyStatus('');
+    try { siteStatus(await work()); } catch (e) { siteStatus(e.message, true); }
+    finally { asking = null; await Promise.all([loadSite(), loadProviders()]); trigger.textContent = text; setBusy(false); }
+  }
+  function addGroup(g, createKey, trigger) {
+    return groupChange(trigger, '正在添加…', async () => {
+      const r = await call('site_add_group', { groupId: g.id, createKey });
+      if (r.unchanged) return `分组「${r.groupName}」的模型已经都在 ZCode 里。`;
+      const made = r.createdKey ? `，并在网站上新建了 Key「${r.createdKey}」` : '';
+      return window.__HARBOR_PREVIEW__ ? `预览：已添加分组「${r.groupName}」，${r.added} 个模型加入「${r.providerName}」${made}。真实 ZCode 配置没有改动。` : `已添加分组「${r.groupName}」：${r.added} 个模型加入 ZCode「${r.providerName}」${made}。原配置已自动备份。`;
+    });
+  }
+  function removeGroup(g, trigger) {
+    return groupChange(trigger, '正在删除…', async () => {
+      const r = await call('site_remove_group', { groupId: g.id });
+      return window.__HARBOR_PREVIEW__ ? `预览：已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。真实 ZCode 配置没有改动。` : `已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。原配置已自动备份，网站上的 Key 保留。`;
+    });
+  }
+  // A site action that fails reports on the site page, since the status line belongs to the connect page. Reading the
+  // account again first turns an expired sign-in into the login form, which says so.
+  function siteProblem(message) { const box = $('siteError'); box.textContent = message; box.hidden = false; box.scrollIntoView({ block: 'nearest' }); }
+  async function siteFailed(message) { await loadSite(); if (site?.signedIn) siteProblem(message); }
+  // A local server older than this panel has no site tools, and only the connect page is left. Showing the panel
+  // re-reads the account at most once a minute; 刷新 always does. A full read brings the balance too, so the timer
+  // counts from it, and from its start, so that showing the panel does not read the balance twice.
+  async function loadSite(force = true) {
+    if (!bridge || (!force && Date.now() - siteAt < 60000)) return;
+    const seq = ++siteSeq; balanceAt = Date.now();
+    try { const data = await call('site_account'); if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); if (siteMissing) { siteMissing = false; renderPages(); } renderSite(); } }
+    catch { if (!site) noSite(); }
+  }
+  for (const id of ['siteEmail', 'sitePassword']) $(id).addEventListener('input', () => { $('siteLoginError').hidden = true; updateControls(); });
+  $('siteLogin').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('siteEmail').value.trim(), password = $('sitePassword').value;
+    if (busy || !bridge || !email || !password) return;
+    const seq = ++siteSeq;
+    setBusy(true, 'site-login'); $('siteLoginError').hidden = true;
+    try { const data = await call('site_login', { email, password }); $('sitePassword').value = ''; if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); } }
+    catch (err) { $('siteLoginError').textContent = err.message; $('siteLoginError').hidden = false; }
+    finally { setBusy(false); renderSite(); }
+  });
+  $('siteRefresh').onclick = async () => {
+    if (busy || !bridge) return;
+    setBusy(true, 'site'); $('siteRefresh').textContent = '正在刷新…';
+    try { await loadSite(); } finally { $('siteRefresh').textContent = '刷新'; setBusy(false); renderSite(); }
+  };
+  $('siteLogout').onclick = async () => {
+    if (busy || !bridge) return;
+    const seq = ++siteSeq; let problem = '';
+    setBusy(true, 'site');
+    try { const data = await call('site_logout'); if (seq === siteSeq) { site = data; siteAt = 0; } asking = keyAsking = pick = null; siteStatus(''); keyStatus(''); tellHost?.('site-signed-out'); }
+    catch (e) { problem = e.message; }
+    finally { setBusy(false); renderSite(); if (problem) siteProblem(problem); }
+  };
+  async function loadProviders() {
+    try {
+      const data = await call('list_providers'); providers = data.providers || [];
+      const select = $('savedProvider'), current = select.value;
+      select.replaceChildren(new Option('添加新的服务', ''));
+      for (const p of providers) select.add(new Option(p.name, p.id));
+      select.value = providers.some(p => p.id === current) ? current : '';
+      if (current && !select.value) $('apiKey').placeholder = '粘贴你的 API Key';
+      $('savedField').hidden = !providers.length; $('keyNote').textContent = KEY_NOTE;
+      renderServices();
+    } catch (e) { $('keyNote').textContent = e.message; }
+  }
+  // WebView2 sometimes installs window.chrome.webview a few milliseconds after this script starts. Reading it only once
+  // would leave the page without the host's theme and panel messages, so look again for up to two seconds.
+  function hostChannel(tries = 100) { return new Promise(resolve => { const look = left => { const webview = window.chrome?.webview; if (webview || left <= 0) resolve(webview); else setTimeout(() => look(left - 1), 20); }; look(tries); }); }
+  async function init() {
+    updateControls();
+    try {
+      if (window.__HARBOR_PREVIEW__) {
+        $('previewTag').style.display = 'inline'; $('stateText').textContent = '预览模式';
+        bridge = async (name, args) => { const r = await fetch('/api/tool', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Harbor-Preview': window.__HARBOR_PREVIEW__ }, body: JSON.stringify({ name, args }) }); if (!r.ok) throw new Error('预览服务连接失败'); return r.json(); };
+        openSite = () => { const origin = site?.site?.origin; if (origin) window.open(`${origin}/login`, '_blank', 'noopener'); };
+      } else if (window.__HARBOR_APP__) {
+        const app = window.__HARBOR_APP__;
+        const api = async (path, init = {}) => { const r = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', 'X-Harbor-App': app.token } }); if (!r.ok) throw new Error('biubiu AI 本地服务连接失败，请从托盘图标重新打开。'); return r.json(); };
+        bridge = (name, args) => api('/api/tool', { method: 'POST', body: JSON.stringify({ name, args }) });
+        const webview = await hostChannel();
+        webview?.addEventListener('message', e => { if (e.data?.type === 'theme') theme(e.data.theme); else if (e.data?.type === 'panel') panelShown(e.data.visible === true); else if (e.data?.type === 'site-window' && e.data.error) siteProblem(String(e.data.error)); });
+        if (webview) { tellHost = message => webview.postMessage(message); openSite = () => tellHost('open-site'); }
+        if (webview) { $('appHide').hidden = false; $('appHide').onclick = () => webview.postMessage('hide'); webview.postMessage('ready'); }
+        try { theme((await api('/api/host')).theme); } catch { theme('light'); }
+        $('stateText').textContent = '已连接';
+      } else {
+        throw new Error('请从 biubiu AI 桌面外挂打开此页面（托盘图标或 Ctrl+Alt+M）。');
+      }
+      $('dot').classList.add('on'); setBusy(false); await loadProviders(); render(); loadSite();
+    } catch (e) { $('stateText').textContent = '未连接'; noSite(); status(e.message, true); }
+  }
+  init();
+})();
+</script>
+</body></html>

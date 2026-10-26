@@ -1,0 +1,21 @@
+{
+  "name": "model-harbor-project",
+  "version": "0.8.8",
+  "private": true,
+  "type": "module",
+  "description": "biubiu AI desktop companion for ZCode: a WebView2 side panel that docks beside the ZCode window",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test app/lib/core.test.mjs app/lib/metadata.test.mjs app/lib/site.test.mjs app/server.test.mjs app/icon.test.mjs app/installer/package.test.mjs",
+    "preview": "node app/preview.mjs",
+    "app:server": "node app/server.mjs",
+    "app:build": "node app/build.mjs",
+    "app:start": "node app/build.mjs --run",
+    "app:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File build/companion-dev/smoke-host.ps1",
+    "app:site-check": "node build/companion-dev/site-window-check.mjs",
+    "app:installer": "node app/build.mjs && node app/installer/package.mjs",
+    "app:installer-check": "powershell -NoProfile -ExecutionPolicy Bypass -File build/companion-dev/installer-check.ps1"
+  }
+}

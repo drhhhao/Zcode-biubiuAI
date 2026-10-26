@@ -1,0 +1,13 @@
+node_modules/
+app/bin/
+dist/
+.migration/
+# Of build/, only the companion-dev scripts, the stand-in ZCode and the icon go to the public repository: the WebView2 SDK,
+# the installer's third-party files, backups, test screenshots and the plugin-era records stay on this machine.
+build/*
+!build/companion-dev/
+build/companion-dev/*.png
+build/companion-dev/*.jpg
+!build/companion-dev/biubiu-icon.png
+docs/plugin-era/
+releases/
