@@ -230,7 +230,7 @@ test('the desktop host tells the page when the panel hides or shows, and when th
   assert.match(panel.slice(hook, panel.indexOf('\n        }\n', hook)), /base\.OnVisibleChanged\(e\);\s*PostPanel\(\);$/);
   assert.ok(post > 0 && panel.slice(post, post + 400).includes('PostWebMessageAsJson("{\\"type\\":\\"panel\\",\\"visible\\":" + (Visible ? "true" : "false") + "}")'));
   // The page may load in a hidden panel, or in one shown before it listened: it says ready once it listens.
-  assert.ok(panel.includes('else if (message == "ready") PostPanel();'));
+  assert.ok(panel.includes('else if (message == "ready") { PostPanel(); SendUpdate(); }'));
   assert.ok(html.includes("webview.postMessage('ready');"));
   assert.ok(html.includes("else if (e.data?.type === 'panel') panelShown(e.data.visible === true);"));
   assert.ok(html.includes("document.addEventListener('visibilitychange', () => panelShown(!document.hidden));"));
@@ -348,10 +348,71 @@ test('the tray icon\'s menu is drawn like the panel: its theme, rounded corners,
   assert.ok(menu.includes('public override bool CanSelect { get { return false; } }'));
   // The rows: the side to dock on is one of two, the startup entry a check box, the hotkey written when it is ours.
   for (const row of ['menu.Add("展开面板"', 'menu.Add("重新加载面板"', 'menu.Add("优先贴在 ZCode 右侧", () => SetDock(false), TrayMenu.Mark.Option)', 'menu.Add("优先贴在 ZCode 左侧", () => SetDock(true), TrayMenu.Mark.Option)',
-    'menu.Add("登录 Windows 时在后台待命", () => ToggleStartup(), TrayMenu.Mark.Check)', 'menu.Add("打开日志文件夹"', 'menu.Add("退出 biubiu AI"'])
+    'menu.Add("登录 Windows 时在后台待命", () => ToggleStartup(), TrayMenu.Mark.Check)', 'menu.Add("打开日志文件夹"', 'menu.Add("检查更新", () => OnUpdateItem())', 'menu.Add("退出 biubiu AI"'])
     assert.ok(companion.includes(row), row);
   assert.ok(companion.includes('toggleItem.ShortcutKeyDisplayString = hotKeyRegistered ? "Ctrl+Alt+M" : null;'));
   // It lays out its own rows, and has its size before the tray places it.
   assert.ok(menu.includes('SetItemLocation(item, new Point(0, y));'));
   assert.ok(/public ToolStripMenuItem Add\([^)]*\)\s*\{[\s\S]*?Items\.Add\(item\);\s*Arrange\(\);\s*return item;/.test(menu));
+});
+
+test('updates come from GitHub Releases: an installed copy tells of a newer version once, updates only when the user says yes, and runs only an installer whose SHA-256 is GitHub\'s', async () => {
+  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
+  const updates = cs.slice(cs.indexOf('static class Updates'), cs.indexOf('// The site in a window of its own'));
+  const companion = cs.slice(cs.indexOf('sealed class Companion : ApplicationContext'), cs.indexOf('static class Native'));
+  const body = (text, signature) => { const at = text.indexOf(signature); assert.ok(at > 0, signature); return text.slice(at, text.indexOf('\n        }\n', at)); };
+  assert.ok(updates.length > 0 && companion.length > 0);
+  // The latest release of the public repository (GitHub leaves out drafts and prereleases), read through the system proxy.
+  assert.ok(updates.includes('public const string Repository = "https://github.com/drhhhao/Zcode-biubiuAI";'));
+  assert.ok(updates.includes('const string LatestRelease = "https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/latest";'));
+  assert.ok(!/\.Proxy\s*=/.test(updates), 'the system proxy stays');
+  // The installer of that version, only from the repository's release downloads (or a stand-in on 127.0.0.1 in tests),
+  // and only with the SHA-256 GitHub records for it.
+  assert.ok(updates.includes('public static string InstallerName(string version) { return "biubiuAI-Setup-" + version + ".exe"; }'));
+  assert.ok(updates.includes('bool fromRepository = url != null && url.StartsWith(Repository + "/releases/download/", StringComparison.Ordinal);'));
+  assert.ok(updates.includes('bool fromStandIn = StandIn && url != null && url.StartsWith("http://127.0.0.1:", StringComparison.Ordinal);'));
+  assert.ok(updates.includes('if (digest != null && Regex.IsMatch(digest, "^sha256:[0-9a-fA-F]{64}$")) release.Sha256 = digest.Substring(7).ToLowerInvariant();'));
+  assert.ok(updates.includes('public bool Checkable { get { return Installer != null && Sha256 != null; } }') || cs.includes('public bool Checkable { get { return Installer != null && Sha256 != null; } }'));
+  assert.ok(body(updates, 'public static string Mismatch(').includes('using (var sha = SHA256.Create())'));
+  // Only a copy the installer put in place looks, and "off" turns it off.
+  assert.ok(updates.includes('public static bool Enabled { get { return !Off && File.Exists(Path.Combine(InstallDir, "uninstall.list")); } }'));
+  assert.ok(companion.includes('if (Updates.Enabled) updateTimer.Start();') && companion.includes('updateItem.Available = Updates.Enabled;'));
+  // Told once per version: the balloon only for a version not told before, remembered first.
+  const check = body(companion, 'async void CheckForUpdate(bool asked)');
+  const told = check.indexOf('else if (update != null && update.Version != settings.UpdateSeen)');
+  assert.ok(told > 0 && check.indexOf('Remember(update);', told) < check.indexOf('tray.ShowBalloonTip(', told));
+  assert.equal(companion.split('tray.ShowBalloonTip(').length, 3, 'Notify and the one update balloon');
+  assert.ok(body(companion, 'void Notify(string message)').includes('balloonOffersUpdate = false;'), 'only the update balloon starts an update when clicked');
+  // Nothing is downloaded before the user says yes; the installer runs only after its size and SHA-256 match.
+  const confirm = body(companion, 'void ConfirmUpdate()');
+  assert.ok(confirm.indexOf('MessageBox.Show(') > 0 && confirm.indexOf('if (answer != DialogResult.Yes)') > confirm.indexOf('MessageBox.Show(') && confirm.indexOf('RunUpdate(release);') > confirm.indexOf('if (answer != DialogResult.Yes)'));
+  assert.equal(cs.split('RunUpdate(').length, 3, 'RunUpdate is called from ConfirmUpdate only');
+  const run = body(companion, 'async void RunUpdate(Release release)');
+  const mismatch = run.indexOf('Updates.Mismatch(file, release)'), refused = run.indexOf('if (problem != null)'), started = run.indexOf('Updates.Run(file)');
+  assert.ok(mismatch > 0 && refused > mismatch && started > refused, 'download, check, then run');
+  assert.ok(body(updates, 'public static Process Run(string file)').includes('"--silent --update --launch --dir \\""'), 'silently into this installation, keeping the user\'s shortcuts and start at sign-in');
+  // The log never gets an address.
+  for (const line of (updates + companion).split('\n').filter(l => l.includes('Log.Write('))) assert.ok(!/Installer|Page|url|Override|Request/.test(line.replace(/"[^"]*"/g, '""')), line.trim());
+  // --check-update asks a running companion to look now.
+  assert.ok(cs.includes('case "--check-update": o.CheckUpdate = true; break;') && cs.includes('else if (index == 5) Post(() => CheckForUpdate(true));'));
+
+  // The page: the footer link appears only for a newer version the host tells of, shows its progress, and passes clicks on.
+  assert.ok(html.includes("else if (e.data?.type === 'update') showUpdate(e.data);"));
+  assert.ok(cs.includes('else if (message == "update") { var handler = UpdateRequested; if (handler != null) handler(this, EventArgs.Empty); }'));
+  const at = html.indexOf('  function showUpdate(');
+  const els = {};
+  const $ = id => els[id] ||= { id, hidden: true, disabled: false, textContent: '' };
+  const ctx = { $ };
+  vm.runInNewContext(html.slice(at, html.indexOf('\n  }\n', at) + 4), ctx);
+  ctx.showUpdate({ type: 'update', version: null, state: 'available', percent: 0 });
+  assert.equal(els.updateLink.hidden, true);
+  ctx.showUpdate({ type: 'update', version: '0.9.0', state: 'available', percent: 0 });
+  assert.deepEqual([els.updateLink.hidden, els.updateLink.disabled, els.updateLink.textContent], [false, false, '新版本 0.9.0 · 更新']);
+  ctx.showUpdate({ type: 'update', version: '0.9.0', state: 'downloading', percent: 45 });
+  assert.deepEqual([els.updateLink.disabled, els.updateLink.textContent], [true, '正在下载 0.9.0（45%）']);
+  ctx.showUpdate({ type: 'update', version: '0.9.0', state: 'installing', percent: 100 });
+  assert.deepEqual([els.updateLink.disabled, els.updateLink.textContent], [true, '正在安装 0.9.0…']);
+  ctx.showUpdate({ type: 'update', version: null, state: 'available', percent: 0 });
+  assert.equal(els.updateLink.hidden, true);
 });

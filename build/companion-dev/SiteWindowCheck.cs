@@ -6,11 +6,14 @@
 // app/server.mjs over its stdin, signed out in a temporary data folder, so nothing reaches any site.
 // Menu mode (--menu) shows the tray icon's menu (TrayMenu) in both themes over a backdrop of its own, measures it and
 // saves both captures side by side.
-// It never signs in anywhere. Usage: SiteWindowCheck.exe <stand-in origin> <WebView2 user data folder> | --pipe | --menu <png>
+// Update mode (--updates) checks how the update check reads JSON and GitHub's answer about a release (Json.Parse,
+// Updates.Read), compares versions and checks a download against its SHA-256 (Updates.Mismatch), offline.
+// It never signs in anywhere. Usage: SiteWindowCheck.exe <stand-in origin> <WebView2 user data folder> | --pipe | --menu <png> | --updates
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,7 +28,8 @@ static class SiteWindowCheck
     {
         if (args.Length == 1 && args[0] == "--pipe") return Pipe();
         if (args.Length == 2 && args[0] == "--menu") return Menu(args[1]);
-        if (args.Length != 2) { Console.Error.WriteLine("usage: SiteWindowCheck <origin> <user data folder> | --pipe | --menu <png>"); return 2; }
+        if (args.Length == 1 && args[0] == "--updates") return UpdateChecks();
+        if (args.Length != 2) { Console.Error.WriteLine("usage: SiteWindowCheck <origin> <user data folder> | --pipe | --menu <png> | --updates"); return 2; }
         Application.EnableVisualStyles();
         var replies = new Queue<HostReply>(new[] { new HostReply(true, true, "harness-token-1"), new HostReply(true, true, "harness-token-2"), new HostReply(true, false, null), HostReply.Failed });
         Func<Task<HostReply>> ask = async () =>
@@ -128,6 +132,7 @@ static class SiteWindowCheck
                 menu.AddSeparator();
                 var startup = menu.Add("登录 Windows 时在后台待命", () => { }, TrayMenu.Mark.Check);
                 var logs = menu.Add("打开日志文件夹", () => { });
+                var updates = menu.Add("检查更新", () => { });
                 menu.AddSeparator();
                 menu.Add("退出 biubiu AI", () => { });
                 menu.AutoClose = false;
@@ -160,7 +165,7 @@ static class SiteWindowCheck
                     foreach (ToolStripItem item in menu.Items) if (item.Available) rows.Add(item);
                     bool stacked = rows[0].Bounds.Top == edge && rows[rows.Count - 1].Bounds.Bottom == menu.Height - edge;
                     for (int i = 1; i < rows.Count; i++) stacked &= rows[i].Bounds.Top == rows[i - 1].Bounds.Bottom;
-                    foreach (var row in new ToolStripItem[] { toggle, reload, right, left, startup, logs }) stacked &= row.Height == menu.Px(TrayMenu.RowHeight);
+                    foreach (var row in new ToolStripItem[] { toggle, reload, right, left, startup, logs, updates }) stacked &= row.Height == menu.Px(TrayMenu.RowHeight);
                     Report(theme, "rows", stacked, string.Join(" ", rows.ConvertAll(r => r.Bounds.Top + "+" + r.Height)) + " in " + menu.Height);
                     Report(theme, "rounded", !menu.Rounded || (Near(pixel(0, 0), backdrop, 60) && Near(pixel(menu.Width / 2, menu.Px(3)), paper, 3)),
                         pixel(0, 0) + " at the corner, " + pixel(menu.Width / 2, menu.Px(3)) + " on the edge");
@@ -190,6 +195,95 @@ static class SiteWindowCheck
             both.Save(output, ImageFormat.Png);
         }
         foreach (var shot in shots) shot.Dispose();
+        return 0;
+    }
+
+    // Prints "update <case> ok", or what it saw instead, for each case.
+    static int UpdateChecks()
+    {
+        Action<string, bool, string> say = (name, ok, saw) => Console.WriteLine("update " + name + " " + (ok ? "ok" : saw));
+        Func<string, string> fails = text =>
+        {
+            try { Json.Parse(text); return "parsed"; }
+            catch (FormatException) { return null; }
+            catch (Exception e) { return e.GetType().Name; }
+        };
+
+        // JSON: every kind of value, escapes (a quote, a backslash, a slash, a line end, Chinese, an emoji as a surrogate
+        // pair) and numbers; then text that is not JSON.
+        var parsed = Json.Parse(" {\"s\":\"a\\\"b\\\\c\\/d\\ne\\u4e2d\\ud83d\\ude00\",\"n\":[0,-12,3.5,1e3,2E-2],\"t\":true,\"f\":false,\"z\":null,\"o\":{\"x\":[]},\"e\":{}} ") as Dictionary<string, object>;
+        var numbers = parsed == null ? null : parsed["n"] as List<object>;
+        bool values = parsed != null && (string)parsed["s"] == "a\"b\\c/d\ne\u4e2d\ud83d\ude00" && numbers != null && numbers.Count == 5
+            && (double)numbers[0] == 0 && (double)numbers[1] == -12 && (double)numbers[2] == 3.5 && (double)numbers[3] == 1000 && (double)numbers[4] == 0.02
+            && (bool)parsed["t"] && !(bool)parsed["f"] && parsed["z"] == null && ((parsed["o"] as Dictionary<string, object>)["x"] as List<object>).Count == 0 && (parsed["e"] as Dictionary<string, object>).Count == 0;
+        say("json-values", values, parsed == null ? "not an object" : string.Join(",", parsed.Keys));
+        var broken = new List<string>();
+        foreach (var text in new[] { "", "{", "[1,]", "{\"a\" 1}", "{\"a\":1,}", "\"abc", "tru", "1 2", "{\"a\":01x}", "\"\\x\"", "\"\\u12\"", "[" + new string('[', 80) + new string(']', 81) })
+        {
+            string result = fails(text);
+            if (result != null) broken.Add(text.Length > 12 ? text.Substring(0, 12) + "..." : text + " " + result);
+        }
+        say("json-refuses", broken.Count == 0, string.Join(" | ", broken));
+
+        // GitHub's answer about the latest release, in its shape: the installer of that version, from the repository's
+        // own release downloads, with its size and the SHA-256 GitHub records.
+        string sha = new string('a', 32) + new string('B', 32);
+        Func<string, string, string, string> answer = (tag, entry, extra) =>
+            "{\"url\":\"https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/1\",\"html_url\":\"" + Updates.Repository + "/releases/tag/" + tag + "\",\"id\":1,"
+            + "\"author\":{\"login\":\"drhhhao\",\"id\":240398156,\"site_admin\":false},\"tag_name\":\"" + tag + "\",\"target_commitish\":\"main\",\"name\":\"biubiu AI\","
+            + "\"draft\":false,\"immutable\":false,\"prerelease\":false,\"created_at\":\"2026-10-26T09:00:00Z\",\"published_at\":\"2026-10-26T09:10:00Z\","
+            + "\"assets\":[{\"name\":\"notes.txt\",\"size\":12,\"digest\":null,\"browser_download_url\":\"" + Updates.Repository + "/releases/download/" + tag + "/notes.txt\"}," + entry + "],"
+            + "\"body\":\"**\\u66f4\\u65b0** \\r\\nSHA-256\\uff1a`" + sha + "`\"" + extra + "}";
+        Func<string, string, string, string> asset = (name, url, digest) =>
+            "{\"url\":\"https://api.github.com/x\",\"id\":2,\"name\":\"" + name + "\",\"label\":null,\"uploader\":{\"login\":\"drhhhao\"},\"content_type\":\"application/x-msdownload\","
+            + "\"state\":\"uploaded\",\"size\":37994496,\"digest\":" + (digest == null ? "null" : "\"" + digest + "\"") + ",\"download_count\":3,\"browser_download_url\":\"" + url + "\"}";
+        string download = Updates.Repository + "/releases/download/v0.9.0/biubiuAI-Setup-0.9.0.exe";
+        var release = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ""));
+        say("read-release", release != null && release.Version == "0.9.0" && release.Page == Updates.Repository + "/releases/tag/v0.9.0" && release.Installer == download
+            && release.Size == 37994496 && release.Sha256 == sha.ToLowerInvariant() && release.Checkable,
+            release == null ? "none" : release.Version + " " + release.Installer + " " + release.Size + " " + release.Sha256);
+        Func<Release, string> show = r => r == null ? "none" : r.Version + (r.Installer == null ? " without an installer" : " " + r.Installer) + (r.Sha256 == null ? " without a SHA-256" : "");
+        var draft = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ",\"draft\":true"));
+        var pre = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ",\"prerelease\":true"));
+        say("read-skips-drafts-and-prereleases", draft == null && pre == null, show(draft) + " / " + show(pre));
+        var named = Updates.Read(answer("latest", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ""));
+        say("read-needs-a-version-tag", named == null, show(named));
+        var elsewhere = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", "https://example.com/biubiuAI-Setup-0.9.0.exe", "sha256:" + sha), ""));
+        var local = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", "http://127.0.0.1:8080/biubiuAI-Setup-0.9.0.exe", "sha256:" + sha), ""));
+        say("read-takes-installers-from-the-repository-only", elsewhere != null && !elsewhere.Checkable && elsewhere.Installer == null && local != null && local.Installer == null, show(elsewhere) + " / " + show(local));
+        var other = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.8.9.exe", Updates.Repository + "/releases/download/v0.9.0/biubiuAI-Setup-0.8.9.exe", "sha256:" + sha), ""));
+        say("read-takes-the-installer-of-that-version", other != null && other.Installer == null && !other.Checkable, show(other));
+        var unsigned = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, null), ""));
+        var odd = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "md5:" + new string('a', 32)), ""));
+        say("read-needs-a-sha256", unsigned != null && unsigned.Installer == download && !unsigned.Checkable && odd != null && !odd.Checkable, show(unsigned) + " / " + show(odd));
+        var page = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), "").Replace(Updates.Repository + "/releases/tag/v0.9.0", "https://example.com/release"));
+        say("read-keeps-the-page-on-the-repository", page != null && page.Page == Updates.Repository + "/releases/latest", page == null ? "none" : page.Page);
+        string notJson = null;
+        try { Updates.Read("<html>rate limited</html>"); notJson = "read"; } catch (FormatException) { }
+        say("read-refuses-other-text", notJson == null && Updates.Read("[]") == null && Updates.Read("{}") == null, notJson ?? "an array or an empty object was read");
+
+        // Versions: only a newer one counts; text that is no version never does.
+        var compared = new List<string>();
+        foreach (var pair in new[] { new[] { "0.8.10", "0.8.9", "True" }, new[] { "0.9.0", "0.8.9", "True" }, new[] { "1.0.0", "0.8.9", "True" }, new[] { "0.8.9", "0.8.9", "False" },
+            new[] { "0.8.8", "0.8.9", "False" }, new[] { "0.8.9-beta", "0.8.8", "False" }, new[] { "v0.9.0", "0.8.9", "False" }, new[] { "", "0.8.9", "False" }, new[] { "9", "0.8.9", "False" } })
+            if (Updates.IsNewer(pair[0], pair[1]).ToString() != pair[2]) compared.Add(pair[0] + " vs " + pair[1]);
+        say("versions", compared.Count == 0, string.Join(", ", compared));
+
+        // A download runs only when its size and SHA-256 are GitHub's.
+        string file = Path.Combine(Path.GetTempPath(), "mh-update-check-" + Guid.NewGuid().ToString("N") + ".exe");
+        try
+        {
+            File.WriteAllText(file, "hello", new UTF8Encoding(false));
+            const string hello = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+            string same = Updates.Mismatch(file, new Release { Size = 5, Sha256 = hello });
+            string size = Updates.Mismatch(file, new Release { Size = 6, Sha256 = hello });
+            string hash = Updates.Mismatch(file, new Release { Size = 5, Sha256 = hello.Replace('2', '3') });
+            say("download-checked", same == null && size == "size" && hash == "sha256", (same ?? "match") + " / " + (size ?? "match") + " / " + (hash ?? "match"));
+        }
+        finally { File.Delete(file); }
+
+        // Only a copy the installer put in place looks for updates; a development build never does.
+        say("only-installed-copies", !Updates.Enabled, Updates.InstallDir);
         return 0;
     }
 

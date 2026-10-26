@@ -8,7 +8,7 @@
 // site_account with balanceOnly reads the balance alone, which the panel does every 30 seconds while it is shown.
 import { PanelError } from './core.mjs';
 
-export const VERSION = '0.8.8';
+export const VERSION = '0.8.9';
 export const TOOL_NAMES = Object.freeze(['site_account', 'site_login', 'site_logout', 'site_add_group', 'site_remove_group', 'site_delete_key', 'list_providers', 'reveal_key', 'update_provider', 'delete_provider', 'fetch_models', 'get_models', 'test_model', 'import_models']);
 export const PAGE_SIZE = 25;
 

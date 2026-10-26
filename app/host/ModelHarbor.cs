@@ -31,9 +31,9 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.8.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.8.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.8")]
+[assembly: System.Reflection.AssemblyVersion("0.8.9.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.9.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.9")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
@@ -41,11 +41,12 @@ namespace ModelHarbor
 {
     static class Program
     {
-        public const string Version = "0.8.8";
+        public const string Version = "0.8.9";
         public const string ShowEventName = @"Local\ModelHarbor.Companion.Show";
         public const string QuitEventName = @"Local\ModelHarbor.Companion.Quit";
         public const string CollapseEventName = @"Local\ModelHarbor.Companion.Collapse";
         public const string ExpandEventName = @"Local\ModelHarbor.Companion.Expand";
+        public const string CheckUpdateEventName = @"Local\ModelHarbor.Companion.CheckUpdate";
         const string MutexName = @"Local\ModelHarbor.Companion.Instance";
 
         [STAThread]
@@ -57,6 +58,8 @@ namespace ModelHarbor
             if (options.Quit) return QuitRunningInstance() ? 0 : 1;
             if (options.Collapse) return Signal(CollapseEventName) ? 0 : 1;
             if (options.Expand) return Signal(ExpandEventName) ? 0 : 1;
+            // As the tray's 检查更新: the running companion looks now and, with a newer version, asks to update.
+            if (options.CheckUpdate) { Native.AllowSetForegroundWindow(Native.ASFW_ANY); return Signal(CheckUpdateEventName) ? 0 : 1; }
 
             Native.EnableDpiAwareness();
             bool created;
@@ -104,7 +107,7 @@ namespace ModelHarbor
 
     sealed class Options
     {
-        public bool Background, Quit, Collapse, Expand, InstallStartup, UninstallStartup, DevTools;
+        public bool Background, Quit, Collapse, Expand, InstallStartup, UninstallStartup, DevTools, CheckUpdate;
 
         public static Options Parse(string[] args)
         {
@@ -120,6 +123,7 @@ namespace ModelHarbor
                     case "--devtools": o.DevTools = true; break;
                     case "--collapse": o.Collapse = true; break;
                     case "--expand": o.Expand = true; break;
+                    case "--check-update": o.CheckUpdate = true; break;
                 }
             }
             return o;
@@ -276,6 +280,9 @@ namespace ModelHarbor
         public string ZCodeExe = "ZCode.exe";
         // The ZCode theme seen last ("dark" or "light"), so the next run starts in it instead of the light default.
         public string Theme;
+        // The newer version the tray has already told of, so each is told once; and the version that ran last, so the
+        // first run after an update can say it took.
+        public string UpdateSeen, LastVersion;
         string savedZCodeExe = "ZCode.exe";
 
         // MODEL_HARBOR_ZCODE_EXE overrides the process image name to follow for this run only; it is never saved.
@@ -326,6 +333,12 @@ namespace ModelHarbor
                         case "theme":
                             if (value == "dark" || value == "light") s.Theme = value;
                             break;
+                        case "updateSeen":
+                            if (Updates.IsVersion(value)) s.UpdateSeen = value;
+                            break;
+                        case "version":
+                            if (Updates.IsVersion(value)) s.LastVersion = value;
+                            break;
                     }
                 }
             }
@@ -338,7 +351,8 @@ namespace ModelHarbor
             try
             {
                 Directory.CreateDirectory(Paths.DataDir);
-                File.WriteAllText(Paths.SettingsFile, string.Format(CultureInfo.InvariantCulture, "panelWidth={0:0}\r\ntopOffset={1:0}\r\nexpanded={2}\r\ndock={3}\r\nzcodeExe={4}\r\n{5}", PanelWidthDip, TopOffsetDip, Expanded ? 1 : 0, PreferLeft ? "left" : "right", savedZCodeExe, Theme == null ? "" : "theme=" + Theme + "\r\n"), new UTF8Encoding(false));
+                File.WriteAllText(Paths.SettingsFile, string.Format(CultureInfo.InvariantCulture, "panelWidth={0:0}\r\ntopOffset={1:0}\r\nexpanded={2}\r\ndock={3}\r\nzcodeExe={4}\r\n{5}{6}{7}", PanelWidthDip, TopOffsetDip, Expanded ? 1 : 0, PreferLeft ? "left" : "right", savedZCodeExe,
+                    Theme == null ? "" : "theme=" + Theme + "\r\n", UpdateSeen == null ? "" : "updateSeen=" + UpdateSeen + "\r\n", LastVersion == null ? "" : "version=" + LastVersion + "\r\n"), new UTF8Encoding(false));
             }
             catch (Exception e) { Log.Write("settings could not be saved: " + e.Message); }
         }
@@ -1100,6 +1114,8 @@ namespace ModelHarbor
         // The page's link under the site balance, and its signing out of the site.
         public event EventHandler SiteRequested;
         public event EventHandler SiteSignedOut;
+        // The footer's link to a newer version.
+        public event EventHandler UpdateRequested;
         public bool AllowClose;
         // The panel's WebView2 environment, which the site window shares (with a profile of its own).
         public CoreWebView2Environment WebEnvironment { get; private set; }
@@ -1110,6 +1126,7 @@ namespace ModelHarbor
         int gripWidth = 6, barWidth = 12;
         bool ready, dark, themeKnown, allowNextDocument, memoryTargetUnavailable;
         int port;
+        string updateJson;
 
         public PanelForm()
         {
@@ -1249,9 +1266,25 @@ namespace ModelHarbor
             string message = null;
             try { message = e.TryGetWebMessageAsString(); } catch (ArgumentException) { }
             if (message == "hide") { var handler = HideRequested; if (handler != null) handler(this, EventArgs.Empty); }
-            else if (message == "ready") PostPanel();
+            else if (message == "ready") { PostPanel(); SendUpdate(); }
             else if (message == "open-site") { var handler = SiteRequested; if (handler != null) handler(this, EventArgs.Empty); }
             else if (message == "site-signed-out") { var handler = SiteSignedOut; if (handler != null) handler(this, EventArgs.Empty); }
+            else if (message == "update") { var handler = UpdateRequested; if (handler != null) handler(this, EventArgs.Empty); }
+        }
+
+        // A newer version for the footer: found ("available"), "downloading" with its percentage, or "installing"; no
+        // version hides it. Kept for the page's next "ready", since a reloaded page starts without it.
+        public void PostUpdate(string version, string state, int percent)
+        {
+            updateJson = "{\"type\":\"update\",\"version\":" + (version == null ? "null" : Json.Quote(version)) + ",\"state\":" + Json.Quote(state) + ",\"percent\":" + percent.ToString(CultureInfo.InvariantCulture) + "}";
+            SendUpdate();
+        }
+
+        void SendUpdate()
+        {
+            if (!ready || updateJson == null) return;
+            try { web.CoreWebView2.PostWebMessageAsJson(updateJson); }
+            catch (Exception error) { Log.Write("update message failed: " + error.GetType().Name); }
         }
 
         // A site window that could not open says so on the site page.
@@ -1713,6 +1746,309 @@ namespace ModelHarbor
             }
             return sb.Append('"').ToString();
         }
+
+        // JSON text as dictionaries (objects), lists (arrays), strings, doubles, booleans and nulls; anything else is a
+        // FormatException. Enough for GitHub's answer about a release, without loading a serializer into the companion.
+        public static object Parse(string text)
+        {
+            int i = 0;
+            object value = Value(text, ref i, 0);
+            Space(text, ref i);
+            if (i != text.Length) throw new FormatException("text after the value");
+            return value;
+        }
+
+        static void Space(string s, ref int i) { while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n')) i++; }
+
+        static object Value(string s, ref int i, int depth)
+        {
+            if (depth > 64) throw new FormatException("nested too deeply");
+            Space(s, ref i);
+            if (i >= s.Length) throw new FormatException("the text ends early");
+            char c = s[i];
+            if (c == '{')
+            {
+                var map = new Dictionary<string, object>(StringComparer.Ordinal);
+                i++; Space(s, ref i);
+                if (i < s.Length && s[i] == '}') { i++; return map; }
+                while (true)
+                {
+                    Space(s, ref i);
+                    if (i >= s.Length || s[i] != '"') throw new FormatException("a name was expected");
+                    string name = Text(s, ref i);
+                    Space(s, ref i);
+                    if (i >= s.Length || s[i] != ':') throw new FormatException("':' was expected");
+                    i++;
+                    map[name] = Value(s, ref i, depth + 1);
+                    Space(s, ref i);
+                    if (i < s.Length && s[i] == ',') { i++; continue; }
+                    if (i < s.Length && s[i] == '}') { i++; return map; }
+                    throw new FormatException("',' or '}' was expected");
+                }
+            }
+            if (c == '[')
+            {
+                var list = new List<object>();
+                i++; Space(s, ref i);
+                if (i < s.Length && s[i] == ']') { i++; return list; }
+                while (true)
+                {
+                    list.Add(Value(s, ref i, depth + 1));
+                    Space(s, ref i);
+                    if (i < s.Length && s[i] == ',') { i++; continue; }
+                    if (i < s.Length && s[i] == ']') { i++; return list; }
+                    throw new FormatException("',' or ']' was expected");
+                }
+            }
+            if (c == '"') return Text(s, ref i);
+            if (Word(s, ref i, "true")) return true;
+            if (Word(s, ref i, "false")) return false;
+            if (Word(s, ref i, "null")) return null;
+            int start = i;
+            while (i < s.Length && ((s[i] >= '0' && s[i] <= '9') || s[i] == '-' || s[i] == '+' || s[i] == '.' || s[i] == 'e' || s[i] == 'E')) i++;
+            double number;
+            if (i == start || !double.TryParse(s.Substring(start, i - start), NumberStyles.Float, CultureInfo.InvariantCulture, out number))
+                throw new FormatException("unexpected character");
+            return number;
+        }
+
+        static bool Word(string s, ref int i, string word)
+        {
+            if (string.CompareOrdinal(s, i, word, 0, word.Length) != 0) return false;
+            i += word.Length;
+            return true;
+        }
+
+        static string Text(string s, ref int i)
+        {
+            var sb = new StringBuilder();
+            i++;
+            while (i < s.Length)
+            {
+                char c = s[i++];
+                if (c == '"') return sb.ToString();
+                if (c != '\\') { sb.Append(c); continue; }
+                if (i >= s.Length) break;
+                char escaped = s[i++];
+                switch (escaped)
+                {
+                    case '"': case '\\': case '/': sb.Append(escaped); break;
+                    case 'b': sb.Append('\b'); break;
+                    case 'f': sb.Append('\f'); break;
+                    case 'n': sb.Append('\n'); break;
+                    case 'r': sb.Append('\r'); break;
+                    case 't': sb.Append('\t'); break;
+                    case 'u':
+                        int code;
+                        if (i + 4 > s.Length || !int.TryParse(s.Substring(i, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out code))
+                            throw new FormatException("a broken escape");
+                        sb.Append((char)code);
+                        i += 4;
+                        break;
+                    default: throw new FormatException("a broken escape");
+                }
+            }
+            throw new FormatException("a string does not end");
+        }
+    }
+
+    // A release on GitHub as the update check reads it: its version and page, and its installer's address, size and
+    // SHA-256 (no installer, or no SHA-256, when GitHub names none).
+    sealed class Release
+    {
+        public string Version, Page, Installer, Sha256;
+        public long Size;
+        public bool Checkable { get { return Installer != null && Sha256 != null; } }
+    }
+
+    // Updates come from the repository's GitHub Releases. Only a copy the installer put in place (uninstall.list beside
+    // bin\) looks for them: a couple of minutes after it starts, then twice a day, and whenever the user asks. It reads
+    // the latest release (GitHub leaves out drafts and prereleases), tagged v<version>, and its asset
+    // biubiuAI-Setup-<version>.exe. Updating is the user's call. The installer is downloaded into the temp folder,
+    // through the system proxy, and runs only when its size and SHA-256 match what GitHub records for the asset; it runs
+    // silently into this installation (--update: the desktop shortcut and the start at sign-in stay as they are), quits
+    // the companion and starts the new version. MODEL_HARBOR_UPDATE_URL names a stand-in for the latest release, for tests,
+    // or "off" to never look.
+    static class Updates
+    {
+        public const string Repository = "https://github.com/drhhhao/Zcode-biubiuAI";
+        const string LatestRelease = "https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/latest";
+        static readonly string Override = (Environment.GetEnvironmentVariable("MODEL_HARBOR_UPDATE_URL") ?? "").Trim();
+
+        static bool Off { get { return Override.Equals("off", StringComparison.OrdinalIgnoreCase); } }
+        public static bool StandIn { get { return Override.Length > 0 && !Off; } }
+        public static string InstallDir { get { return Path.GetFullPath(Path.Combine(Paths.AppDir, "..")); } }
+        public static bool Enabled { get { return !Off && File.Exists(Path.Combine(InstallDir, "uninstall.list")); } }
+        public static string Folder { get { return Path.Combine(Path.GetTempPath(), "biubiu-ai-update"); } }
+        public static string InstallerName(string version) { return "biubiuAI-Setup-" + version + ".exe"; }
+
+        public static bool IsVersion(string text)
+        {
+            System.Version parsed;
+            return TryVersion(text, out parsed);
+        }
+
+        static bool TryVersion(string text, out System.Version version)
+        {
+            version = null;
+            return text != null && Regex.IsMatch(text, @"^\d{1,6}(\.\d{1,6}){1,3}$") && System.Version.TryParse(text, out version);
+        }
+
+        public static bool IsNewer(string candidate, string current)
+        {
+            System.Version a, b;
+            return TryVersion(candidate, out a) && TryVersion(current, out b) && a > b;
+        }
+
+        // GitHub's answer for the latest release; null unless it names a version (tag v<version>). The installer is the
+        // asset named for that version, taken only from the repository's own release downloads (or the stand-in's).
+        public static Release Read(string json)
+        {
+            var root = Json.Parse(json) as Dictionary<string, object>;
+            if (root == null) return null;
+            string tag = Field(root, "tag_name") as string;
+            if (tag == null || (Field(root, "draft") as bool?) == true || (Field(root, "prerelease") as bool?) == true) return null;
+            string version = tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? tag.Substring(1) : tag;
+            if (!IsVersion(version)) return null;
+            string page = Field(root, "html_url") as string;
+            var release = new Release { Version = version, Page = page != null && page.StartsWith(Repository + "/releases/", StringComparison.Ordinal) ? page : Repository + "/releases/latest" };
+            var assets = Field(root, "assets") as List<object>;
+            if (assets == null) return release;
+            foreach (var item in assets)
+            {
+                var asset = item as Dictionary<string, object>;
+                if (asset == null || !string.Equals(Field(asset, "name") as string, InstallerName(version), StringComparison.OrdinalIgnoreCase)) continue;
+                string url = Field(asset, "browser_download_url") as string;
+                bool fromRepository = url != null && url.StartsWith(Repository + "/releases/download/", StringComparison.Ordinal);
+                bool fromStandIn = StandIn && url != null && url.StartsWith("http://127.0.0.1:", StringComparison.Ordinal);
+                if (!fromRepository && !fromStandIn) continue;
+                release.Installer = url;
+                double? size = Field(asset, "size") as double?;
+                release.Size = size.HasValue && size.Value > 0 && size.Value < 1e10 ? (long)size.Value : 0;
+                string digest = Field(asset, "digest") as string;
+                if (digest != null && Regex.IsMatch(digest, "^sha256:[0-9a-fA-F]{64}$")) release.Sha256 = digest.Substring(7).ToLowerInvariant();
+                break;
+            }
+            return release;
+        }
+
+        static object Field(Dictionary<string, object> map, string name)
+        {
+            object value;
+            return map.TryGetValue(name, out value) ? value : null;
+        }
+
+        // Blocking calls, made off the UI thread: only they keep the timeouts (an asynchronous WebRequest has none).
+        public static Release Latest()
+        {
+            var request = Request(StandIn ? Override : LatestRelease);
+            request.Accept = "application/vnd.github+json";
+            using (var response = request.GetResponse())
+            using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+                return Read(reader.ReadToEnd());
+        }
+
+        // Into an empty download folder; progress gets whole percentages.
+        public static string Download(Release release, Action<int> progress)
+        {
+            Clean();
+            Directory.CreateDirectory(Folder);
+            string file = Path.Combine(Folder, InstallerName(release.Version));
+            using (var response = Request(release.Installer).GetResponse())
+            using (var input = response.GetResponseStream())
+            using (var output = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                long total = release.Size > 0 ? release.Size : response.ContentLength, done = 0;
+                var buffer = new byte[81920];
+                int read, shown = -1;
+                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    done += read;
+                    if (release.Size > 0 && done > release.Size) throw new InvalidDataException("the download is larger than GitHub says");
+                    output.Write(buffer, 0, read);
+                    int percent = total > 0 ? (int)Math.Min(100, 100 * done / total) : 0;
+                    if (percent != shown) { shown = percent; progress(percent); }
+                }
+            }
+            return file;
+        }
+
+        // Through the system proxy, as the user's browser goes; GitHub wants a User-Agent.
+        static HttpWebRequest Request(string url)
+        {
+            // GitHub takes TLS 1.2 and later. Built for .NET 4.8, the companion lets Windows choose; an older default
+            // would offer only TLS 1.0, so TLS 1.2 is added to it.
+            var protocols = ServicePointManager.SecurityProtocol;
+            if (protocols != SecurityProtocolType.SystemDefault && (protocols & SecurityProtocolType.Tls12) == 0)
+                ServicePointManager.SecurityProtocol = protocols | SecurityProtocolType.Tls12;
+            var request = (HttpWebRequest)WebRequest.Create(url);
+            request.UserAgent = "biubiu-ai/" + Program.Version + " (+" + Repository + ")";
+            request.Timeout = 30000;
+            request.ReadWriteTimeout = 60000;
+            request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+            if (request.Proxy != null) request.Proxy.Credentials = CredentialCache.DefaultCredentials;
+            return request;
+        }
+
+        // Null when the file is the installer GitHub describes; otherwise "size" or "sha256".
+        public static string Mismatch(string file, Release release)
+        {
+            if (release.Size > 0 && new FileInfo(file).Length != release.Size) return "size";
+            using (var sha = SHA256.Create())
+            using (var stream = File.OpenRead(file))
+            {
+                var hash = sha.ComputeHash(stream);
+                var hex = new StringBuilder(64);
+                foreach (byte b in hash) hex.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+                return hex.ToString() == release.Sha256 ? null : "sha256";
+            }
+        }
+
+        // Silently into this installation; the installer quits the companion and starts the new version when it is done.
+        public static Process Run(string file)
+        {
+            string dir = InstallDir;
+            string arguments = "--silent --update --launch --dir \"" + (dir.EndsWith("\\", StringComparison.Ordinal) ? dir + "\\" : dir) + "\"";
+            return Process.Start(new ProcessStartInfo(file, arguments) { UseShellExecute = false, WorkingDirectory = Folder });
+        }
+
+        // What an earlier download left; a file still in use stays until the next time.
+        public static void Clean()
+        {
+            try
+            {
+                foreach (var file in Directory.GetFiles(Folder))
+                    try { File.Delete(file); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
+        // For the user: why a check or a download did not work.
+        public static string Describe(Exception e)
+        {
+            var web = e as WebException;
+            if (web != null && web.Status == WebExceptionStatus.ProtocolError && web.Response is HttpWebResponse)
+            {
+                int status = (int)((HttpWebResponse)web.Response).StatusCode;
+                return "GitHub 返回 HTTP " + status.ToString(CultureInfo.InvariantCulture) + (status == 403 || status == 429 ? "（访问太频繁时会这样）" : "");
+            }
+            if (web != null && web.Status == WebExceptionStatus.Timeout) return "连接 GitHub 超时";
+            if (web != null) return "连不上 GitHub";
+            if (e is InvalidDataException) return "下载的文件比 GitHub 记录的大";
+            if (e is FormatException) return "看不懂 GitHub 的回复";
+            if (e is IOException || e is UnauthorizedAccessException) return "无法写入临时文件夹";
+            return "出了点问题（" + e.GetType().Name + "）";
+        }
+
+        // For the log: the kind of failure, never an address.
+        public static string LogText(Exception e)
+        {
+            var web = e as WebException;
+            if (web != null && web.Status == WebExceptionStatus.ProtocolError && web.Response is HttpWebResponse)
+                return "HTTP " + ((int)((HttpWebResponse)web.Response).StatusCode).ToString(CultureInfo.InvariantCulture);
+            return web != null ? web.Status.ToString() : e.GetType().Name;
+        }
     }
 
     // The site in a window of its own, signed in as the panel's account; the link under the site balance opens it.
@@ -1922,7 +2258,7 @@ namespace ModelHarbor
         readonly TabForm tab = new TabForm();
         readonly NotifyIcon tray = new NotifyIcon();
         readonly TrayMenu menu = new TrayMenu();
-        readonly ToolStripMenuItem toggleItem, reloadItem, startupItem, dockRightItem, dockLeftItem;
+        readonly ToolStripMenuItem toggleItem, reloadItem, startupItem, dockRightItem, dockLeftItem, updateItem;
         readonly Icon trayIcon, appIcon;
         readonly IntPtr trayIconHandle;
         readonly ZCodeTracker tracker;
@@ -1935,7 +2271,11 @@ namespace ModelHarbor
         // Re-reads ZCode's theme after a reading that disagrees with the current one; ticks a little after
         // ThemeConfirmMs so the tick's own reading is old enough to count.
         readonly System.Windows.Forms.Timer themeTimer = new System.Windows.Forms.Timer { Interval = ThemeConfirmMs + 100 };
-        readonly EventWaitHandle showEvent, quitEvent, collapseEvent, expandEvent;
+        // The first look for a newer version a couple of minutes after start-up (seconds, with a stand-in release), then
+        // twice a day.
+        readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = Updates.StandIn ? 3000 : 120000 };
+        const int UpdateEveryMs = 12 * 60 * 60 * 1000;
+        readonly EventWaitHandle showEvent, quitEvent, collapseEvent, expandEvent, checkUpdateEvent;
         readonly ManualResetEvent stopSignals = new ManualResetEvent(false);
         readonly Thread signalThread;
         const int ThemeConfirmMs = 500;
@@ -1946,6 +2286,12 @@ namespace ModelHarbor
         double currentScale = 1;
         Placement placement;
         SiteForm siteWindow;
+        // A newer release once a check has found one; what the update is doing ("checking", "downloading", "installing",
+        // or null); whether the question is open; whether the balloon on screen is the one that offers the update.
+        Release update;
+        string updating;
+        int updatePercent;
+        bool askingUpdate, balloonOffersUpdate;
 
         // Where the panel or tab sits: on which side of ZCode, outside its edge or along its inner edge,
         // and the screen x of the edge that stays put while the grip resizes the panel.
@@ -1968,6 +2314,7 @@ namespace ModelHarbor
             panel.HotKeyPressed += (s, e) => OnHotKey();
             panel.SiteRequested += (s, e) => OpenSite();
             panel.SiteSignedOut += (s, e) => { if (siteWindow != null) siteWindow.Close(); };
+            panel.UpdateRequested += (s, e) => OnUpdateItem();
             panel.GripDrag += OnGripDrag;
             panel.GripDragEnd += (s, e) =>
             {
@@ -1986,6 +2333,7 @@ namespace ModelHarbor
             menu.AddSeparator();
             startupItem = menu.Add("登录 Windows 时在后台待命", () => ToggleStartup(), TrayMenu.Mark.Check);
             menu.Add("打开日志文件夹", () => OpenLogFolder());
+            updateItem = menu.Add("检查更新", () => OnUpdateItem());
             menu.AddSeparator();
             menu.Add("退出 biubiu AI", () => ExitThread());
             menu.Opening += (s, e) =>
@@ -1998,18 +2346,27 @@ namespace ModelHarbor
                 dockRightItem.Checked = !settings.PreferLeft;
                 dockLeftItem.Checked = settings.PreferLeft;
                 try { startupItem.Checked = Startup.IsEnabled(); } catch (Exception) { startupItem.Checked = false; }
+                // Only a copy the installer put in place updates itself.
+                updateItem.Available = Updates.Enabled;
+                updateItem.Text = updating == "checking" ? "正在检查更新…" : updating == "downloading" ? "正在下载更新 " + updatePercent + "%" : updating == "installing" ? "正在安装更新…"
+                    : update != null ? "更新到 " + update.Version + "…" : "检查更新";
+                updateItem.Enabled = updating == null;
             };
             tray.Icon = trayIcon;
             tray.Text = "biubiu AI " + Program.Version;
             tray.ContextMenuStrip = menu;
             tray.DoubleClick += (s, e) => Toggle();
+            tray.BalloonTipClicked += (s, e) => { if (balloonOffersUpdate) ConfirmUpdate(); };
             tray.Visible = true;
+            SayUpdated();
 
             tracker.Changed += OnTrackerChanged;
             moveTimer.Tick += (s, e) => { if (!tracker.Moving) moveTimer.Stop(); DoLayout(); };
             settleTimer.Tick += (s, e) => { settleTimer.Stop(); DoLayout(); SampleTheme(); };
             pollTimer.Tick += (s, e) => { tracker.Refresh(); DoLayout(); SampleTheme(); };
             themeTimer.Tick += (s, e) => { themeTimer.Stop(); SampleTheme(); };
+            updateTimer.Tick += (s, e) => { updateTimer.Interval = UpdateEveryMs; CheckForUpdate(false); };
+            if (Updates.Enabled) updateTimer.Start();
 
             hotKeyRegistered = Native.RegisterHotKey(panel.Handle, HotKeyId, Native.MOD_CONTROL | Native.MOD_ALT | Native.MOD_NOREPEAT, 0x4D);
             if (!hotKeyRegistered) Log.Write("Ctrl+Alt+M is taken by another program; the hotkey is unavailable");
@@ -2018,6 +2375,7 @@ namespace ModelHarbor
             quitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.QuitEventName);
             collapseEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CollapseEventName);
             expandEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ExpandEventName);
+            checkUpdateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CheckUpdateEventName);
             signalThread = new Thread(WatchSignals) { IsBackground = true, Name = "model-harbor-signals" };
             signalThread.Start();
 
@@ -2033,7 +2391,7 @@ namespace ModelHarbor
 
         void WatchSignals()
         {
-            var handles = new WaitHandle[] { stopSignals, showEvent, quitEvent, collapseEvent, expandEvent };
+            var handles = new WaitHandle[] { stopSignals, showEvent, quitEvent, collapseEvent, expandEvent, checkUpdateEvent };
             while (true)
             {
                 int index = WaitHandle.WaitAny(handles);
@@ -2041,6 +2399,7 @@ namespace ModelHarbor
                 if (index == 1) Post(() => Expand(true));
                 else if (index == 3) Post(Collapse);
                 else if (index == 4) Post(() => Expand(false));
+                else if (index == 5) Post(() => CheckForUpdate(true));
                 else { Post(() => ExitThread()); return; }
             }
         }
@@ -2085,6 +2444,7 @@ namespace ModelHarbor
 
         void Notify(string message)
         {
+            balloonOffersUpdate = false;
             try { tray.ShowBalloonTip(5000, "biubiu AI", message, ToolTipIcon.Info); } catch (Exception) { }
         }
 
@@ -2356,6 +2716,172 @@ namespace ModelHarbor
             }
         }
 
+        // Once, the first time a newer version runs: the update took.
+        void SayUpdated()
+        {
+            if (settings.LastVersion == Program.Version) return;
+            if (settings.LastVersion != null && Updates.IsNewer(Program.Version, settings.LastVersion)) Notify("biubiu AI 已更新到 " + Program.Version + "。");
+            settings.LastVersion = Program.Version;
+            settings.Save();
+        }
+
+        // The tray's 检查更新 / 更新到 x.y.z, the panel's footer link, and a click on the balloon that offers the update.
+        void OnUpdateItem() { if (update != null) ConfirmUpdate(); else CheckForUpdate(true); }
+
+        // Looks for a newer release. When the user asked, it says what it found and offers the update at once; on its own
+        // it tells only of a version it has not told of before, in one balloon, and the tray menu and the panel's footer
+        // keep offering it.
+        async void CheckForUpdate(bool asked)
+        {
+            if (!Updates.Enabled) { if (asked) Notify("这份 biubiu AI 不是用安装程序安装的，不会检查更新。"); return; }
+            if (updating != null || askingUpdate) return;
+            updating = "checking";
+            ShowUpdate();
+            Release latest = null;
+            string problem = null;
+            try
+            {
+                if (!asked) Updates.Clean();
+                latest = await Task.Run(() => Updates.Latest());
+            }
+            catch (Exception e) { problem = Updates.Describe(e); Log.Write("update check failed: " + Updates.LogText(e)); }
+            if (cleanedUp) return;
+            updating = null;
+            if (problem == null)
+            {
+                update = latest != null && Updates.IsNewer(latest.Version, Program.Version) ? latest : null;
+                Log.Write("update check: " + (latest == null ? "no release" : "latest " + latest.Version + (update == null ? "" : latest.Checkable ? ", installer checkable" : ", no checkable installer")));
+            }
+            ShowUpdate();
+            if (asked)
+            {
+                if (problem != null) Notify("检查更新没有完成：" + problem + "。请稍后再试。");
+                else if (update == null) Notify("biubiu AI " + Program.Version + " 已是最新版本。");
+                else { Remember(update); ConfirmUpdate(); }
+            }
+            else if (update != null && update.Version != settings.UpdateSeen)
+            {
+                Remember(update);
+                Log.Write("update " + update.Version + " told in a balloon");
+                try
+                {
+                    tray.ShowBalloonTip(15000, "biubiu AI 有新版本 " + update.Version, "点这里更新（当前 " + Program.Version + "）。以后也可以在托盘菜单或面板底部更新。", ToolTipIcon.Info);
+                    balloonOffersUpdate = true;
+                }
+                catch (Exception) { }
+            }
+        }
+
+        void Remember(Release release)
+        {
+            if (settings.UpdateSeen == release.Version) return;
+            settings.UpdateSeen = release.Version;
+            settings.Save();
+        }
+
+        // The tray's tooltip and the panel's footer follow the update.
+        void ShowUpdate()
+        {
+            string tip = updating == "downloading" ? "biubiu AI：正在下载更新 " + updatePercent + "%"
+                : updating == "installing" ? "biubiu AI：正在安装更新"
+                : "biubiu AI " + Program.Version + (update != null ? "（有新版本 " + update.Version + "）" : "");
+            try { tray.Text = tip; } catch (ArgumentException) { }
+            panel.PostUpdate(update == null ? null : update.Version, updating == "downloading" || updating == "installing" ? updating : "available", updatePercent);
+        }
+
+        // The user's call: what will happen, then yes or no. An installer GitHub records no SHA-256 for cannot be checked,
+        // so its release page is offered instead.
+        void ConfirmUpdate()
+        {
+            var release = update;
+            if (release == null || updating != null || askingUpdate) return;
+            balloonOffersUpdate = false;
+            string text = release.Checkable
+                ? "发现新版本 biubiu AI " + release.Version + "（当前 " + Program.Version + "）。现在更新吗？\n\n将从 GitHub 下载安装程序" + (release.Size > 0 ? "（约 " + Math.Max(1, (release.Size + 524288) / 1048576) + " MB）" : "") + "，核对文件哈希无误后自动安装。安装时面板会关闭片刻，装好后自动重新打开；设置和网站登录都会保留。"
+                : "发现新版本 biubiu AI " + release.Version + "（当前 " + Program.Version + "）。\n\nGitHub 上没有这个版本可供核对的安装程序，不能一键更新。现在打开下载页面吗？";
+            DialogResult answer;
+            askingUpdate = true;
+            try { answer = MessageBox.Show(text, "biubiu AI 更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information); }
+            finally { askingUpdate = false; }
+            if (cleanedUp) return;
+            if (answer != DialogResult.Yes) { Log.Write("update " + release.Version + " not taken now"); return; }
+            if (!release.Checkable)
+            {
+                try { SiteForm.OpenInBrowser(release.Page); }
+                catch (Exception e) { Log.Write("could not open the release page: " + e.GetType().Name); }
+                return;
+            }
+            RunUpdate(release);
+        }
+
+        // Downloads the installer, checks its size and SHA-256 against GitHub's record, and runs it. The installer quits
+        // the companion and starts the new version; if it stops before that, the companion says so and stays.
+        async void RunUpdate(Release release)
+        {
+            updating = "downloading";
+            updatePercent = 0;
+            ShowUpdate();
+            Notify("正在下载 biubiu AI " + release.Version + "，下载完会自动安装。");
+            Log.Write("update " + release.Version + " downloading");
+            string file = null, problem = null;
+            try
+            {
+                file = await Task.Run(() => Updates.Download(release, percent => Post(() =>
+                {
+                    if (updating != "downloading" || percent == updatePercent) return;
+                    updatePercent = percent;
+                    ShowUpdate();
+                })));
+                string mismatch = await Task.Run(() => Updates.Mismatch(file, release));
+                if (mismatch != null)
+                {
+                    Log.Write("update " + release.Version + " refused: the download does not match GitHub's " + mismatch);
+                    problem = mismatch == "size" ? "下载的安装程序不完整" : "下载的安装程序与 GitHub 记录的文件哈希不一致";
+                }
+            }
+            catch (Exception e) { problem = Updates.Describe(e); Log.Write("update download failed: " + Updates.LogText(e)); }
+            if (cleanedUp) return;
+            if (problem != null)
+            {
+                Updates.Clean();
+                updating = null;
+                ShowUpdate();
+                Notify("更新没有完成：" + problem + "，所以什么也没有安装。可以稍后再试。");
+                return;
+            }
+            Log.Write("update " + release.Version + " downloaded and verified; starting the installer");
+            updating = "installing";
+            ShowUpdate();
+            try
+            {
+                var installer = Updates.Run(file);
+                installer.EnableRaisingEvents = true;
+                installer.Exited += (s, e) =>
+                {
+                    int code = -1;
+                    try { code = installer.ExitCode; } catch (InvalidOperationException) { }
+                    Post(() => OnInstallerStopped(code));
+                };
+            }
+            catch (Exception e)
+            {
+                Log.Write("update installer did not start: " + e.GetType().Name);
+                updating = null;
+                ShowUpdate();
+                Notify("更新没有完成：安装程序没能启动。可以稍后再试。");
+            }
+        }
+
+        // The installer ended and the companion is still here: it stopped before replacing anything it could not undo.
+        void OnInstallerStopped(int code)
+        {
+            if (updating != "installing") return;
+            Log.Write("update installer exited with " + code.ToString(CultureInfo.InvariantCulture) + " and the companion still runs");
+            updating = null;
+            ShowUpdate();
+            if (code != 0) Notify("更新没有完成：安装程序出错了，详情见 %TEMP%\\biubiu-ai-setup.log。可以稍后再试。");
+        }
+
         void ToggleStartup()
         {
             try { if (Startup.IsEnabled()) Startup.Disable(); else Startup.Enable(); }
@@ -2373,8 +2899,8 @@ namespace ModelHarbor
             if (cleanedUp) return;
             cleanedUp = true;
             stopSignals.Set();
-            moveTimer.Stop(); settleTimer.Stop(); pollTimer.Stop(); themeTimer.Stop();
-            moveTimer.Dispose(); settleTimer.Dispose(); pollTimer.Dispose(); themeTimer.Dispose();
+            moveTimer.Stop(); settleTimer.Stop(); pollTimer.Stop(); themeTimer.Stop(); updateTimer.Stop();
+            moveTimer.Dispose(); settleTimer.Dispose(); pollTimer.Dispose(); themeTimer.Dispose(); updateTimer.Dispose();
             if (hotKeyRegistered) Native.UnregisterHotKey(panel.Handle, HotKeyId);
             if (siteWindow != null) siteWindow.Close();
             tracker.Dispose();
@@ -2391,7 +2917,7 @@ namespace ModelHarbor
             panel.Dispose();
             tab.Close();
             tab.Dispose();
-            if (signalThread.Join(1000)) { showEvent.Dispose(); quitEvent.Dispose(); collapseEvent.Dispose(); expandEvent.Dispose(); }
+            if (signalThread.Join(1000)) { showEvent.Dispose(); quitEvent.Dispose(); collapseEvent.Dispose(); expandEvent.Dispose(); checkUpdateEvent.Dispose(); }
         }
 
         protected override void ExitThreadCore()

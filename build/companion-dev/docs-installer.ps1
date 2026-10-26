@@ -24,7 +24,7 @@ function Clear-Box([IntPtr]$box) { if ([Win]::Ticked($box)) { [void][Win]::Press
 
 $tmp = Join-Path $env:LOCALAPPDATA ('Temp\mh-docs-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-$env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = Join-Path $tmp 'data'
+$env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = Join-Path $tmp 'data'; $env:MODEL_HARBOR_UPDATE_URL = 'off'
 $ui = $null
 try {
   # The installer's page, as it opens.
@@ -71,7 +71,7 @@ try {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Test-Path -LiteralPath $dir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
   }
-  Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR -ErrorAction SilentlyContinue
+  Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
   Remove-Item -Recurse -Force -LiteralPath $tmp -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 1
   Get-ChildItem -LiteralPath $env:TEMP -Filter 'biubiu-ai-uninstall-*.exe' -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }

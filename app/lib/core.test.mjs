@@ -552,7 +552,7 @@ test('the site page opens with the account and its total top-ups, then the balan
   ctx.openSite = () => {}; ctx.renderOpen();
   assert.deepEqual([els.siteOpen.hidden, els.siteOpenText.textContent, els.siteOpen.attrs['aria-label']], [false, '打开 ro.biubiu007.com', '打开 ro.biubiu007.com，已登录 user@example.com']);
   // The desktop host opens it signed in; the preview, without a host, can only open the login page in a tab.
-  assert.ok(html.includes("if (webview) { tellHost = message => webview.postMessage(message); openSite = () => tellHost('open-site'); }"));
+  assert.ok(html.includes("if (webview) { tellHost = message => webview.postMessage(message); openSite = () => tellHost('open-site'); $('updateLink').onclick = () => tellHost('update'); }"));
   assert.ok(html.includes("openSite = () => { const origin = site?.site?.origin; if (origin) window.open(`${origin}/login`, '_blank', 'noopener'); };"));
   assert.ok(html.includes("$('siteOpen').onclick = () => { if (openSite && site?.signedIn) openSite(); };"));
   assert.ok(html.includes("else if (e.data?.type === 'site-window' && e.data.error) siteProblem(String(e.data.error));"), 'a window that did not open says so on the site page');

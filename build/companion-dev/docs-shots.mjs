@@ -65,11 +65,12 @@ class Page {
 }
 
 // In every document: a stand-in for the host's message channel, so the page shows what it shows inside the companion
-// (its 收起 button), and a few helpers that click and type as a user would.
+// (its 收起 button) and hears what the host would tell it, and a few helpers that click and type as a user would.
 const PAGE_HELPERS = `
   window.chrome = window.chrome || {};
-  window.chrome.webview = { postMessage() {}, addEventListener() {}, removeEventListener() {} };
+  window.chrome.webview = { listeners: [], postMessage() {}, addEventListener(type, fn) { if (type === 'message') this.listeners.push(fn); }, removeEventListener() {} };
   window.__docs = {
+    hostSays(data) { for (const fn of window.chrome.webview.listeners) fn({ data }); return true; },
     byText(selector, text, within = document) { return [...within.querySelectorAll(selector)].find(e => e.textContent.trim() === text); },
     click(el) { if (!el) throw new Error('nothing to click'); el.scrollIntoView({ block: 'center' }); el.click(); return true; },
     fill(selector, value) { const el = document.querySelector(selector); el.focus(); el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; },
@@ -166,6 +167,11 @@ async function panelShots() {
       await page.run(`__docs.click(__docs.byText('button', '修改', ${service}))`);
       await page.until(`Boolean(${service}?.querySelector('input'))`, 'the edit fields');
       await page.shot('panel-saved-edit.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
+
+      // The footer once the host has found a newer version (an example number).
+      await page.run(`__docs.hostSays({ type: 'update', version: '0.9.0', state: 'available', percent: 0 })`);
+      await page.until(`__docs.shown('#updateLink')`, 'the footer\'s update link');
+      await page.shot('panel-update.png', { from: '.ver', to: '.ver', margin: 18 });
 
       // The same account in the dark theme, which follows ZCode's.
       state.theme = 'dark';

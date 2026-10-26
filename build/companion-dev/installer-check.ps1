@@ -1,7 +1,9 @@
 # End-to-end check of the installer (npm run app:installer first). It installs dist\biubiuAI-Setup-<version>.exe
 # silently into a temporary folder whose path has spaces and Chinese, checks the files, the Settings > Apps entry and the
 # Start menu shortcut, runs the smoke test on the installed copy against the stand-in ZCode (FakeZCode.exe) with Node.js
-# taken off PATH, updates it in place, photographs the installer and the uninstaller, uninstalls it, installs once more
+# taken off PATH, updates it in place, then lets the installed copy update itself in one click from a stand-in for
+# GitHub's latest release (and refuse a download whose SHA-256 differs), photographs the installer, the update question
+# and the uninstaller, uninstalls it, installs once more
 # into a folder holding other files to see they stay, and once through the window as a user clicks it. It refuses to run where biubiu AI is installed for real, never
 # adds the start at sign-in or a desktop shortcut, never touches the companion's real data folder, and never starts the
 # companion beside the real ZCode.
@@ -16,6 +18,7 @@ $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'biubiu AI.lnk
 $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'biubiu AI.lnk'
 $realData = Join-Path $env:LOCALAPPDATA 'ModelHarbor'
 $setupLog = Join-Path $env:TEMP 'biubiu-ai-setup.log'
+$updateDownloads = Join-Path ([IO.Path]::GetTempPath()) 'biubiu-ai-update'
 
 if (-not (Test-Path -LiteralPath $setup)) { throw "missing $setup; run npm run app:installer first" }
 if (Test-Path $uninstallKey) { throw 'biubiu AI is installed on this machine (Settings > Apps lists it); uninstall it first, or check on another machine, so this check does not replace that entry' }
@@ -92,6 +95,93 @@ try {
   Check 'update / a file the new version lacks is removed' (-not (Test-Path -LiteralPath $stale)) ''
   Check 'update / the list is the new one' (-not ((Listed $dir) -contains 'lib\stale.mjs')) ''
 
+  # The companion's one-click update. A stand-in for GitHub's latest release on 127.0.0.1 (release-stand-in.mjs) names a
+  # newer version whose installer is this one. The installed copy, with a temporary data folder and no ZCode to follow,
+  # tells of it once; asked (--check-update) and answered yes, it downloads the installer through the stand-in's redirect,
+  # checks its SHA-256 and runs it, which quits the companion, installs in place leaving the desktop shortcut and the
+  # start at sign-in as they were, and starts it again. Then the stand-in names a SHA-256 the file does not have.
+  $exeHere = Join-Path $dir 'bin\ModelHarbor.exe'
+  $updateData = Join-Path $tmp 'update-data'
+  $updateLog = Join-Path $updateData 'companion.log'
+  $portFile = Join-Path $tmp 'stand-in.port'
+  $standInLog = Join-Path $tmp 'stand-in.log'
+  $askTitle = Zh 'biubiu AI U+66F4U+65B0'
+  $fetched = '^GET /(download|files)/'
+  function Log-Text { if (Test-Path -LiteralPath $updateLog) { return [string](Get-Content -LiteralPath $updateLog -Raw -Encoding UTF8) } return '' }
+  # A companion started without the test's environment would write to the real data folder: stopped at once if so.
+  $realLog = Join-Path $realData 'companion.log'
+  $realLogSize = if (Test-Path -LiteralPath $realLog) { (Get-Item -LiteralPath $realLog).Length } else { 0 }
+  function Escaped { return ((Test-Path -LiteralPath $realLog) -and ((Get-Item -LiteralPath $realLog).Length -ne $realLogSize)) }
+  $standIn = Start-Process -FilePath (Get-Command node).Source -ArgumentList "`"$(Join-Path $PSScriptRoot 'release-stand-in.mjs')`" `"$setup`" 0.9.0 `"$portFile`"" -PassThru -NoNewWindow -RedirectStandardOutput $standInLog
+  $deadline = (Get-Date).AddSeconds(15)
+  while (-not (Test-Path -LiteralPath $portFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+  $port = (Get-Content -LiteralPath $portFile -Raw).Trim()
+  $setupLines = @(Get-Content -LiteralPath $setupLog -Encoding UTF8).Count
+  $env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = $updateData; $env:MODEL_HARBOR_UPDATE_URL = "http://127.0.0.1:$port/latest"
+  try {
+    $first = Start-Process -FilePath $exeHere -ArgumentList '--background' -PassThru
+    $deadline = (Get-Date).AddSeconds(40)
+    while (-not ((Log-Text) -match 'update 0\.9\.0 told in a balloon') -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    $ini = [string](Get-Content -LiteralPath (Join-Path $updateData 'companion.ini') -Raw -ErrorAction SilentlyContinue)
+    Check 'one-click update / a newer version is told' (((Log-Text) -match 'update 0\.9\.0 told in a balloon') -and ($ini -match 'updateSeen=0\.9\.0')) ''
+    Check 'one-click update / the version that ran is remembered' ($ini -match ('version=' + [regex]::Escape($version))) ''
+    Check 'one-click update / nothing downloaded on its own' (-not (Select-String -LiteralPath $standInLog -Pattern $fetched -Quiet)) ''
+
+    $code = (Start-Process -FilePath $exeHere -ArgumentList '--check-update' -PassThru -Wait).ExitCode
+    $ask = Wait-Window $askTitle
+    Check 'one-click update / asks before downloading' (($code -eq 0) -and ($ask -ne [IntPtr]::Zero) -and -not (Select-String -LiteralPath $standInLog -Pattern $fetched -Quiet)) "exit $code"
+    if ($ask -ne [IntPtr]::Zero) {
+      Start-Sleep -Milliseconds 500
+      [Win]::Save($ask, (Join-Path $shots 'update-ask.png'))
+      [void][Win]::PressId($ask, 6)
+    }
+    Check 'one-click update / the companion quits for the installer' ($first.WaitForExit(90000)) ''
+    $second = $null; $deadline = (Get-Date).AddSeconds(60)
+    while (-not $second -and (Get-Date) -lt $deadline) {
+      $second = Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $first.Id -and $_.Path -eq $exeHere } | Select-Object -First 1
+      if (-not $second) { Start-Sleep -Milliseconds 300 }
+    }
+    Check 'one-click update / installed and started again' ($null -ne $second) ''
+    # Started again in the environment the companion had (its log goes on in the temporary data folder), never in the
+    # real one.
+    $deadline = (Get-Date).AddSeconds(15)
+    while ($second -and -not (Escaped) -and ([regex]::Matches((Log-Text), 'companion \S+ starting').Count -lt 2) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
+    if (Escaped) { Start-Process -FilePath $exeHere -ArgumentList '--quit' -Wait | Out-Null }
+    Check 'one-click update / started again in the same environment' ((-not (Escaped)) -and [regex]::Matches((Log-Text), 'companion \S+ starting').Count -eq 2) ''
+    Check 'one-click update / the SHA-256 checked before the installer ran' ((Log-Text) -match 'update 0\.9\.0 downloaded and verified; starting the installer') ''
+    Check 'one-click update / downloaded once, through the redirect' (@(Select-String -LiteralPath $standInLog -Pattern '^GET /files/').Count -eq 1) ''
+    $after = @(Get-Content -LiteralPath $setupLog -Encoding UTF8 | Select-Object -Skip $setupLines)
+    Check 'one-click update / a silent install in place' ((@($after | Where-Object { $_ -match [regex]::Escape("install $version to $dir") }).Count -eq 1) -and (@($after | Where-Object { $_ -match 'update from biubiu AI' }).Count -eq 1)) ''
+    Check 'one-click update / no desktop shortcut added' ((Test-Path -LiteralPath $desktop) -eq $desktopBefore) ''
+    Check 'one-click update / start at sign-in untouched' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion') -eq $runBefore) ''
+    Check 'one-click update / Settings > Apps entry still here' ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $dir) ''
+    # Started again, it looks once more (the third look) and finds the version already told.
+    $deadline = (Get-Date).AddSeconds(30)
+    while (([regex]::Matches((Log-Text), 'update check: latest 0\.9\.0').Count -lt 3) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    Check 'one-click update / told only once' (([regex]::Matches((Log-Text), 'update check: latest 0\.9\.0').Count -ge 3) -and ([regex]::Matches((Log-Text), 'told in a balloon').Count -eq 1)) ''
+    Check 'one-click update / the download cleared away' (@(Get-ChildItem -LiteralPath $updateDownloads -File -ErrorAction SilentlyContinue).Count -eq 0) ''
+
+    # A SHA-256 that does not match: the download is refused and deleted, and nothing runs.
+    Invoke-WebRequest -UseBasicParsing -Method Post -Uri "http://127.0.0.1:$port/wrong-hash" | Out-Null
+    $setupLines = @(Get-Content -LiteralPath $setupLog -Encoding UTF8).Count
+    $code = (Start-Process -FilePath $exeHere -ArgumentList '--check-update' -PassThru -Wait).ExitCode
+    $ask = Wait-Window $askTitle
+    Check 'wrong SHA-256 / asks first' (($code -eq 0) -and ($ask -ne [IntPtr]::Zero)) "exit $code"
+    if ($ask -ne [IntPtr]::Zero) { [void][Win]::PressId($ask, 6) }
+    $refused = "update 0\.9\.0 refused: the download does not match GitHub's sha256"
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not ((Log-Text) -match $refused) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
+    Check 'wrong SHA-256 / refused' ((Log-Text) -match $refused) ''
+    Start-Sleep -Seconds 2
+    Check 'wrong SHA-256 / nothing installed, the companion stays' ((-not $second.HasExited) -and (@(Get-Content -LiteralPath $setupLog -Encoding UTF8).Count -eq $setupLines)) ''
+    Check 'wrong SHA-256 / the download deleted' (@(Get-ChildItem -LiteralPath $updateDownloads -File -ErrorAction SilentlyContinue).Count -eq 0) ''
+    Check 'one-click update / the real data folder untouched' (-not (Escaped)) ''
+  } finally {
+    if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { Start-Process -FilePath $exeHere -ArgumentList '--quit' -Wait | Out-Null }
+    Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
+    if ($standIn -and -not $standIn.HasExited) { try { $standIn.Kill() } catch { } }
+  }
+
   # The uninstaller as a user first sees it (from its copy in the temp folder), closed without removing anything.
   Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') | Out-Null
   Check 'uninstaller window / shown and closed' (Shot-Window $uninstallTitle (Join-Path $shots 'uninstaller.png')) 'build\companion-dev\uninstaller.png'
@@ -157,6 +247,8 @@ try {
   # The uninstaller's copies in the temp folder, which a real install clears on its next run.
   Start-Sleep -Seconds 1
   Get-ChildItem -LiteralPath $env:TEMP -Filter 'biubiu-ai-uninstall-*.exe' -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
+  # The one-click update's download folder, which only an installed copy uses; this machine has none.
+  Remove-Item -LiteralPath $updateDownloads -Recurse -Force -ErrorAction SilentlyContinue
 }
 Write-Output "SUMMARY passed=$($script:passed) failed=$($script:failed)"
 if ($script:failed -gt 0) {

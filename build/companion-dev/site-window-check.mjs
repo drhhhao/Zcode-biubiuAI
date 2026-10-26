@@ -8,7 +8,9 @@
 //   - the page cannot message the host; links elsewhere go to the "default browser" (printed here) and the page stays;
 //   - after the first page, a reload keeps the sign-in the site has (the placeholder is not written again);
 //   - the log (in the temporary data folder) has no token or marker.
-// Then the pipe to Node (see below), and the tray icon's menu (TrayMenu): drawn in both themes over a backdrop of the
+// Then the pipe to Node (see below), the update check's reading of GitHub's answer about a release and its check of a
+// download (offline: JSON, the installer of that version from the repository only, its SHA-256, newer versions only),
+// and the tray icon's menu (TrayMenu): drawn in both themes over a backdrop of the
 // harness's own, it must stay where it was placed, stack its rows evenly, round its corners (Windows 11), lie on the
 // panel's paper without a gray column, wash only the row under the pointer, and show the mark, the chosen side and the
 // startup box; both captures are saved as build/companion-dev/tray-menu.png.
@@ -154,6 +156,21 @@ try {
   check('an unknown question gets no answer', said['ask unknown'] === 'failed', said['ask unknown']);
   check('two questions at once get one answer each', said['ask together'] === 'signed-out signed-out', said['ask together']);
   check('after the server stops, asking fails at once', said['ask after-stop'] === 'failed', said['ask after-stop']);
+
+  // The update check, offline, as a development build (no stand-in release address).
+  const { MODEL_HARBOR_UPDATE_URL: _, ...plain } = process.env;
+  const updates = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--updates'], { encoding: 'utf8', timeout: 60000, env: { ...plain, MODEL_HARBOR_DATA_DIR: path.join(tmp, 'update-data') } });
+  const told = Object.fromEntries((updates.stdout || '').split(/\r?\n/).filter(line => line.startsWith('update ')).map(line => { const [, name, ...rest] = line.split(' '); return [name, rest.join(' ')]; }));
+  const cases = {
+    'json-values': 'JSON values, escapes and numbers are read', 'json-refuses': 'text that is not JSON is refused',
+    'read-release': 'a release gives its version, page, installer, size and SHA-256', 'read-skips-drafts-and-prereleases': 'drafts and prereleases are not offered',
+    'read-needs-a-version-tag': 'a tag that is no version is not offered', 'read-takes-installers-from-the-repository-only': 'an installer from anywhere but the repository is not taken',
+    'read-takes-the-installer-of-that-version': 'only the installer named for that version is taken', 'read-needs-a-sha256': 'an installer without a SHA-256 cannot be updated to in one click',
+    'read-keeps-the-page-on-the-repository': 'the release page stays on the repository', 'read-refuses-other-text': 'an answer that is no release is refused',
+    'versions': 'only a newer version counts', 'download-checked': 'a download runs only with GitHub\'s size and SHA-256', 'only-installed-copies': 'a development build never looks for updates',
+  };
+  check('the update check ran', updates.status === 0 && Object.keys(told).length === Object.keys(cases).length, updates.status === 0 ? `${Object.keys(told).length} results` : (updates.stdout || '') + (updates.stderr || '') + (updates.error ? updates.error.message : ''));
+  for (const [name, title] of Object.entries(cases)) check(`update check: ${title}`, told[name] === 'ok', told[name]);
 
   // The tray icon's menu, light and dark.
   const shot = path.join(here, 'tray-menu.png');

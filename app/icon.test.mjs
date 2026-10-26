@@ -90,7 +90,7 @@ test('the host and the panel carry the same mark as logo.mjs', async () => {
   assert.ok(footer.includes(`viewBox="${LOGO.markBox.join(' ')}"`), 'panel mark box');
   assert.ok(footer.includes(`d="${LOGO.hand}" fill="none" stroke="currentColor" stroke-width="${LOGO.handWidth}"`), 'panel hand, in the text colour');
   for (const d of LOGO.sparkles) assert.ok(footer.includes(`d="${d}" fill="${LOGO.colors.accent}"`), 'panel sparkle');
-  assert.match(footer, /<span>biubiu AI v\d+\.\d+\.\d+<\/span>$/);
+  assert.match(footer, /<span>biubiu AI v\d+\.\d+\.\d+<\/span><button class="link update" id="updateLink" type="button" hidden><\/button>$/);
 });
 
 test('the build embeds the icon and writes it beside the exe', async () => {

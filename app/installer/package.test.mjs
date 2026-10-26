@@ -93,7 +93,17 @@ test('the installer installs for the current user only, stays out of ZCode, and 
   assert.ok(setup.includes('Registry.CurrentUser.CreateSubKey(Product.UninstallKey)') && !setup.includes('Registry.LocalMachine.CreateSubKey'), 'Settings > Apps for this user');
   assert.ok(!/\.zcode|provider_config/.test(setup), 'nothing of ZCode');
   // The start at sign-in is the companion's own entry, written only when ticked.
-  assert.ok(setup.includes('if (startup) RunQuiet(exe, "--install-startup");'));
+  assert.ok(setup.includes('if (startup == true) RunQuiet(exe, "--install-startup");'));
+  assert.ok(setup.includes('else if (startup == false && StartupPointsInto(dir)) RunQuiet(exe, "--uninstall-startup");'));
+  // biubiu AI starts through Explorer (unelevated) only after a UAC prompt; otherwise directly, keeping the environment
+  // the companion's update ran the installer with.
+  assert.ok(setup.includes('if (ElevatedByPrompt()) Process.Start(new ProcessStartInfo("explorer.exe", "\\"" + exe + "\\"") { UseShellExecute = false });'));
+  assert.ok(setup.includes('GetTokenInformation(identity.Token, TokenElevationType, out type, sizeof(int), out returned) && type == TokenElevationTypeFull;'));
+  assert.ok(!setup.includes('IsInRole(WindowsBuiltInRole.Administrator)'));
+  // The companion's one-click update (--update) leaves the desktop shortcut and the start at sign-in as the user had them.
+  assert.ok(setup.includes('case "--update": o.Update = true; break;'));
+  assert.ok(setup.includes('Run(dir, o.Update ? (bool?)null : o.Desktop, o.Update ? (bool?)null : o.Startup, (percent, text) => { });'));
+  assert.ok(setup.includes('if (desktop == true) Shortcut.Create(Product.DesktopLink, exe);') && setup.includes('else if (desktop == false && Shortcut.PointsInto(Product.DesktopLink, dir)) TryDelete(Product.DesktopLink);'));
   // Paths from the zip or the list never leave the install folder, and the data folder goes only when asked.
   assert.ok(setup.includes('if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException('));
   assert.match(setup, /if \(removeData\)\s*\{[^}]*Directory\.Delete\(Product\.DataDir, true\)/);

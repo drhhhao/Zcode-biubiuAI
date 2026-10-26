@@ -41,6 +41,9 @@ public static class Win {
     return AccessibleObjectFromWindow(h, 0xFFFFFFFC, ref iid, out acc) == 0 ? acc as Accessibility.IAccessible : null;
   }
   public static bool Press(IntPtr h) { var acc = Acc(h); if (acc == null) return false; acc.accDoDefaultAction(0); return true; }
+  // A system dialog's button by its control ID (IDYES is 6, IDNO 7), whatever the language of its text.
+  [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
+  public static bool PressId(IntPtr dialog, int id) { IntPtr b = GetDlgItem(dialog, id); return b != IntPtr.Zero && Press(b); }
   public static bool Ticked(IntPtr h) { var acc = Acc(h); return acc != null && (Convert.ToInt32(acc.get_accState(0)) & 0x10) != 0; }
 }
 '@

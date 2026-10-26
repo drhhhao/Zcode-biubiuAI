@@ -17,6 +17,8 @@ $env:MODEL_HARBOR_DATA_DIR = $data
 $env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'
 $env:MODEL_HARBOR_CONFIG_PATH = $config
 $env:MODEL_HARBOR_REFRESH_CATALOG = '0'
+# An installed copy would look for updates on GitHub; installer-check.ps1 checks updating with a stand-in instead.
+$env:MODEL_HARBOR_UPDATE_URL = 'off'
 
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
 Add-Type -ReferencedAssemblies System.Drawing, System.Windows.Forms -TypeDefinition @'
@@ -599,7 +601,7 @@ finally {
   if ($fake -and -not $fake.P.HasExited) { try { Send-Fake $fake 'quit' } catch { }; if (-not $fake.P.WaitForExit(3000)) { $fake.P.Kill() } }
   if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null }
   if (Test-Path $log) { Write-Output '--- companion log (whole test run)'; Get-Content -LiteralPath $log -Encoding UTF8 }
-  Remove-Item Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_CONFIG_PATH, Env:MODEL_HARBOR_REFRESH_CATALOG -ErrorAction SilentlyContinue
+  Remove-Item Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_CONFIG_PATH, Env:MODEL_HARBOR_REFRESH_CATALOG, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
   for ($i = 0; $i -lt 10 -and (Test-Path $tmp); $i++) { try { Remove-Item -LiteralPath $tmp -Recurse -Force } catch { Start-Sleep -Milliseconds 500 } }
   Write-Output "temp folder removed: $(-not (Test-Path $tmp))"
   Write-Output "SUMMARY passed=$($script:passed) failed=$($script:failed)"

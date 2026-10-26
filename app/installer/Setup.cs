@@ -53,11 +53,12 @@ namespace ModelHarbor.Setup
     }
 
     // --silent installs (or uninstalls) without a window; --dir names the folder; --no-desktop and --no-startup leave out
-    // the desktop shortcut and the start at sign-in; --launch starts biubiu AI after a silent install; --remove-data has
-    // the uninstaller delete the companion's data folder too. --from is the uninstaller's own copy in the temp folder.
+    // the desktop shortcut and the start at sign-in; --update (the companion's one-click update) leaves both as they are;
+    // --launch starts biubiu AI after a silent install; --remove-data has the uninstaller delete the companion's data
+    // folder too. --from is the uninstaller's own copy in the temp folder.
     sealed class Options
     {
-        public bool Silent, Desktop = true, Startup = true, Launch, RemoveData;
+        public bool Silent, Desktop = true, Startup = true, Launch, RemoveData, Update;
         public string Dir, From;
 
         public static Options Parse(string[] args)
@@ -72,6 +73,7 @@ namespace ModelHarbor.Setup
                     case "--no-desktop": o.Desktop = false; break;
                     case "--no-startup": o.Startup = false; break;
                     case "--launch": o.Launch = true; break;
+                    case "--update": o.Update = true; break;
                     case "--remove-data": o.RemoveData = true; break;
                     case "--from": if (i + 1 < args.Length) o.From = args[++i]; break;
                 }
@@ -263,7 +265,8 @@ namespace ModelHarbor.Setup
 
         public static bool Holds(string dir) { return File.Exists(Path.Combine(dir, Product.ListFile)) || File.Exists(Product.ExeIn(dir)); }
 
-        public static Result Run(string dir, bool desktop, bool startup, Action<int, string> report)
+        // Without a choice (null), the desktop shortcut and the start at sign-in stay as they are.
+        public static Result Run(string dir, bool? desktop, bool? startup, Action<int, string> report)
         {
             SetupLog.Write("install " + Release.Version + " to " + dir);
             Uninstall.CleanTemp();
@@ -300,12 +303,12 @@ namespace ModelHarbor.Setup
             report(92, "正在创建快捷方式…");
             string exe = Product.ExeIn(dir);
             Shortcut.Create(Product.StartMenuLink, exe);
-            if (desktop) Shortcut.Create(Product.DesktopLink, exe);
-            else if (Shortcut.PointsInto(Product.DesktopLink, dir)) TryDelete(Product.DesktopLink);
+            if (desktop == true) Shortcut.Create(Product.DesktopLink, exe);
+            else if (desktop == false && Shortcut.PointsInto(Product.DesktopLink, dir)) TryDelete(Product.DesktopLink);
             Register(dir, bytes);
             report(96, "正在设置开机后台待命…");
-            if (startup) RunQuiet(exe, "--install-startup");
-            else if (StartupPointsInto(dir)) RunQuiet(exe, "--uninstall-startup");
+            if (startup == true) RunQuiet(exe, "--install-startup");
+            else if (startup == false && StartupPointsInto(dir)) RunQuiet(exe, "--uninstall-startup");
             report(100, "安装完成");
             SetupLog.Write("installed" + (warning != null ? "; WebView2 Runtime still missing" : ""));
             return new Result { Dir = dir, Warning = warning };
@@ -315,19 +318,32 @@ namespace ModelHarbor.Setup
         {
             var installed = Installed.Find();
             string dir = Folder(o.Dir ?? (installed != null ? installed.Dir : Product.DefaultDir));
-            Run(dir, o.Desktop, o.Startup, (percent, text) => { });
+            if (o.Update) SetupLog.Write("update from biubiu AI: the desktop shortcut and the start at sign-in stay as they are");
+            Run(dir, o.Update ? (bool?)null : o.Desktop, o.Update ? (bool?)null : o.Startup, (percent, text) => { });
             if (o.Launch) Launch(dir);
             return 0;
         }
 
-        // An installer the user started as administrator starts biubiu AI through Explorer, so it runs unelevated.
+        // An installer the user started as administrator, through a UAC prompt, starts biubiu AI through Explorer, so it
+        // runs unelevated. Without such a prompt (UAC off, or the built-in Administrator) Explorer has the same rights, so
+        // it starts biubiu AI itself, which keeps the environment it was given, as the companion's own update relies on.
         public static void Launch(string dir)
         {
             string exe = Product.ExeIn(dir);
-            bool elevated;
-            using (var identity = WindowsIdentity.GetCurrent()) elevated = new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-            if (elevated) Process.Start(new ProcessStartInfo("explorer.exe", "\"" + exe + "\"") { UseShellExecute = false });
+            if (ElevatedByPrompt()) Process.Start(new ProcessStartInfo("explorer.exe", "\"" + exe + "\"") { UseShellExecute = false });
             else Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) });
+        }
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool GetTokenInformation(IntPtr token, int infoClass, out int info, int length, out int returned);
+
+        // The elevated half of a split token (TokenElevationType is TokenElevationTypeFull), which only a UAC prompt gives.
+        static bool ElevatedByPrompt()
+        {
+            const int TokenElevationType = 18, TokenElevationTypeFull = 2;
+            int type, returned;
+            using (var identity = WindowsIdentity.GetCurrent())
+                return GetTokenInformation(identity.Token, TokenElevationType, out type, sizeof(int), out returned) && type == TokenElevationTypeFull;
         }
 
         static void EnsureWritable(string dir)
