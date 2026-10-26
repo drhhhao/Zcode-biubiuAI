@@ -25,7 +25,7 @@ biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账�
 1. 打开 biubiu AI 的发布页面：<https://github.com/drhhhao/Zcode-biubiuAI/releases/latest>
 2. 在页面下方的 **Assets** 里点 **`biubiuAI-Setup-<版本号>.exe`**（约 36 MB，下图橙色框），浏览器会把它下载到“下载”文件夹。
 
-<p align="center"><img src="images/github-release.png" alt="Release 页面：Assets 里的 biubiuAI-Setup-0.8.8.exe（橙色框）" width="760"></p>
+<p align="center"><img src="images/github-release.png" alt="Release 页面：Assets 里的 biubiuAI-Setup-0.8.9.exe（橙色框）" width="760"></p>
 
 整个 biubiu AI 只有这一个文件。Node.js、WebView2 等运行环境都由它负责，不需要另外下载或安装。
 
