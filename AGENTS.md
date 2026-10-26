@@ -1,6 +1,6 @@
 # biubiu AI project
 
-- 本目录是 biubiu AI 桌面外挂的独立开发根目录，开发、测试、构建都在此进行。不是 Git 仓库，改动前先想清楚怎么恢复。
+- 本目录是 biubiu AI 桌面外挂的独立开发根目录，开发、测试、构建都在此进行。它是 Git 仓库（`origin` 为下文的 GitHub 公开仓库），但 `.gitignore` 排除的本地文件（`build/` 里的备份、SDK、截图等）不受版本管理，改动它们前仍要先想清楚怎么恢复。推送到 GitHub、发布 Release 都是对外公开的操作，先征得用户同意。
 - 产品名称是 biubiu AI：界面、托盘、提示和文档里不再出现旧名（`app/icon.test.mjs` 检查）。`ModelHarbor` / `model-harbor` / `MODEL_HARBOR_*` 只作内部标识（程序文件、命名空间、数据目录、环境变量、登录启动项、令牌标记、健康检查名），保留它们是为了升级后设置、站点登录与启动项照常可用，不要改名。外挂在网站上新建的 Key 名为「ZCode · 分组名」。
 - 图标：一只连笔一笔画成的小手枪手势，指尖射出两颗 AI 星光（biu biu）。唯一来源是 `app/lib/logo.mjs`；`app/icon.mjs` 在构建时画出 `app/bin/biubiu.ico`（16–256 各尺寸，48 及以下为 DIB、64 起为 PNG）并嵌入 exe；宿主 `Logo` 类（托盘、收起标签、网站窗口图标）与面板页脚的 SVG 是它的副本，`app/icon.test.mjs` 检查一致。改图标先改 `build/companion-dev/logo-design.mjs`，运行后把输出同步到这三处，并重新生成 `build/companion-dev/biubiu-icon.png`（`node app/icon.mjs build/companion-dev/biubiu-icon.png 1024`）。
 - 自 0.6.0 起只保留 WebView2 桌面外挂形态。ZCode 插件形态已卸载并移除：不要重新创建 `plugins/`、`.zcode-plugin/`、市场清单、MCP stdio 服务或 `window.zcode` 桥接（`app/lib/core.test.mjs` 与 `app/server.test.mjs` 会检查）。
