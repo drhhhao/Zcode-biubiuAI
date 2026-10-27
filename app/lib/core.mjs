@@ -31,6 +31,15 @@ async function readConfig(file) {
     throw new PanelError('无法读取 ZCode 模型配置，请检查文件是否为有效 JSON。');
   }
 }
+// After each write only the ten newest backups stay. Only the names changeConfig gives are deleted,
+// provider_config-<UTC time>-<random>.json, which sort by time; the backup just made counts as the newest even if the
+// clock went back. Best effort: the config is already saved, so a file that cannot be deleted waits for the next write.
+const BACKUPS_KEPT = 10, BACKUP_NAME = /^provider_config-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z-[0-9a-f]{8}\.json$/;
+async function pruneBackups(dir, made) {
+  const names = (await fs.readdir(dir).catch(() => [])).filter(name => BACKUP_NAME.test(name) && name !== made).sort();
+  if (made) names.push(made);
+  await Promise.all(names.slice(0, -BACKUPS_KEPT).map(name => fs.unlink(path.join(dir, name)).catch(() => {})));
+}
 // A provider's models as ZCode lists them: in modelOrder, then any built-in or personal model that order leaves out.
 function providerModels(config) {
   const ids = new Set([...(config.builtinModelIds || []), ...(config.personalModelIds || [])].filter(id => typeof id === 'string'));
@@ -115,18 +124,24 @@ export class Harbor {
     }
     return data;
   }
+  // The listed services on the site's own address.
+  siteProviders(providers) {
+    const onSite = url => { try { return new URL(url).origin === this.site.origin; } catch { return false; } };
+    return providers.filter(p => onSite(p.config.api?.baseUrl));
+  }
   // The listed services that use one of a site group's keys on the site's own address.
   groupProviders(providers, group) {
     const values = new Set((group?.keys || []).map(k => k.key).filter(Boolean));
-    const onSite = url => { try { return new URL(url).origin === this.site.origin; } catch { return false; } };
-    return providers.filter(p => values.has(p.config.access?.apiKey) && onSite(p.config.api?.baseUrl));
+    return this.siteProviders(providers).filter(p => values.has(p.config.access?.apiKey));
   }
   // 添加分组: the group's own key, or a key made on the site after the panel asked, fetches the group's models from the
-  // site's gateway, and all of them go to ZCode in one write, as a service named after the group.
+  // site's gateway, and all of them go to ZCode in one write, as a service named after the group. A group already in
+  // ZCode (补全) goes with the key its service there has, so the models it lacks join that service instead of a second one.
   async siteAddGroup({ groupId, createKey = false } = {}) {
     const site = this.requireSite();
     return this.oneSiteChange(async () => {
-      const { group, key, created } = await site.groupKey(groupId, { create: createKey === true });
+      const inZCode = new Set(this.siteProviders(await this.personalProviders().catch(() => [])).map(p => p.config.access?.apiKey).filter(Boolean));
+      const { group, key, created } = await site.groupKey(groupId, { create: createKey === true, prefer: value => inZCode.has(value) });
       let fetched;
       try {
         fetched = await this.fetchModels({ baseUrl: key.baseUrl, protocol: key.protocol, siteKeyId: key.id });
@@ -370,7 +385,8 @@ export class Harbor {
   }
   // Every change to the ZCode config goes through here: one writer at a time, the old file backed up as it was (unless
   // backup is false: deleting a site key, which the user confirmed), and nothing written if ZCode saved the file in the
-  // meantime. change edits the parsed config and returns the result; a result marked unchanged writes nothing.
+  // meantime; after the write the ten newest backups stay. change edits the parsed config and returns the result; a
+  // result marked unchanged writes nothing.
   async changeConfig(change, cancelled, { backup = true } = {}) {
     const lockPath = `${this.configPath}.model-harbor.lock`;
     let lock;
@@ -381,10 +397,9 @@ export class Harbor {
       const result = await change(doc);
       validateConfig(doc);
       if (result.unchanged) return result;
-      const suffix = crypto.randomBytes(4).toString('hex');
+      const suffix = crypto.randomBytes(4).toString('hex'), backupDir = path.join(path.dirname(this.configPath), 'backups', 'model-harbor');
       let backupPath;
       if (backup) {
-        const backupDir = path.join(path.dirname(this.configPath), 'backups', 'model-harbor');
         await fs.mkdir(backupDir, { recursive: true });
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         backupPath = path.join(backupDir, `provider_config-${stamp}-${suffix}.json`);
@@ -395,6 +410,7 @@ export class Harbor {
       try { await handle.writeFile(JSON.stringify(doc, null, 2) + '\n'); await handle.sync(); } finally { await handle.close(); }
       if (await fs.readFile(this.configPath, 'utf8') !== raw) throw new PanelError(`ZCode 刚刚更新了配置，${cancelled}`);
       await fs.rename(temporary, this.configPath); temporary = null;
+      await pruneBackups(backupDir, backupPath && path.basename(backupPath));
       return backupPath ? { ...result, backupPath } : result;
     } finally { if (temporary) await fs.unlink(temporary).catch(() => {}); await lock.close(); await fs.unlink(lockPath).catch(() => {}); }
   }

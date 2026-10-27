@@ -209,14 +209,15 @@ export class Site {
     this.groups.set(group.id, group);
     return group;
   }
-  // The key a group is added with: one of its keys that works as it is, else, when the user agreed in the panel, a key
-  // made on the site for the group with the site's own defaults (no quota, no expiry). Without create nothing is made.
-  async groupKey(id, { create = false } = {}) {
+  // The key a group is added with: one of its keys that works as it is, a key prefer(value) picks first (one ZCode has
+  // already), else, when the user agreed in the panel, a key made on the site for the group with the site's own defaults
+  // (no quota, no expiry). Without create nothing is made.
+  async groupKey(id, { create = false, prefer = () => false } = {}) {
     const group = await this.group(id);
     if (group.blocked) throw new PanelError(group.blocked);
     const { pid, accountId } = await this.place();
     if (group.keys.some(k => !this.keys.has(k.id))) this.keys = new Map((await this.listKeys(pid, accountId)).map(k => [k.id, k]));
-    const found = group.keys.find(k => this.usable(k.id));
+    const usable = group.keys.filter(k => this.usable(k.id)), found = usable.find(k => prefer(this.keys.get(k.id).key)) || usable[0];
     if (found) return { group, key: this.keys.get(found.id), created: false };
     if (!create) throw new PanelError(`「${group.name}」还没有可用的 Key，需要先在网站上新建一个。`);
     const made = await this.api(`/client/platforms/${pid}/groups/${encodeURIComponent(group.id)}/keys?customerAccountId=${encodeURIComponent(accountId)}`, { method: 'POST', body: { name: `ZCode · ${group.name}`.slice(0, 50) } });
@@ -247,7 +248,12 @@ export class Site {
       r = await this.send(route, { ...options, token: session.accessToken });
       if (r.status === 401) { await this.forget(session); throw new SignedOut('登录已过期，请重新登录。'); }
     }
-    if (!r.ok) throw new PanelError(reason(r.data) || `${this.name} 暂时无法读取（HTTP ${r.status}），请稍后重试。`);
+    // The site's own reasons are in Chinese and pass on as they are. A failure of the site itself (5xx) that carries only
+    // a server's English, such as Internal Server Error, gets a plain sentence instead.
+    if (!r.ok) {
+      const why = reason(r.data);
+      throw new PanelError(r.status >= 500 && !/[一-鿿]/.test(why) ? `${this.name} 网站暂时出错（HTTP ${r.status}），请稍后重试。` : why || `${this.name} 暂时无法读取（HTTP ${r.status}），请稍后重试。`);
+    }
     return r.data;
   }
   async current() {

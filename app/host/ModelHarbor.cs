@@ -31,9 +31,9 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.9.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.9.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.9")]
+[assembly: System.Reflection.AssemblyVersion("0.8.10.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.10.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.10")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
@@ -41,7 +41,7 @@ namespace ModelHarbor
 {
     static class Program
     {
-        public const string Version = "0.8.9";
+        public const string Version = "0.8.10";
         public const string ShowEventName = @"Local\ModelHarbor.Companion.Show";
         public const string QuitEventName = @"Local\ModelHarbor.Companion.Quit";
         public const string CollapseEventName = @"Local\ModelHarbor.Companion.Collapse";
@@ -2275,12 +2275,18 @@ namespace ModelHarbor
         // twice a day.
         readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer { Interval = Updates.StandIn ? 3000 : 120000 };
         const int UpdateEveryMs = 12 * 60 * 60 * 1000;
+        // A start by hand looks once, a moment later, whether biubiu AI is in sight beside ZCode.
+        readonly System.Windows.Forms.Timer startTimer = new System.Windows.Forms.Timer { Interval = 1500 };
         readonly EventWaitHandle showEvent, quitEvent, collapseEvent, expandEvent, checkUpdateEvent;
         readonly ManualResetEvent stopSignals = new ManualResetEvent(false);
         readonly Thread signalThread;
         const int ThemeConfirmMs = 500;
         bool expanded, layoutQueued, cleanedUp, shown, webReady, hotKeyRegistered;
-        string theme, pendingTheme, failure, hiddenReason = "closed";
+        // filling: ZCode fills its screen (maximized, or sized to the whole work area), which leaves no room beside it, so
+        // the tab lies along its inner edge. The panel opens over such a ZCode only when asked for there (peek), until it
+        // is collapsed or ZCode is a normal window again; maximizing ZCode never covers it with the panel by itself.
+        bool filling, peek;
+        string theme, pendingTheme, failure, hiddenReason = "closed", zcodeState = "closed";
         int serverPort, pendingSince;
         Rectangle currentFrame;
         double currentScale = 1;
@@ -2301,7 +2307,8 @@ namespace ModelHarbor
         {
             this.options = options;
             settings = Settings.Load();
-            expanded = !options.Background && settings.Expanded;
+            // A start at sign-in (--background) shows the panel or the tab as the user left it, like any other start.
+            expanded = settings.Expanded;
             tracker = new ZCodeTracker(settings.ZCodeExe);
 
             IntPtr handle = panel.Handle;
@@ -2318,7 +2325,7 @@ namespace ModelHarbor
             panel.GripDrag += OnGripDrag;
             panel.GripDragEnd += (s, e) =>
             {
-                if (expanded && !currentFrame.IsEmpty) settings.PanelWidthDip = Settings.Clamp(placement.Bounds.Width / currentScale, Settings.MinPanelDip, Settings.MaxPanelDip);
+                if (PanelOpen && !currentFrame.IsEmpty) settings.PanelWidthDip = Settings.Clamp(placement.Bounds.Width / currentScale, Settings.MinPanelDip, Settings.MaxPanelDip);
                 settings.Save();
             };
             tab.Clicked += (s, e) => Expand(true);
@@ -2340,7 +2347,7 @@ namespace ModelHarbor
             {
                 // In the panel's theme, which follows ZCode.
                 menu.ApplyTheme(theme == "dark");
-                toggleItem.Text = expanded ? "收起面板" : "展开面板";
+                toggleItem.Text = shown && PanelOpen ? "收起面板" : "展开面板";
                 toggleItem.ShortcutKeyDisplayString = hotKeyRegistered ? "Ctrl+Alt+M" : null;
                 reloadItem.Enabled = webReady;
                 dockRightItem.Checked = !settings.PreferLeft;
@@ -2355,7 +2362,9 @@ namespace ModelHarbor
             tray.Icon = trayIcon;
             tray.Text = "biubiu AI " + Program.Version;
             tray.ContextMenuStrip = menu;
-            tray.DoubleClick += (s, e) => Toggle();
+            // A click on the icon shows or folds the panel, as on other tray icons. Windows Forms raises no second click for
+            // a double click, so that still toggles once.
+            tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) Toggle(); };
             tray.BalloonTipClicked += (s, e) => { if (balloonOffersUpdate) ConfirmUpdate(); };
             tray.Visible = true;
             SayUpdated();
@@ -2386,6 +2395,19 @@ namespace ModelHarbor
             tracker.Refresh();
             pollTimer.Start();
             DoLayout();
+            // Started by hand while ZCode is closed, minimized or too small, nothing on screen would show that biubiu AI
+            // runs: a note says so, and where it will be. A start at sign-in stays quiet.
+            if (!options.Background)
+            {
+                startTimer.Tick += (s, e) =>
+                {
+                    startTimer.Stop();
+                    if (shown || cleanedUp) return;
+                    Log.Write("startup notice: zcode " + hiddenReason);
+                    Notify("biubiu AI 已启动，图标在任务栏右下角。" + HiddenNotice());
+                };
+                startTimer.Start();
+            }
             GC.KeepAlive(handle);
         }
 
@@ -2469,6 +2491,7 @@ namespace ModelHarbor
             Rectangle frame = Rectangle.Empty, work = Rectangle.Empty;
             double scale = 1;
             string reason = null;
+            bool fills = false;
             if (z == IntPtr.Zero || !Native.IsWindow(z) || !Native.IsWindowVisible(z) || Native.IsCloaked(z)) reason = "closed";
             else if (Native.IsIconic(z)) reason = "minimized";
             else if (!Native.TryGetFrame(z, out frame)) reason = "closed";
@@ -2476,14 +2499,18 @@ namespace ModelHarbor
             {
                 scale = Native.ScaleFor(z);
                 work = Native.WorkAreaFor(z);
-                if (Native.IsZoomed(z) || CoversWorkArea(frame, work)) reason = "maximized";
-                else if (frame.Width < Px(320, scale) || frame.Height < Px(240, scale)) reason = "small";
+                fills = Native.IsZoomed(z) || CoversWorkArea(frame, work);
+                if (!fills && (frame.Width < Px(320, scale) || frame.Height < Px(240, scale))) reason = "small";
             }
-            if (reason != hiddenReason)
+            string state = reason ?? (fills ? "maximized" : "normal");
+            if (state != zcodeState)
             {
-                hiddenReason = reason;
-                Log.Write("zcode window " + (reason ?? "normal"));
+                zcodeState = state;
+                Log.Write("zcode window " + state);
             }
+            hiddenReason = reason;
+            filling = fills;
+            if (!fills) peek = false;
             if (reason != null)
             {
                 HideForm(panel);
@@ -2496,13 +2523,14 @@ namespace ModelHarbor
             currentFrame = frame;
             currentScale = scale;
 
-            Form target = expanded ? (Form)panel : tab;
-            HideForm(expanded ? (Form)tab : panel);
-            placement = expanded ? PanelPlacement(frame, work, scale) : TabPlacement(frame, work, scale);
+            bool open = PanelOpen;
+            Form target = open ? (Form)panel : tab;
+            HideForm(open ? (Form)tab : panel);
+            placement = open ? PanelPlacement(frame, work, scale) : TabPlacement(frame, work, scale);
             // The grip and the collapse arrow point away from ZCode's content: outward when docked
             // outside, inward when lying on ZCode. The collapse bar always faces ZCode's content.
             bool towardLeft = placement.Inside ? placement.Right : !placement.Right;
-            if (expanded) panel.SetEdges(towardLeft, placement.Right, towardLeft, scale);
+            if (open) panel.SetEdges(towardLeft, placement.Right, towardLeft, scale);
             else tab.SetScale(scale);
             Native.Place(target.Handle, placement.Bounds);
             if (!target.Visible) target.Show();
@@ -2513,7 +2541,8 @@ namespace ModelHarbor
             if (first) SampleTheme();
         }
 
-        // Maximized, full screen, or sized to fill the whole work area: the companion stays hidden.
+        // Maximized, full screen, or sized to fill the whole work area: there is no room beside ZCode, so the tab, and the
+        // panel once asked for, lie along its inner edge.
         static bool CoversWorkArea(Rectangle frame, Rectangle work)
         {
             if (work.IsEmpty) return false;
@@ -2623,21 +2652,27 @@ namespace ModelHarbor
 
         void OnGripDrag(int screenX)
         {
-            if (currentFrame.IsEmpty || !expanded) return;
+            if (currentFrame.IsEmpty || !PanelOpen) return;
             // The grip sits on the edge opposite the anchor, so the width is the distance between them.
             int width = placement.Right == placement.Inside ? placement.Anchor - screenX : screenX - placement.Anchor;
             settings.PanelWidthDip = Settings.Clamp(width / currentScale, Settings.MinPanelDip, Settings.MaxPanelDip);
             DoLayout();
         }
 
+        // Whether the panel, not the tab, is the one beside ZCode.
+        bool PanelOpen { get { return filling ? peek : expanded; } }
+
+        // With nothing in sight (ZCode closed, minimized or too small), the hotkey, a click on the tray icon and its menu
+        // item all ask for the panel: a note says why it is hidden, and it comes out once ZCode is back. Folding it away
+        // unseen would leave only the tab then.
         void OnHotKey()
         {
-            if (!expanded) Expand(true);
-            else if (shown && Native.GetForegroundWindow() != panel.Handle) FocusPanel();
+            if (!shown || !PanelOpen) Expand(true);
+            else if (Native.GetForegroundWindow() != panel.Handle) FocusPanel();
             else Collapse();
         }
 
-        void Toggle() { if (expanded) Collapse(); else Expand(true); }
+        void Toggle() { if (shown && PanelOpen) Collapse(); else Expand(true); }
 
         void SetDock(bool left)
         {
@@ -2650,7 +2685,6 @@ namespace ModelHarbor
         {
             switch (hiddenReason)
             {
-                case "maximized": return "ZCode 正在最大化显示，biubiu AI 先隐藏。把 ZCode 还原成窗口后，面板会贴在它的侧边。";
                 case "minimized": return "ZCode 已最小化。还原 ZCode 后，biubiu AI 会贴在它的侧边。";
                 case "small": return "ZCode 窗口太小，biubiu AI 先隐藏。把 ZCode 窗口调大一些就会出现。";
                 default: return "打开 ZCode 后，biubiu AI 会贴在 ZCode 窗口侧边。";
@@ -2660,6 +2694,7 @@ namespace ModelHarbor
         void Expand(bool focus)
         {
             expanded = true;
+            peek = filling;
             settings.Expanded = true;
             settings.Save();
             DoLayout();
@@ -2677,6 +2712,7 @@ namespace ModelHarbor
         {
             bool hadFocus = Native.GetForegroundWindow() == panel.Handle;
             expanded = false;
+            peek = false;
             settings.Expanded = false;
             settings.Save();
             DoLayout();
@@ -2899,8 +2935,8 @@ namespace ModelHarbor
             if (cleanedUp) return;
             cleanedUp = true;
             stopSignals.Set();
-            moveTimer.Stop(); settleTimer.Stop(); pollTimer.Stop(); themeTimer.Stop(); updateTimer.Stop();
-            moveTimer.Dispose(); settleTimer.Dispose(); pollTimer.Dispose(); themeTimer.Dispose(); updateTimer.Dispose();
+            moveTimer.Stop(); settleTimer.Stop(); pollTimer.Stop(); themeTimer.Stop(); updateTimer.Stop(); startTimer.Stop();
+            moveTimer.Dispose(); settleTimer.Dispose(); pollTimer.Dispose(); themeTimer.Dispose(); updateTimer.Dispose(); startTimer.Dispose();
             if (hotKeyRegistered) Native.UnregisterHotKey(panel.Handle, HotKeyId);
             if (siteWindow != null) siteWindow.Close();
             tracker.Dispose();

@@ -70,6 +70,23 @@ public static class W {
     EnumWindows((h, x) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid && IsWindowVisible(h)) list.Add(h); return true; }, IntPtr.Zero);
     return list;
   }
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  // A left click, or a double click, on the process's tray icon, as Windows reports it to the icon's own hidden window:
+  // Windows Forms' NotifyIcon takes WM_USER + 1024 with the mouse message in lParam; its other windows ignore it.
+  public static void TrayClick(uint pid, bool twice) {
+    var all = new List<IntPtr>();
+    EnumWindows((h, x) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid && Cls(h).StartsWith("WindowsForms10.Window")) all.Add(h); return true; }, IntPtr.Zero);
+    foreach (IntPtr h in all) {
+      PostMessage(h, 0x800, IntPtr.Zero, new IntPtr(0x201)); PostMessage(h, 0x800, IntPtr.Zero, new IntPtr(0x202));
+      if (twice) { PostMessage(h, 0x800, IntPtr.Zero, new IntPtr(0x203)); PostMessage(h, 0x800, IntPtr.Zero, new IntPtr(0x202)); }
+    }
+  }
+  // Ctrl+Alt+M, which the companion holds as a global hotkey, so no other program sees it.
+  public static void HotKey() {
+    keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x4D, 0, 0, UIntPtr.Zero);
+    keybd_event(0x4D, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero);
+  }
   public static string Cls(IntPtr h) { var s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
   public static string Title(IntPtr h) { var s = new StringBuilder(512); GetWindowText(h, s, 512); return s.ToString(); }
   public static R Rect(IntPtr h) { R r; GetWindowRect(h, out r); return r; }
@@ -202,6 +219,17 @@ function Check-Panel([string]$step, $fake, [int]$procId, [string]$side = '') {
   if ($side) { Check "$step / dock side is $side" ($e.Side -eq $side) "rooms: left $($f.L - $fake.WA[0]), right $($fake.WA[0] + $fake.WA[2] - $f.Rt)" }
   Check "$step / panel directly above ZCode in z-order" ([W]::Above($panel, $fake.H)) ''
   return $panel
+}
+function Check-Tab([string]$step, $fake, [int]$procId) {
+  $wins = Get-Windows $procId
+  $tab = $wins | Where-Object { (Width $_) -le 200 } | Select-Object -First 1
+  Check "$step / only the tab is shown" (($wins.Count -eq 1) -and ($null -ne $tab)) "companion windows: $($wins.Count)"
+  if ($null -eq $tab) { return $null }
+  $f = [W]::Frame($fake.H); $s = [W]::GetDpiForWindow($fake.H) / 96.0
+  $e = Expected-Tab $f $s (Work-Area $fake); $r = [W]::Rect($tab)
+  Check "$step / tab position" (Same $r $e) "actual $(Show-Rect $r), expected $(Show-Expected $e), ZCode frame $(Show-Rect $f)"
+  Check "$step / tab above ZCode in z-order" ([W]::Above($tab, $fake.H)) ''
+  return $tab
 }
 function Check-Theme([string]$step, $panel, [string]$theme) {
   # The two themes swap ink and paper, so one pixel cannot tell them apart: text or the ink-filled button in one theme
@@ -358,6 +386,7 @@ try {
   Check 'start / server ready' ($null -ne $port) "port $port"
   Start-Sleep -Seconds 3
   $panel = Check-Panel 'start' $fake $companion.Id
+  Check 'start / no startup note with ZCode in sight' (-not ((Read-LogSinceMark) -match 'startup notice')) ''
   if ($panel) {
     Check 'start / did not take focus' ([W]::GetForegroundWindow() -ne $panel) ''
     Check-Theme 'start' $panel 'dark'
@@ -404,14 +433,23 @@ try {
   $panel = Check-Panel 'after restore' $fake $companion.Id 'right'
   if ($panel) { Check-Theme 'after restore' $panel 'light' }
 
-  # Maximize hides the companion; restoring the normal window brings it back.
+  # Maximized, ZCode leaves no room beside it: the tab lies along its inner edge, and the panel opens over ZCode only
+  # when asked for there. Restoring brings the panel back outside; maximizing again shows only the tab again.
   Send-Fake $fake 'max'
   Start-Sleep -Milliseconds 1500
-  $n = (Get-Windows $companion.Id).Count
-  Check 'maximized / companion hidden' ($n -eq 0) "companion windows: $n"
+  Check-Tab 'maximized' $fake $companion.Id | Out-Null
+  & $exe --expand | Out-Null
+  Start-Sleep -Milliseconds 1200
+  Check-Panel 'maximized, asked for' $fake $companion.Id 'inside' | Out-Null
   Send-Fake $fake 'restore'
   Start-Sleep -Milliseconds 1500
   $panel = Check-Panel 'after unmaximize' $fake $companion.Id 'right'
+  Send-Fake $fake 'max'
+  Start-Sleep -Milliseconds 1500
+  Check-Tab 'maximized again' $fake $companion.Id | Out-Null
+  Send-Fake $fake 'restore'
+  Start-Sleep -Milliseconds 1500
+  $panel = Check-Panel 'after the second unmaximize' $fake $companion.Id 'right'
 
   # Near the right screen edge there is no room on the right, so the panel docks on ZCode's left.
   $fw = [Math]::Min(1400, $wa[2] - 400); $fh = [Math]::Min(900, $wa[3] - 300)
@@ -457,6 +495,33 @@ try {
   $panel = Check-Panel 'expanded' $fake $companion.Id 'right'
   $wins = Get-Windows $companion.Id
   Check 'expanded / tab hidden' (@($wins | Where-Object { (Width $_) -le 200 }).Count -eq 0) "companion windows: $($wins.Count)"
+
+  # A click on the tray icon folds the panel to the tab and brings it back; a double click toggles once.
+  [W]::TrayClick([uint32]$companion.Id, $false); Start-Sleep -Milliseconds 1200
+  Check-Tab 'tray click' $fake $companion.Id | Out-Null
+  [W]::TrayClick([uint32]$companion.Id, $false); Start-Sleep -Milliseconds 1200
+  Check-Panel 'tray click again' $fake $companion.Id 'right' | Out-Null
+  [W]::TrayClick([uint32]$companion.Id, $true); Start-Sleep -Milliseconds 1200
+  Check-Tab 'tray double click' $fake $companion.Id | Out-Null
+  & $exe --expand | Out-Null
+  Start-Sleep -Milliseconds 1200
+  # Out of sight, a click on the tray icon or the hotkey asks for the panel: it is there when ZCode is back, not folded
+  # away to the tab.
+  Send-Fake $fake 'min'
+  Start-Sleep -Milliseconds 1500
+  [W]::TrayClick([uint32]$companion.Id, $false); Start-Sleep -Milliseconds 800
+  Send-Fake $fake 'restore'
+  Start-Sleep -Milliseconds 1500
+  $panel = Check-Panel 'tray click while ZCode is minimized' $fake $companion.Id 'right'
+  if ((Read-LogSinceMark) -match 'hotkey is unavailable') { Write-Output 'SKIP  hotkey while ZCode is minimized: another program holds Ctrl+Alt+M' }
+  else {
+    Send-Fake $fake 'min'
+    Start-Sleep -Milliseconds 1500
+    [W]::HotKey(); Start-Sleep -Milliseconds 800
+    Send-Fake $fake 'restore'
+    Start-Sleep -Milliseconds 1500
+    $panel = Check-Panel 'hotkey while ZCode is minimized' $fake $companion.Id 'right'
+  }
 
   # ZCode closes and opens again.
   Send-Fake $fake 'quit'
@@ -511,6 +576,8 @@ try {
   $port = Wait-Ready
   Check 'started while minimized / server ready' ($null -ne $port) "port $port"
   Start-Sleep -Seconds 3
+  # Started by hand with nothing in sight, it says it is running and where it will show.
+  Check 'started while minimized / says it is running' ((Read-LogSinceMark) -match 'startup notice: zcode minimized') ''
   Send-Fake $fake 'restore'
   Check-NoFlash 'started while minimized' $companion.Id 'light'
   Send-Fake $fake 'backdrop off'
@@ -518,25 +585,36 @@ try {
   Check 'started while minimized / quit' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
   Start-Sleep -Seconds 1
 
-  # --background shows only the collapsed tab.
+  # --background, as at sign-in, shows the panel or the tab as the user left it, and says nothing even while ZCode is
+  # out of sight.
   Mark-Log
   $companion = Start-Process -FilePath $exe -ArgumentList '--background' -PassThru
   $port = Wait-Ready
   Check 'background / server ready' ($null -ne $port) "port $port"
   Start-Sleep -Seconds 3
-  $wins = Get-Windows $companion.Id
-  $tab = $wins | Where-Object { (Width $_) -le 200 } | Select-Object -First 1
-  Check 'background / only the tab is shown' (($wins.Count -eq 1) -and ($null -ne $tab)) "companion windows: $($wins.Count)"
-  if ($tab) {
-    $f = [W]::Frame($fake.H); $s = [W]::GetDpiForWindow($fake.H) / 96.0
-    $e = Expected-Tab $f $s (Work-Area $fake); $r = [W]::Rect($tab)
-    Check 'background / tab outside the ZCode edge' (Same $r $e) "actual $(Show-Rect $r), expected $(Show-Expected $e)"
-    Check 'background / tab above ZCode in z-order' ([W]::Above($tab, $fake.H)) ''
-  }
+  Check-Panel 'background, left expanded' $fake $companion.Id 'right' | Out-Null
+  & $exe --collapse | Out-Null
+  Start-Sleep -Milliseconds 1200
   & $exe --quit | Out-Null
   Check 'background quit / exit code' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
   Start-Sleep -Seconds 1
   Check 'background quit / host stopped' (-not (Get-Process -Id $companion.Id -ErrorAction SilentlyContinue)) ''
+  Send-Fake $fake 'min'
+  Mark-Log
+  $companion = Start-Process -FilePath $exe -ArgumentList '--background' -PassThru
+  $port = Wait-Ready
+  Check 'background, left collapsed / server ready' ($null -ne $port) "port $port"
+  Start-Sleep -Seconds 3
+  Check 'background / no startup note' (-not ((Read-LogSinceMark) -match 'startup notice')) ''
+  Send-Fake $fake 'restore'
+  Start-Sleep -Milliseconds 1500
+  Check-Tab 'background, left collapsed' $fake $companion.Id | Out-Null
+  # The runs below start with the panel out again.
+  & $exe --expand | Out-Null
+  Start-Sleep -Milliseconds 1200
+  & $exe --quit | Out-Null
+  Check 'background, left collapsed / quit' ($LASTEXITCODE -eq 0) "exit $LASTEXITCODE"
+  Start-Sleep -Seconds 1
 
   # Saved keys: masked by default, the eye shows the full key, and collapsing or ZCode hiding masks it again.
   # Only this last run has a service, saved with a fake key in the temporary config.

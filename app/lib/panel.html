@@ -133,9 +133,11 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 .gname{font:17px/1.45 var(--serif-body);overflow-wrap:anywhere}
 .gnote{font-size:12px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}.grow.on .gnote{color:var(--ink)}
 .gside{display:flex;align-items:center;gap:16px;flex:none}
-.grate{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}.gact{display:flex;justify-content:flex-end;min-width:62px}
+.grate{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}.gact{display:flex;justify-content:flex-end;gap:14px;min-width:62px}
 .gask{flex-basis:100%;padding-bottom:2px}
 #siteGroupsPart>.note{margin-top:14px}#siteStatus{margin:16px 0 0}
+/* A group change's outcome shows in its row; the line under the list still says it to screen readers. */
+#siteStatus.aside{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .sitefoot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px}.sitefoot .note{flex:1;min-width:0;margin:0}
 /* 站内 Key: 删除 asks under the key, and a key's models open under it, on this page. A model already in ZCode stays ticked. */
 .keyact{display:flex;align-items:center;gap:20px;flex:none}
@@ -218,7 +220,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 <div id="savedList" role="list" aria-label="已导入的服务"></div>
 </section>
 </div>
-<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.9</span><button class="link update" id="updateLink" type="button" hidden></button></div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.10</span><button class="link update" id="updateLink" type="button" hidden></button></div>
 </main>
 <template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
 <script>
@@ -232,7 +234,8 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
   // the site for it (key), may it leave ZCode (delete). keyAsking is the site key whose 删除 waits for 确认删除, { id,
   // error }. pick is the site key whose models show under it, by id only: { id, loading } while they are read, then
   // { id, result, selected, query, message, error, tests, testing }, or { id, error } when they could not be read.
-  let site = null, siteSeq = 0, siteAt = 0, asking = null, keyAsking = null, pick = null;
+  // groupOutcome is the last group change's outcome, { id, text, error }, shown in that group's row.
+  let site = null, siteSeq = 0, siteAt = 0, asking = null, keyAsking = null, pick = null, groupOutcome = null;
   // openSite opens the site from the link under the balance: the desktop host opens it in a window of its own, signed in
   // as this account; the preview, which has no host, can only open the site's login page in a new tab. tellHost sends
   // the host a message; signing out tells it to close that window.
@@ -775,12 +778,16 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
     $('siteGroupCount').textContent = groups.length ? `已添加 ${groups.filter(g => g.inZCode?.length).length} / ${groups.length} 个` : '';
     const platforms = new Map();
     for (const g of groups) { const name = g.platformName || '其他'; if (!platforms.has(name)) platforms.set(name, []); platforms.get(name).push(g); }
+    // A site that could not be read says so above the list; an empty list then is no answer about the account's groups.
     $('siteGroups').replaceChildren(...(groups.length ? [...platforms].map(([name, list]) => {
       const block = el('div', 'gplat'), rows = el('div');
       block.setAttribute('role', 'group'); block.setAttribute('aria-label', `${name} 分组`); rows.setAttribute('role', 'list');
       rows.append(...list.map(groupRow)); block.append(el('div', 'gplathead', name), rows);
       return block;
-    }) : [el('div', 'empty', '这个账户还没有可用的分组。')]));
+    }) : site?.error ? [] : [el('div', 'empty', '这个账户还没有可用的分组。')]));
+    // The line under the list shows an outcome on screen only when its group is no longer listed, and only if the error
+    // above the list does not say the same already.
+    $('siteStatus').classList.toggle('aside', Boolean(groupOutcome) && (groups.some(g => g.id === groupOutcome.id) || groupOutcome.text === site?.error));
     if (focus) $('siteGroups').querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus();
   }
   function groupRow(g) {
@@ -792,11 +799,22 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
     const note = g.blocked || (held ? `已加入 ZCode：${names} · ${models} 个模型` : g.remark);
     if (note) main.append(el('span', 'gnote', note));
     if (g.multiplier != null) { const rate = el('span', 'grate', `×${g.multiplier}`); rate.title = '计费倍率'; side.append(rate); }
-    // The button sits in a slot of one width, so the rates line up whether a row has 添加, 删除 or nothing.
+    // The buttons sit in a slot of one width, so the rates line up whether a row has 添加, 补全 and 删除, or nothing.
     const slot = el('span', 'gact');
-    if (!g.blocked) {
-      const action = held ? button('link', '删除', 'action', () => openAsk(g, 'delete')) : button('small', '添加', 'action', () => g.hasUsableKey ? addGroup(g, false, action) : openAsk(g, 'key'));
-      action.setAttribute('aria-label', `${held ? '删除' : '添加'}分组「${g.name}」`);
+    if (!g.blocked && held) {
+      // 补全 adds what ZCode does not have yet of the group, such as models the site added later or ones left out when
+      // a key of the group was added with only some of its models; they join the group's service.
+      if (g.hasUsableKey) {
+        const fill = button('link', '补全', 'fill', () => addGroup(g, false, fill));
+        fill.setAttribute('aria-label', `补全分组「${g.name}」的模型`); fill.title = '把这个分组里还没加入 ZCode 的模型加进去';
+        slot.append(fill);
+      }
+      const drop = button('link', '删除', 'action', () => openAsk(g, 'delete'));
+      drop.setAttribute('aria-label', `删除分组「${g.name}」`);
+      slot.append(drop);
+    } else if (!g.blocked) {
+      const action = button('small', '添加', 'action', () => g.hasUsableKey ? addGroup(g, false, action) : openAsk(g, 'key'));
+      action.setAttribute('aria-label', `添加分组「${g.name}」`);
       slot.append(action);
     }
     side.append(slot);
@@ -807,30 +825,43 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
       bar.append(button('small', '取消', 'cancel', () => { asking = null; renderGroups(`${g.id}:action`); }), yes);
       ask.append(el('div', 'svcask', key ? `「${g.name}」还没有可用的 Key。要在网站上为它新建一个 Key（不限额度、不过期），再把它的全部模型加入 ZCode 吗？` : `从 ZCode 删除分组「${g.name}」：${names}和它的 ${models} 个模型？删除前会自动备份，网站上的 Key 保留。`), bar);
       row.append(ask);
+    } else if (groupOutcome?.id === g.id) {
+      const out = el('div', 'gask goutcome');
+      out.append(el('div', groupOutcome.error ? 'note fail' : 'note', groupOutcome.text));
+      row.append(out);
     }
     return row;
   }
-  function openAsk(g, kind) { asking = { id: g.id, kind }; renderGroups(`${g.id}:cancel`); }
-  // A group change reports in the line under the list, and a key's deletion under the keys; a new one clears both. The account and the services list are read again while the
-  // panel is still busy, so the row that asked cannot be clicked twice.
-  function siteStatus(text, error = false) { const box = $('siteStatus'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.textContent = text; }
-  async function groupChange(trigger, label, work) {
+  function openAsk(g, kind) { siteStatus(''); asking = { id: g.id, kind }; renderGroups(`${g.id}:cancel`); }
+  // A group change reports in the row it was made in (id), where the user is looking, and in the line under the list,
+  // which screen readers hear and which shows on screen only when the row is gone. A key's deletion reports under the
+  // keys. A new action clears both. The account and the services list are read again while the panel is still busy, so
+  // the row that asked cannot be clicked twice.
+  function siteStatus(text, error = false, id = null) {
+    groupOutcome = text ? { id, text, error } : null;
+    if (!text) $('siteGroups').querySelector('.goutcome')?.remove();
+    const box = $('siteStatus'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.classList.toggle('aside', id != null); box.textContent = text;
+  }
+  async function groupChange(g, trigger, label, work) {
     if (busy || !bridge) return;
     const text = trigger.textContent;
     setBusy(true, 'group'); trigger.textContent = label; siteStatus(''); keyStatus('');
-    try { siteStatus(await work()); } catch (e) { siteStatus(e.message, true); }
+    try { siteStatus(await work(), false, g.id); } catch (e) { siteStatus(e.message, true, g.id); }
     finally { asking = null; await Promise.all([loadSite(), loadProviders()]); trigger.textContent = text; setBusy(false); }
   }
+  // 添加, or 补全 on a group already in ZCode. The outcome tells where the models are now.
   function addGroup(g, createKey, trigger) {
-    return groupChange(trigger, '正在添加…', async () => {
+    const fill = Boolean(g.inZCode?.length);
+    return groupChange(g, trigger, fill ? '正在补全…' : '正在添加…', async () => {
       const r = await call('site_add_group', { groupId: g.id, createKey });
       if (r.unchanged) return `分组「${r.groupName}」的模型已经都在 ZCode 里。`;
       const made = r.createdKey ? `，并在网站上新建了 Key「${r.createdKey}」` : '';
-      return window.__HARBOR_PREVIEW__ ? `预览：已添加分组「${r.groupName}」，${r.added} 个模型加入「${r.providerName}」${made}。真实 ZCode 配置没有改动。` : `已添加分组「${r.groupName}」：${r.added} 个模型加入 ZCode「${r.providerName}」${made}。原配置已自动备份。`;
+      const done = `${fill ? '已补全' : '已添加'}分组「${r.groupName}」：${r.added} 个模型加入 ZCode「${r.providerName}」${made}。`;
+      return window.__HARBOR_PREVIEW__ ? `预览：${done}真实 ZCode 配置没有改动。` : `${done}原配置已自动备份；在 ZCode 的模型选择器里就能选到，没看到的话重新打开模型选择器。`;
     });
   }
   function removeGroup(g, trigger) {
-    return groupChange(trigger, '正在删除…', async () => {
+    return groupChange(g, trigger, '正在删除…', async () => {
       const r = await call('site_remove_group', { groupId: g.id });
       return window.__HARBOR_PREVIEW__ ? `预览：已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。真实 ZCode 配置没有改动。` : `已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。原配置已自动备份，网站上的 Key 保留。`;
     });
@@ -861,7 +892,8 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
   });
   $('siteRefresh').onclick = async () => {
     if (busy || !bridge) return;
-    setBusy(true, 'site'); $('siteRefresh').textContent = '正在刷新…';
+    // A fresh read makes the last outcomes old news.
+    setBusy(true, 'site'); $('siteRefresh').textContent = '正在刷新…'; siteStatus(''); keyStatus('');
     try { await loadSite(); } finally { $('siteRefresh').textContent = '刷新'; setBusy(false); renderSite(); }
   };
   $('siteLogout').onclick = async () => {

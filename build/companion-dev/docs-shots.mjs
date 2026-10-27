@@ -135,7 +135,8 @@ async function panelShots() {
       await page.until(`Boolean(${row}?.querySelector('.gask'))`, 'the question under the group');
       await page.shot('panel-group-ask.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
       await page.run(`__docs.click(__docs.byText('button', '新建 Key 并添加', ${row}))`);
-      await page.until(`__docs.shown('#siteStatus') && document.querySelector('#siteStatus').textContent.startsWith('已添加分组')`, 'the group to be added');
+      // The outcome shows in the group's own row.
+      await page.until(`document.querySelector('#siteGroups .goutcome')?.textContent.startsWith('已添加分组')`, 'the group to be added');
       await page.until(`!document.querySelector('#siteGroups button:disabled')`, 'the panel to be ready');
       await page.shot('panel-group-added.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
 

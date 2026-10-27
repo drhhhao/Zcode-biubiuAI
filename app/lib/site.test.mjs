@@ -288,6 +288,10 @@ test('site problems after signing in are reported beside what could be read', as
   const offline = (await callTool(harbor, 'site_account')).structuredContent;
   assert.equal(offline.signedIn, true); assert.match(offline.error, /失败或超时/); assert.deepEqual(offline.keys, []);
   assert.equal((await callTool(harbor, 'reveal_key', { siteKeyId: '1' })).isError, undefined, 'keys read before stay usable while the site is unreachable');
+  // A failing site whose server answers in bare English gets a plain sentence; its own Chinese reasons pass on as above.
+  site.fetchImpl = async (url, options) => new URL(url).pathname.startsWith('/api/client/') ? Response.json({ code: 500, message: 'Internal Server Error', data: null }, { status: 500 }) : original(url, options);
+  const broken = (await callTool(harbor, 'site_account')).structuredContent;
+  assert.deepEqual([broken.signedIn, broken.error, broken.groups, broken.keys], [true, `${SITE.name} 网站暂时出错（HTTP 500），请稍后重试。`, [], []]);
 });
 
 test('the balance alone is read with the last account found, without the keys or groups, which stay usable', async t => {
@@ -355,6 +359,23 @@ test('adding a group with a working key puts all of its models in ZCode as one s
   assert.deepEqual(account.groups.map(g => g.inZCode || null), [[{ name: 'biubiu AI · Claude 组', modelCount: 2 }], null, null, null]);
   const again = await callTool(harbor, 'site_add_group', { groupId: '71' });
   assert.equal(again.structuredContent.unchanged, true); assert.match(again.content[0].text, /已经都在 ZCode 里/);
+});
+
+test('补全 on a group in ZCode adds what its service lacks, with the key that service has, and makes no second service', async t => {
+  const { harbor, state, config } = await setup(t);
+  await login(harbor);
+  // Key 5 of the Claude group went in with one of its models: the group shows as in ZCode, model-b still missing.
+  await addKey(harbor, '5', ['model-a'], 'biubiu AI · Key 5');
+  const account = (await callTool(harbor, 'site_account')).structuredContent;
+  assert.deepEqual(account.groups.find(g => g.id === '71').inZCode, [{ name: 'biubiu AI · Key 5', modelCount: 1 }]);
+  // Key 1 is the group's first working key; the group's service has key 5, so the missing model joins that service.
+  const r = await callTool(harbor, 'site_add_group', { groupId: '71' });
+  assert.equal(r.isError, undefined, r.content[0].text);
+  assert.deepEqual([r.structuredContent.providerName, r.structuredContent.added, r.structuredContent.createdKey], ['biubiu AI · Key 5', 1, undefined]);
+  const rules = (await config()).config.providerConfigRules.providerRules;
+  assert.deepEqual(rules.map(p => [p.providerName, p.config.access.apiKey, p.config.personalModelIds]), [['biubiu AI · Key 5', someKeys()[4].key, ['model-a', 'model-b']]]);
+  assert.deepEqual(keysMade(state), []); assert.deepEqual(secretsIn(JSON.stringify(r), state), []);
+  assert.equal((await callTool(harbor, 'site_add_group', { groupId: '71' })).structuredContent.unchanged, true, 'nothing left to add');
 });
 
 test('a group without a working key gets a key made on the site only when the panel asked, with the site\'s defaults', async t => {

@@ -105,6 +105,26 @@ test('update_provider changes a listed service\'s address or key with a backup, 
   const same = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test/v1/', apiKey: 'rotated-secret' });
   assert.equal(same.unchanged, true); assert.equal((await fs.readdir(path.join(dir, 'backups', 'model-harbor'))).length, 2);
 });
+test('each write keeps the ten newest backups it made and leaves every other file alone', async t => {
+  const { harbor, configPath, dir } = await fixture(t), folder = path.join(dir, 'backups', 'model-harbor');
+  const days = (year, n) => Array.from({ length: n }, (_, i) => `provider_config-${year}-01-${String(i + 1).padStart(2, '0')}T00-00-00-000Z-0123abcd.json`);
+  const listing = async () => (await fs.readdir(folder)).sort(), put = names => Promise.all(names.map(name => fs.writeFile(path.join(folder, name), name)));
+  const old = days(2026, 12), others = ['provider_config-mine.json', `${old[0]}.bak`, 'notes.txt'];
+  await fs.mkdir(folder, { recursive: true }); await put([...old, ...others]);
+  await fs.writeFile(path.join(dir, 'backups', old[0]), 'not ours');
+  const first = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' });
+  assert.deepEqual(await listing(), [...others, ...old.slice(3), path.basename(first.backupPath)].sort(), 'the three oldest go');
+  // Backups made while the clock ran ahead sort after the one just made, which stays all the same.
+  const ahead = days(2999, 10), before = await fs.readFile(configPath, 'utf8'); await put(ahead);
+  const second = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test' });
+  assert.equal(await fs.readFile(second.backupPath, 'utf8'), before);
+  assert.deepEqual(await listing(), [...others, ...ahead.slice(1), path.basename(second.backupPath)].sort());
+  // A write without a backup, as deleting a site key, keeps ten too.
+  const kept = await listing(); await put(days(2000, 2));
+  await harbor.changeConfig(async () => ({}), '', { backup: false });
+  assert.deepEqual(await listing(), kept);
+  assert.equal(await fs.readFile(path.join(dir, 'backups', old[0]), 'utf8'), 'not ours');
+});
 test('update_provider refuses bad input, unlisted services and a template service\'s address without touching the config', async t => {
   const { harbor, configPath } = await fixture(t);
   const doc = seed(), rules = doc.config.providerConfigRules.providerRules;
@@ -311,8 +331,9 @@ test('a group row adds with its own key at once, asks in the row before a key is
   const el = (tag, cls, text) => { const n = node(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => typeof c === 'object' ? all(c, match) : [])];
   const button = (n, text) => all(n, c => c.tag === 'button' && c.textContent === text)[0];
-  const calls = [], renders = [];
-  const ctx = { el, busy: false, bridge: () => {}, asking: null, renderGroups: focus => renders.push(focus), addGroup: (g, createKey) => calls.push(['add', g.id, createKey]), removeGroup: g => calls.push(['remove', g.id]) };
+  const calls = [], renders = [], statuses = [];
+  const ctx = { el, busy: false, bridge: () => {}, asking: null, groupOutcome: null, renderGroups: focus => renders.push(focus), siteStatus: text => { statuses.push(text); ctx.groupOutcome = null; },
+    addGroup: (g, createKey) => calls.push(['add', g.id, createKey]), removeGroup: g => calls.push(['remove', g.id]) };
   vm.runInNewContext(`${source}\n${ask}`, ctx);
   const ready = { id: '1', name: 'gpt-plus', platformName: 'GPT', multiplier: 0.3, hasUsableKey: true };
   const row = ctx.groupRow(ready);
@@ -336,10 +357,69 @@ test('a group row adds with its own key at once, asks in the row before a key is
   assert.deepEqual({ ...ctx.asking }, { id: '3', kind: 'delete' }); assert.equal(calls.length, 2, 'nothing is deleted before 确认删除');
   button(ctx.groupRow(held), '确认删除').onclick();
   assert.deepEqual(calls.at(-1), ['remove', '3']);
-  const gemini = { id: '4', name: 'Gemini Pro', platformName: 'Gemini', multiplier: 0.5, hasUsableKey: true, blocked: 'ZCode 暂不支持 Gemini 原生接口，不能添加这个分组。' };
+  // 补全 adds at once what ZCode lacks of a group it has, with no key made; without a working key there is nothing to
+  // add it with, and only 删除 is left.
+  ctx.asking = null;
+  assert.deepEqual(all(ctx.groupRow(held), c => c.tag === 'button').map(b => b.textContent), ['补全', '删除']);
+  button(ctx.groupRow(held), '补全').onclick();
+  assert.deepEqual(calls.at(-1), ['add', '3', false]);
+  assert.deepEqual(all(ctx.groupRow({ ...held, hasUsableKey: false }), c => c.tag === 'button').map(b => b.textContent), ['删除']);
+  // A change's outcome shows in its own row, where the user clicked, and nowhere else; asking in that row clears it.
+  const outcome = n => all(n, c => c.className === 'note' || c.className === 'note fail').map(c => [c.className, c.textContent]);
+  ctx.groupOutcome = { id: '1', text: '已添加分组「gpt-plus」：2 个模型加入 ZCode「biubiu AI · gpt-plus」。', error: false };
+  assert.deepEqual(outcome(ctx.groupRow(ready)), [['note', ctx.groupOutcome.text]]);
+  assert.deepEqual(outcome(ctx.groupRow(bare)), []);
+  ctx.groupOutcome = { id: '2', text: '「grok-heavy」还没有可用的 Key，需要先在网站上新建一个。', error: true };
+  assert.deepEqual(outcome(ctx.groupRow(bare)), [['note fail', ctx.groupOutcome.text]]);
+  button(ctx.groupRow(bare), '添加').onclick();
+  assert.deepEqual([statuses.at(-1), ctx.groupOutcome, outcome(ctx.groupRow(bare))], ['', null, []], 'a new question clears the last outcome');
+  const gemini ={ id: '4', name: 'Gemini Pro', platformName: 'Gemini', multiplier: 0.5, hasUsableKey: true, blocked: 'ZCode 暂不支持 Gemini 原生接口，不能添加这个分组。' };
   const blocked = ctx.groupRow(gemini);
   assert.deepEqual(all(blocked, c => c.tag === 'button'), [], 'a Gemini group has no button'); assert.match(all(blocked, c => c.className === 'gnote')[0].textContent, /Gemini/);
   for (const tool of ['site_add_group', 'site_remove_group']) assert.equal(html.split(`call('${tool}'`).length, 2, tool);
+});
+test('the group list is called empty only when the site could be read, and a change\'s outcome shows in its row, under the list only when the row is gone', async () => {
+  const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
+  const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
+  const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => all(c, match))];
+  const node = tag => {
+    const n = { tag, children: [], attrs: {}, dataset: {}, style: {}, hidden: false, classes: new Set(), className: '',
+      append(...c) { for (const x of c) x.parent = n; n.children.push(...c); }, replaceChildren(...c) { for (const x of c) x.parent = n; n.children = c; },
+      setAttribute(k, v) { n.attrs[k] = String(v); }, remove() { n.parent.children = n.parent.children.filter(c => c !== n); },
+      querySelector(selector) { const cls = /^\.([\w-]+)$/.exec(selector)?.[1]; return cls ? all(n, c => c !== n && c.className.split(' ').includes(cls))[0] || null : null; } };
+    n.classList = { toggle(c, on) { if (on) n.classes.add(c); else n.classes.delete(c); } };
+    return n;
+  };
+  const el = (tag, cls, text) => { const n = node(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const els = { siteGroupsPart: node('div'), siteGroupCount: node('span'), siteGroups: node('div'), siteStatus: node('div') };
+  const ctx = { el, $: id => els[id], CSS: { escape: s => s }, window: {}, busy: false, bridge: () => {}, asking: null, groupOutcome: null, site: null, addGroup() {}, removeGroup() {} };
+  vm.runInNewContext(['renderGroups', 'groupRow', 'openAsk', 'siteStatus'].map(source).join('\n'), ctx);
+  const texts = n => all(n, c => c.textContent !== undefined && !c.children.length).map(c => c.textContent);
+  const groups = [{ id: '1', name: 'gpt-plus', platformName: 'GPT', hasUsableKey: true }, { id: '2', name: 'claude-max', platformName: 'Claude', hasUsableKey: true }];
+
+  // A site that could not be read is no answer about the account's groups: no 还没有可用的分组 then.
+  ctx.site = { signedIn: true, error: 'biubiu AI 网站暂时出错（HTTP 500），请稍后重试。', groups: [] }; ctx.renderGroups();
+  assert.deepEqual(els.siteGroups.children, []);
+  ctx.site = { signedIn: true, groups: [] }; ctx.renderGroups();
+  assert.deepEqual(texts(els.siteGroups), ['这个账户还没有可用的分组。']);
+
+  // The outcome of a change shows in its row; the line under the list keeps it for screen readers, off screen.
+  ctx.site = { signedIn: true, groups };
+  ctx.siteStatus('已添加分组「gpt-plus」：2 个模型加入 ZCode「biubiu AI · gpt-plus」。', false, '1'); ctx.renderGroups();
+  const row = id => all(els.siteGroups, c => c.className.startsWith('grow') && c.children.some(m => all(m, x => x.className === 'gname' && x.textContent === groups.find(g => g.id === id).name).length))[0];
+  assert.ok(texts(row('1')).includes(ctx.groupOutcome.text)); assert.ok(!texts(row('2')).includes(ctx.groupOutcome.text));
+  assert.deepEqual([els.siteStatus.textContent, els.siteStatus.style.display, els.siteStatus.classes.has('aside')], [ctx.groupOutcome.text, 'block', true]);
+  // A failure that empties the list shows under it instead, unless the error above the list says the same.
+  ctx.siteStatus('「gpt-plus」还没有可用的 Key，需要先在网站上新建一个。', true, '1');
+  ctx.site = { signedIn: true, error: 'biubiu AI 网站暂时出错（HTTP 500），请稍后重试。', groups: [] }; ctx.renderGroups();
+  assert.deepEqual([els.siteStatus.classes.has('aside'), els.siteStatus.classes.has('error'), els.siteStatus.style.display], [false, true, 'block']);
+  ctx.siteStatus(ctx.site.error, true, '1'); ctx.renderGroups();
+  assert.deepEqual([els.siteStatus.classes.has('aside'), els.siteStatus.textContent], [true, ctx.site.error], 'said once on screen, still heard');
+  // A new action clears the outcome, in its row too.
+  ctx.site = { signedIn: true, groups }; ctx.siteStatus('已从 ZCode 删除分组「gpt-plus」的 2 个模型。', false, '1'); ctx.renderGroups();
+  assert.equal(all(els.siteGroups, c => c.className === 'gask goutcome').length, 1);
+  ctx.siteStatus('');
+  assert.deepEqual([ctx.groupOutcome, all(els.siteGroups, c => c.className === 'gask goutcome').length, els.siteStatus.style.display], [null, 0, 'none']);
 });
 test('a site key\'s models open under it on the site page and are added from there; 删除 asks in its row before the key leaves the site', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
