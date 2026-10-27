@@ -2,7 +2,8 @@
 // app/server.mjs's own server as the companion serves it, backed by the demo account and demo service (app/demo.mjs) and a
 // temporary ZCode configuration, and driven in headless Edge over the DevTools protocol, so nothing reaches the real site,
 // the real ZCode configuration or the network. The overview is a schematic: a plain frame for ZCode beside a real panel shot.
-// --release photographs the latest GitHub release instead, through the system proxy Edge uses.
+// --release photographs the latest GitHub release instead, through the system proxy Edge uses, or through HTTPS_PROXY
+// when that is set (for a system proxy that is switched off).
 // Usage: node build/companion-dev/docs-shots.mjs [--release]
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
@@ -79,10 +80,12 @@ const PAGE_HELPERS = `
     tick(list, count) { let n = 0; for (; n < count; n++) { const box = [...document.querySelectorAll(list + ' input[type=checkbox]')].find(b => !b.checked && !b.disabled); if (!box) break; box.click(); } return n; }
   };`;
 
-async function withEdge(work) {
+// proxy, for the release page only: Edge otherwise goes through the system proxy, and without one GitHub's page may not
+// load its assets list.
+async function withEdge(work, { proxy = '' } = {}) {
   const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-docs-edge-'));
   const port = await freePort();
-  const edge = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync', '--disable-component-update', '--mute-audio', 'about:blank'], { stdio: 'ignore' });
+  const edge = spawn(EDGE, ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--disable-sync', '--disable-component-update', '--mute-audio', ...(proxy ? [`--proxy-server=${proxy}`] : []), 'about:blank'], { stdio: 'ignore' });
   try {
     let target;
     for (let i = 0; i < 100 && !target; i++) {
@@ -212,7 +215,8 @@ async function releaseShot() {
   await withEdge(async page => {
     await page.view(1280, 900, 1.5);
     await page.go(`${REPO}/releases/latest`);
-    await page.until(`[...document.querySelectorAll('a')].some(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || ''))`, 'the release assets', 60000);
+    // GitHub loads the Assets list only once it scrolls into view, and a long release note puts it below the window.
+    await page.until(`(document.querySelector('include-fragment[src*="expanded_assets"]')?.scrollIntoView({ block: 'center' }), [...document.querySelectorAll('a')].some(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || '')))`, 'the release assets', 60000);
     // From the release's title to its Assets, with the installer's row outlined so the tutorial can point at it.
     await page.run(`(() => {
       const a = [...document.querySelectorAll('a')].find(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || ''));
@@ -225,7 +229,7 @@ async function releaseShot() {
     })()`);
     const from = await page.run(`'#' + CSS.escape(([...document.querySelectorAll('h1, h2')].find(h => /biubiu AI \\d/.test(h.textContent)) || document.querySelector('main') || document.body).id)`);
     await page.shot('github-release.png', { from, to: '#docsAsset', margin: 28, width: 1280 });
-  });
+  }, { proxy: process.env.HTTPS_PROXY || process.env.https_proxy || '' });
 }
 
 await fs.mkdir(out, { recursive: true });

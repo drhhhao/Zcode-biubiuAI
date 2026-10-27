@@ -1,6 +1,6 @@
 # biubiu AI 图文使用教程
 
-biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.10 版，安装、卸载和发布页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
+biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.10 版，安装和卸载页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
 
 <p align="center"><img src="images/overview.png" alt="biubiu AI 面板贴在 ZCode 窗口右侧（左边的 ZCode 是示意）" width="735"></p>
 
@@ -25,7 +25,7 @@ biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账�
 1. 打开 biubiu AI 的发布页面：<https://github.com/drhhhao/Zcode-biubiuAI/releases/latest>
 2. 在页面下方的 **Assets** 里点 **`biubiuAI-Setup-<版本号>.exe`**（约 36 MB，下图橙色框），浏览器会把它下载到“下载”文件夹。
 
-<p align="center"><img src="images/github-release.png" alt="Release 页面：Assets 里的 biubiuAI-Setup-0.8.9.exe（橙色框）" width="760"></p>
+<p align="center"><img src="images/github-release.png" alt="Release 页面：Assets 里的 biubiuAI-Setup-0.8.10.exe（橙色框）" width="760"></p>
 
 整个 biubiu AI 只有这一个文件。Node.js、WebView2 等运行环境都由它负责，不需要另外下载或安装。
 
