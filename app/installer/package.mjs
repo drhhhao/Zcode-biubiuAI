@@ -125,8 +125,12 @@ function findCsc() {
   fail('Roslyn csc.exe not found. Install Visual Studio Build Tools with the C# compiler, or set MODEL_HARBOR_CSC.');
 }
 
+// Started from PowerShell 7 (as GitHub Actions runs npm), Windows PowerShell would inherit PowerShell 7's module path
+// and fail to load its own Get-AuthenticodeSignature; without PSModulePath it builds its own (as in app/build.mjs).
+const windowsPowerShellEnv = () => Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'psmodulepath'));
+
 function powershell(script, env = {}) {
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { env: { ...process.env, ...env }, encoding: 'utf8' });
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { env: { ...windowsPowerShellEnv(), ...env }, encoding: 'utf8' });
   if (result.status !== 0) fail(`PowerShell failed: ${result.stderr || result.error?.message}`);
   return result.stdout.trim();
 }

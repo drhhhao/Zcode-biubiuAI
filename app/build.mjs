@@ -52,10 +52,14 @@ function findSdk() {
   return files;
 }
 
+// Started from PowerShell 7 (as GitHub Actions runs npm), Windows PowerShell would inherit PowerShell 7's module path
+// and fail to load its own Get-AuthenticodeSignature; without PSModulePath it builds its own.
+const windowsPowerShellEnv = () => Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'psmodulepath'));
+
 // Authenticode check through PowerShell; every shipped DLL must be validly signed by Microsoft.
 function verifySignatures(files) {
   const script = `$ErrorActionPreference='Stop'; [Console]::OutputEncoding=[Text.Encoding]::UTF8; $out=@(); foreach ($f in ($env:MH_VERIFY -split '\\|')) { $s=Get-AuthenticodeSignature -LiteralPath $f; $subject=''; if ($s.SignerCertificate) { $subject=$s.SignerCertificate.Subject }; $out += [pscustomobject]@{ file=$f; status=[string]$s.Status; subject=$subject } }; ConvertTo-Json -Compress -InputObject @($out)`;
-  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { env: { ...process.env, MH_VERIFY: files.join('|') }, encoding: 'utf8' });
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { env: { ...windowsPowerShellEnv(), MH_VERIFY: files.join('|') }, encoding: 'utf8' });
   if (result.status !== 0) fail(`signature check could not run: ${result.stderr || result.error?.message}`);
   let rows;
   try { rows = JSON.parse(result.stdout.trim()); } catch { fail(`signature check returned unreadable output: ${result.stdout}`); }
