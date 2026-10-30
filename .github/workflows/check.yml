@@ -40,6 +40,10 @@ jobs:
           file="dist/biubiuAI-Setup-$version.exe"
           if [ ! -f "$file" ]; then echo "::error::没生成 $file"; ls -l dist; exit 1; fi
           cat "$file.sha256"
+      # 这台机器的屏幕默认 1024×768，放不下替身 ZCode 和旁边的面板；窗口检查按 1920×1080 布置
+      - name: 屏幕调到 1920×1080
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build/companion-dev/screen-1080p.ps1
       # 网站窗口、登录交接、更新检查的解析与校验、托盘菜单（替身网站，不用账号）
       - name: 网站窗口与托盘菜单
         run: npm run app:site-check

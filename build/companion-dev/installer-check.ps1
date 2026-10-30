@@ -53,6 +53,18 @@ $runBefore = (Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'Mod
 $desktopBefore = Test-Path -LiteralPath $desktop
 $dataBefore = Test-Path -LiteralPath $realData
 $shell = New-Object -ComObject WScript.Shell
+# A shortcut's target as Unicode. WScript.Shell's TargetPath turns characters outside the system's code page into '?',
+# so on an English Windows (GitHub's machines) the Chinese in the install folder would never match.
+function Link-Target([string]$lnk) {
+  $folder = (New-Object -ComObject Shell.Application).Namespace((Split-Path -Parent $lnk))
+  $item = $folder.ParseName((Split-Path -Leaf $lnk))
+  if ($item -and $item.IsLink) { return $item.GetLink.Path } else { return '' }
+}
+# A file's path as the shell spells it, with long folder names, to compare with a shortcut's target.
+function Shell-Path([string]$file) {
+  $item = (New-Object -ComObject Shell.Application).Namespace((Split-Path -Parent $file)).ParseName((Split-Path -Leaf $file))
+  if ($item) { return $item.Path } else { return $file }
+}
 Remove-Item Env:MODEL_HARBOR_NODE, Env:MODEL_HARBOR_APP_SERVER -ErrorAction SilentlyContinue
 $setupStart = Start-Process -FilePath $setup -PassThru
 try {
@@ -75,7 +87,7 @@ try {
   $entry = Get-ItemProperty -Path $uninstallKey -ErrorAction SilentlyContinue
   Check 'install / Settings > Apps entry' ($entry -and $entry.DisplayName -eq 'biubiu AI' -and $entry.DisplayVersion -eq $version -and $entry.InstallLocation -eq $dir) "$($entry.DisplayName) $($entry.DisplayVersion)"
   Check 'install / uninstall command' ($entry.UninstallString -eq ('"' + (Join-Path $dir 'Uninstall.exe') + '"')) "$($entry.UninstallString)"
-  Check 'install / Start menu shortcut' ((Test-Path -LiteralPath $startMenu) -and $shell.CreateShortcut($startMenu).TargetPath -eq (Join-Path $dir 'bin\ModelHarbor.exe')) ''
+  Check 'install / Start menu shortcut' ((Test-Path -LiteralPath $startMenu) -and (Link-Target $startMenu) -eq (Shell-Path (Join-Path $dir 'bin\ModelHarbor.exe'))) (Link-Target $startMenu)
   Check 'install / no desktop shortcut when not asked' ((Test-Path -LiteralPath $desktop) -eq $desktopBefore) ''
   Check 'install / no start at sign-in when not asked' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion') -eq $runBefore) ''
 
@@ -247,7 +259,7 @@ try {
     if ((Test-Path -LiteralPath $exe) -and (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue)) { & $exe --quit | Out-Null }
   }
   if ((Test-Path $uninstallKey) -and ((Get-ItemProperty $uninstallKey).InstallLocation -like "$tmp*")) { Remove-Item $uninstallKey -Recurse }
-  if ((Test-Path -LiteralPath $startMenu) -and ($shell.CreateShortcut($startMenu).TargetPath -like "$tmp*")) { Remove-Item -LiteralPath $startMenu }
+  if ((Test-Path -LiteralPath $startMenu) -and ((Link-Target $startMenu) -like "$tmp*")) { Remove-Item -LiteralPath $startMenu }
   Remove-Item -Recurse -Force -LiteralPath $tmp -ErrorAction SilentlyContinue
   # The uninstaller's copies in the temp folder, which a real install clears on its next run.
   Start-Sleep -Seconds 1
