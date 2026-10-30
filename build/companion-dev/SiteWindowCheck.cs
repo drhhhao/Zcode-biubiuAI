@@ -246,6 +246,8 @@ static class SiteWindowCheck
         say("read-release", release != null && release.Version == "0.9.0" && release.Page == Updates.Repository + "/releases/tag/v0.9.0" && release.Installer == download
             && release.Size == 37994496 && release.Sha256 == sha.ToLowerInvariant() && release.Checkable,
             release == null ? "none" : release.Version + " " + release.Installer + " " + release.Size + " " + release.Sha256);
+        say("read-mirror", release != null && release.Mirror == "https://gitee.com/drhhhao_0/Zcode-biubiuAI/releases/download/v0.9.0/biubiuAI-Setup-0.9.0.exe",
+            release == null ? "none" : release.Mirror ?? "no mirror");
         Func<Release, string> show = r => r == null ? "none" : r.Version + (r.Installer == null ? " without an installer" : " " + r.Installer) + (r.Sha256 == null ? " without a SHA-256" : "");
         var draft = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ",\"draft\":true"));
         var pre = Updates.Read(answer("v0.9.0", asset("biubiuAI-Setup-0.9.0.exe", download, "sha256:" + sha), ",\"prerelease\":true"));

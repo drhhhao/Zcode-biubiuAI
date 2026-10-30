@@ -1,8 +1,9 @@
 // A stand-in for GitHub's latest release, for installer-check.ps1; it never reaches GitHub. On 127.0.0.1 it answers
 // /latest in the shape of https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/latest, naming <version> and its
 // installer biubiuAI-Setup-<version>.exe with the file's size and SHA-256, and serves that installer (the file given,
-// whatever its own version) behind a redirect, as GitHub's download links are. POST /wrong-hash makes later answers name
-// a SHA-256 the file does not have. Writes its port to <port file> and one line per request to stdout.
+// whatever its own version) behind a redirect, as GitHub's download links are. The same file is on its stand-in for the
+// Gitee mirror, /mirror/v<version>/<installer>, behind a redirect too. POST /wrong-hash makes later answers name a SHA-256
+// the file does not have. Writes its port to <port file> and one line per request to stdout.
 // Usage: node release-stand-in.mjs <installer> <version> <port file>
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -31,7 +32,8 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.method === 'GET' && req.url === `/download/${name}`) { res.writeHead(302, { Location: `/files/${name}` }).end(); return; }
-  if (req.method === 'GET' && req.url === `/files/${name}`) { res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': bytes.length }).end(bytes); return; }
+  if (req.method === 'GET' && req.url === `/mirror/v${version}/${name}`) { res.writeHead(302, { Location: `/mirror-files/${name}` }).end(); return; }
+  if (req.method === 'GET' && (req.url === `/files/${name}` || req.url === `/mirror-files/${name}`)) { res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': bytes.length }).end(bytes); return; }
   res.writeHead(404).end();
 });
 server.listen(0, '127.0.0.1', () => fs.writeFileSync(portFile, String(server.address().port)));

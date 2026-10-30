@@ -7,6 +7,8 @@
 <p align="center">
   <a href="https://github.com/drhhhao/Zcode-biubiuAI/releases/latest"><b>⬇ 下载最新版安装程序</b></a>
   &nbsp;·&nbsp;
+  <a href="https://gitee.com/drhhhao_0/Zcode-biubiuAI/releases"><b>⬇ 国内下载（Gitee）</b></a>
+  &nbsp;·&nbsp;
   <a href="docs/tutorial.md"><b>📖 图文使用教程</b></a>
   &nbsp;·&nbsp;
   <a href="docs/development.md">开发说明</a>
@@ -28,7 +30,7 @@
 
 ## 三步上手
 
-1. **下载**：打开 [Releases 页面](https://github.com/drhhhao/Zcode-biubiuAI/releases/latest)，在 Assets 里下载 `biubiuAI-Setup-<版本号>.exe`。
+1. **下载**：打开 [Releases 页面](https://github.com/drhhhao/Zcode-biubiuAI/releases/latest)，在 Assets 里下载 `biubiuAI-Setup-<版本号>.exe`。GitHub 慢的话，从国内的 [Gitee 镜像](https://gitee.com/drhhhao_0/Zcode-biubiuAI/releases) 下载同一个文件。
 2. **安装**：双击下载的文件，点「安装」。第一次运行时 Windows 可能提示“Windows 已保护你的电脑”，点「更多信息」→「仍要运行」。不用另装 Node.js 等任何东西，需要的运行环境安装程序会一起装好。
 3. **使用**：打开 ZCode，biubiu AI 面板会贴在 ZCode 窗口旁边。登录 biubiu AI 账户，点分组的「添加」，回到 ZCode 的模型选择里就能选到这些模型。
 
@@ -46,7 +48,7 @@
 - 网站密码只用来登录，不保存；登录状态加密保存在本机，换一个 Windows 用户也打不开。
 - 不修改 ZCode 的程序文件，不注入 ZCode 进程；修改模型配置前自动备份原配置（保留最近 10 份）。
 - 卸载时只删除它自己装的文件；你可以选择是否同时删除设置和登录状态。
-- 检查更新只访问本仓库在 GitHub 上的 Releases，不上传任何数据；下载的安装程序要和 GitHub 记录的文件哈希（SHA-256）一致才会安装。
+- 检查更新只读取本仓库在 GitHub 上的 Releases，不上传任何数据；安装程序先从国内的 Gitee 镜像下载，不成功再从 GitHub 下载，都要和 GitHub 记录的文件哈希（SHA-256）一致才会安装。
 
 ## 常见问题
 

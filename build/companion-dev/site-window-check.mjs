@@ -163,7 +163,7 @@ try {
   const told = Object.fromEntries((updates.stdout || '').split(/\r?\n/).filter(line => line.startsWith('update ')).map(line => { const [, name, ...rest] = line.split(' '); return [name, rest.join(' ')]; }));
   const cases = {
     'json-values': 'JSON values, escapes and numbers are read', 'json-refuses': 'text that is not JSON is refused',
-    'read-release': 'a release gives its version, page, installer, size and SHA-256', 'read-skips-drafts-and-prereleases': 'drafts and prereleases are not offered',
+    'read-release': 'a release gives its version, page, installer, size and SHA-256', 'read-mirror': 'the same installer is looked for on the Gitee mirror first', 'read-skips-drafts-and-prereleases': 'drafts and prereleases are not offered',
     'read-needs-a-version-tag': 'a tag that is no version is not offered', 'read-takes-installers-from-the-repository-only': 'an installer from anywhere but the repository is not taken',
     'read-takes-the-installer-of-that-version': 'only the installer named for that version is taken', 'read-needs-a-sha256': 'an installer without a SHA-256 cannot be updated to in one click',
     'read-keeps-the-page-on-the-repository': 'the release page stays on the repository', 'read-refuses-other-text': 'an answer that is no release is refused',

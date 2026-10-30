@@ -116,16 +116,18 @@ try {
 
   # The companion's one-click update. A stand-in for GitHub's latest release on 127.0.0.1 (release-stand-in.mjs) names a
   # newer version whose installer is this one. The installed copy, with a temporary data folder and no ZCode to follow,
-  # tells of it once; asked (--check-update) and answered yes, it downloads the installer through the stand-in's redirect,
-  # checks its SHA-256 and runs it, which quits the companion, installs in place leaving the desktop shortcut and the
-  # start at sign-in as they were, and starts it again. Then the stand-in names a SHA-256 the file does not have.
+  # tells of it once; asked (--check-update) and answered yes, it downloads the installer from the stand-in's mirror
+  # (Gitee's place) through a redirect, checks its SHA-256 against the stand-in's GitHub record and runs it, which quits
+  # the companion, installs in place leaving the desktop shortcut and the start at sign-in as they were, and starts it
+  # again. Then the stand-in names a SHA-256 the file does not have: the mirror's file is set aside for GitHub's, which is
+  # refused too.
   $exeHere = Join-Path $dir 'bin\ModelHarbor.exe'
   $updateData = Join-Path $tmp 'update-data'
   $updateLog = Join-Path $updateData 'companion.log'
   $portFile = Join-Path $tmp 'stand-in.port'
   $standInLog = Join-Path $tmp 'stand-in.log'
   $askTitle = Zh 'biubiu AI U+66F4U+65B0'
-  $fetched = '^GET /(download|files)/'
+  $fetched = '^GET /(download|files|mirror|mirror-files)/'
   function Log-Text { if (Test-Path -LiteralPath $updateLog) { return [string](Get-Content -LiteralPath $updateLog -Raw -Encoding UTF8) } return '' }
   # A companion started without the test's environment would write to the real data folder: stopped at once if so.
   $realLog = Join-Path $realData 'companion.log'
@@ -167,8 +169,8 @@ try {
     while ($second -and -not (Escaped) -and ([regex]::Matches((Log-Text), 'companion \S+ starting').Count -lt 2) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if (Escaped) { Start-Process -FilePath $exeHere -ArgumentList '--quit' -Wait | Out-Null }
     Check 'one-click update / started again in the same environment' ((-not (Escaped)) -and [regex]::Matches((Log-Text), 'companion \S+ starting').Count -eq 2) ''
-    Check 'one-click update / the SHA-256 checked before the installer ran' ((Log-Text) -match 'update 0\.9\.0 downloaded and verified; starting the installer') ''
-    Check 'one-click update / downloaded once, through the redirect' (@(Select-String -LiteralPath $standInLog -Pattern '^GET /files/').Count -eq 1) ''
+    Check 'one-click update / the SHA-256 checked before the installer ran' ((Log-Text) -match 'update 0\.9\.0 downloaded from Gitee and verified; starting the installer') ''
+    Check 'one-click update / downloaded once from the mirror, through the redirect' ((@(Select-String -LiteralPath $standInLog -Pattern '^GET /mirror-files/').Count -eq 1) -and -not (Select-String -LiteralPath $standInLog -Pattern '^GET /(download|files)/' -Quiet)) ''
     $after = @(Get-Content -LiteralPath $setupLog -Encoding UTF8 | Select-Object -Skip $setupLines)
     Check 'one-click update / a silent install in place' ((@($after | Where-Object { $_ -match [regex]::Escape("install $version to $dir") }).Count -eq 1) -and (@($after | Where-Object { $_ -match 'update from biubiu AI' }).Count -eq 1)) ''
     Check 'one-click update / no desktop shortcut added' ((Test-Path -LiteralPath $desktop) -eq $desktopBefore) ''
@@ -191,6 +193,8 @@ try {
     $deadline = (Get-Date).AddSeconds(60)
     while (-not ((Log-Text) -match $refused) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
     Check 'wrong SHA-256 / refused' ((Log-Text) -match $refused) ''
+    $setAside = "update 0\.9\.0: the download from Gitee does not match GitHub's sha256; trying GitHub"
+    Check "wrong SHA-256 / the mirror's file set aside for GitHub's" (((Log-Text) -match $setAside) -and (@(Select-String -LiteralPath $standInLog -Pattern '^GET /mirror-files/').Count -eq 2) -and (@(Select-String -LiteralPath $standInLog -Pattern '^GET /files/').Count -eq 1)) ''
     Start-Sleep -Seconds 2
     Check 'wrong SHA-256 / nothing installed, the companion stays' ((-not $second.HasExited) -and (@(Get-Content -LiteralPath $setupLog -Encoding UTF8).Count -eq $setupLines)) ''
     Check 'wrong SHA-256 / the download deleted' (@(Get-ChildItem -LiteralPath $updateDownloads -File -ErrorAction SilentlyContinue).Count -eq 0) ''

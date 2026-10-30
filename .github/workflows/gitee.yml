@@ -1,0 +1,58 @@
+# 同步到 Gitee：国内镜像 https://gitee.com/drhhhao_0/Zcode-biubiuAI ，国内用户下载和一键更新都比 GitHub 快得多。
+# 推送到 main 时把 main 原样推过去；在 GitHub 上正式发布 Release 时（草稿和预发布不算），把标签推过去，
+# 再用 build/companion-dev/gitee-release.mjs 在 Gitee 建同名 Release、放上同一个安装程序，并像用户一样不带令牌下载回来、
+# 核对大小和 SHA-256 与 GitHub 记录的一致。已装好的 biubiu AI 先从 Gitee 下载，但只认 GitHub 记录的哈希，
+# 所以 Gitee 上的文件晚到、缺失或不对时，它会改从 GitHub 下载。
+# Gitee 的私人令牌放在仓库的 Actions 机密 GITEE_TOKEN 里。也可以在 Actions → 同步到 Gitee → Run workflow 手动补一个版本。
+name: 同步到 Gitee
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要同步的版本标签（如 v0.8.12）；留空只同步 main
+        required: false
+
+concurrency:
+  group: gitee
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GITEE_REPOSITORY: drhhhao_0/Zcode-biubiuAI
+
+jobs:
+  sync:
+    name: 同步到 Gitee
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: 推送代码与标签
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          remote="https://drhhhao_0:${GITEE_TOKEN}@gitee.com/${GITEE_REPOSITORY}.git"
+          refs="refs/remotes/origin/main:refs/heads/main"
+          if [ -n "$TAG" ]; then refs="$refs refs/tags/$TAG:refs/tags/$TAG"; fi
+          for try in 1 2 3; do
+            git -c credential.helper= push "$remote" $refs && exit 0
+            echo "推送失败，$((try * 20)) 秒后再试"; sleep $((try * 20))
+          done
+          exit 1
+      - name: 同步 Release
+        if: (github.event_name == 'release' && !github.event.release.prerelease) || inputs.tag != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: node build/companion-dev/gitee-release.mjs "$TAG"

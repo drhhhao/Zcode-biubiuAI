@@ -356,7 +356,7 @@ test('the tray icon\'s menu is drawn like the panel: its theme, rounded corners,
   assert.ok(/public ToolStripMenuItem Add\([^)]*\)\s*\{[\s\S]*?Items\.Add\(item\);\s*Arrange\(\);\s*return item;/.test(menu));
 });
 
-test('updates come from GitHub Releases: an installed copy tells of a newer version once, updates only when the user says yes, and runs only an installer whose SHA-256 is GitHub\'s', async () => {
+test('updates come from GitHub Releases: an installed copy tells of a newer version once, updates only when the user says yes, downloads from the Gitee mirror first and runs only an installer whose SHA-256 is GitHub\'s', async () => {
   const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
   const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
   const updates = cs.slice(cs.indexOf('static class Updates'), cs.indexOf('// The site in a window of its own'));
@@ -391,6 +391,13 @@ test('updates come from GitHub Releases: an installed copy tells of a newer vers
   const run = body(companion, 'async void RunUpdate(Release release)');
   const mismatch = run.indexOf('Updates.Mismatch(file, release)'), refused = run.indexOf('if (problem != null)'), started = run.indexOf('Updates.Run(file)');
   assert.ok(mismatch > 0 && refused > mismatch && started > refused, 'download, check, then run');
+  // The same installer from the Gitee mirror first (tagged and named as on GitHub), GitHub's own when it is missing or
+  // differs; either one only with GitHub's size and SHA-256.
+  assert.ok(updates.includes('public const string MirrorRepository = "https://gitee.com/drhhhao_0/Zcode-biubiuAI";'));
+  assert.ok(updates.includes('if (!StandIn) return MirrorRepository + "/releases/download/v" + version + "/" + name;'));
+  const mirror = run.indexOf('sources.Add(new KeyValuePair<string, string>("Gitee", release.Mirror));'), github = run.indexOf('sources.Add(new KeyValuePair<string, string>("GitHub", release.Installer));');
+  assert.ok(mirror > 0 && github > mirror && run.indexOf('foreach (var from in sources)') > github && mismatch > github, 'Gitee, then GitHub, each checked');
+  assert.ok(run.includes('if (mismatch == null) { source = from.Key; break; }'));
   assert.ok(body(updates, 'public static Process Run(string file)').includes('"--silent --update --launch --dir \\""'), 'silently into this installation, keeping the user\'s shortcuts and start at sign-in');
   // The log never gets an address.
   for (const line of (updates + companion).split('\n').filter(l => l.includes('Log.Write('))) assert.ok(!/Installer|Page|url|Override|Request/.test(line.replace(/"[^"]*"/g, '""')), line.trim());

@@ -1857,7 +1857,7 @@ namespace ModelHarbor
     // SHA-256 (no installer, or no SHA-256, when GitHub names none).
     sealed class Release
     {
-        public string Version, Page, Installer, Sha256;
+        public string Version, Page, Installer, Mirror, Sha256;
         public long Size;
         public bool Checkable { get { return Installer != null && Sha256 != null; } }
     }
@@ -1868,11 +1868,14 @@ namespace ModelHarbor
     // biubiuAI-Setup-<version>.exe. Updating is the user's call. The installer is downloaded into the temp folder,
     // through the system proxy, and runs only when its size and SHA-256 match what GitHub records for the asset; it runs
     // silently into this installation (--update: the desktop shortcut and the start at sign-in stay as they are), quits
-    // the companion and starts the new version. MODEL_HARBOR_UPDATE_URL names a stand-in for the latest release, for tests,
-    // or "off" to never look.
+    // the companion and starts the new version. The same installer is first fetched from the Gitee mirror, far quicker in
+    // China; only GitHub's record says what it must be, and when the mirror's file is missing or differs, GitHub's own is
+    // fetched. MODEL_HARBOR_UPDATE_URL names a stand-in for the latest release (its mirror under /mirror/), for tests, or
+    // "off" to never look.
     static class Updates
     {
         public const string Repository = "https://github.com/drhhhao/Zcode-biubiuAI";
+        public const string MirrorRepository = "https://gitee.com/drhhhao_0/Zcode-biubiuAI";
         const string LatestRelease = "https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/latest";
         static readonly string Override = (Environment.GetEnvironmentVariable("MODEL_HARBOR_UPDATE_URL") ?? "").Trim();
 
@@ -1924,6 +1927,7 @@ namespace ModelHarbor
                 bool fromStandIn = StandIn && url != null && url.StartsWith("http://127.0.0.1:", StringComparison.Ordinal);
                 if (!fromRepository && !fromStandIn) continue;
                 release.Installer = url;
+                release.Mirror = MirrorOf(version);
                 double? size = Field(asset, "size") as double?;
                 release.Size = size.HasValue && size.Value > 0 && size.Value < 1e10 ? (long)size.Value : 0;
                 string digest = Field(asset, "digest") as string;
@@ -1939,6 +1943,15 @@ namespace ModelHarbor
             return map.TryGetValue(name, out value) ? value : null;
         }
 
+        // The installer of that version on the Gitee mirror (the stand-in's under /mirror/), named and tagged as on GitHub.
+        static string MirrorOf(string version)
+        {
+            string name = InstallerName(version);
+            if (!StandIn) return MirrorRepository + "/releases/download/v" + version + "/" + name;
+            Uri standIn;
+            return Uri.TryCreate(Override, UriKind.Absolute, out standIn) ? standIn.GetLeftPart(UriPartial.Authority) + "/mirror/v" + version + "/" + name : null;
+        }
+
         // Blocking calls, made off the UI thread: only they keep the timeouts (an asynchronous WebRequest has none).
         public static Release Latest()
         {
@@ -1950,12 +1963,12 @@ namespace ModelHarbor
         }
 
         // Into an empty download folder; progress gets whole percentages.
-        public static string Download(Release release, Action<int> progress)
+        public static string Download(Release release, string from, Action<int> progress)
         {
             Clean();
             Directory.CreateDirectory(Folder);
             string file = Path.Combine(Folder, InstallerName(release.Version));
-            using (var response = Request(release.Installer).GetResponse())
+            using (var response = Request(from).GetResponse())
             using (var input = response.GetResponseStream())
             using (var output = new FileStream(file, FileMode.Create, FileAccess.Write, FileShare.None))
             {
@@ -2834,7 +2847,7 @@ namespace ModelHarbor
             if (release == null || updating != null || askingUpdate) return;
             balloonOffersUpdate = false;
             string text = release.Checkable
-                ? "发现新版本 biubiu AI " + release.Version + "（当前 " + Program.Version + "）。现在更新吗？\n\n将从 GitHub 下载安装程序" + (release.Size > 0 ? "（约 " + Math.Max(1, (release.Size + 524288) / 1048576) + " MB）" : "") + "，核对文件哈希无误后自动安装。安装时面板会关闭片刻，装好后自动重新打开；设置和网站登录都会保留。"
+                ? "发现新版本 biubiu AI " + release.Version + "（当前 " + Program.Version + "）。现在更新吗？\n\n将下载安装程序" + (release.Size > 0 ? "（约 " + Math.Max(1, (release.Size + 524288) / 1048576) + " MB）" : "") + "：先从国内的 Gitee 镜像下载，不成功再从 GitHub 下载，核对与 GitHub 记录的文件哈希一致后自动安装。安装时面板会关闭片刻，装好后自动重新打开；设置和网站登录都会保留。"
                 : "发现新版本 biubiu AI " + release.Version + "（当前 " + Program.Version + "）。\n\nGitHub 上没有这个版本可供核对的安装程序，不能一键更新。现在打开下载页面吗？";
             DialogResult answer;
             askingUpdate = true;
@@ -2851,7 +2864,8 @@ namespace ModelHarbor
             RunUpdate(release);
         }
 
-        // Downloads the installer, checks its size and SHA-256 against GitHub's record, and runs it. The installer quits
+        // Downloads the installer (from the Gitee mirror, else from GitHub), checks its size and SHA-256 against GitHub's
+        // record, and runs it. The installer quits
         // the companion and starts the new version; if it stops before that, the companion says so and stays.
         async void RunUpdate(Release release)
         {
@@ -2860,23 +2874,38 @@ namespace ModelHarbor
             ShowUpdate();
             Notify("正在下载 biubiu AI " + release.Version + "，下载完会自动安装。");
             Log.Write("update " + release.Version + " downloading");
-            string file = null, problem = null;
-            try
+            string file = null, problem = null, source = null;
+            // The Gitee mirror first, then GitHub; either download counts only with GitHub's size and SHA-256.
+            var sources = new List<KeyValuePair<string, string>>();
+            if (release.Mirror != null) sources.Add(new KeyValuePair<string, string>("Gitee", release.Mirror));
+            sources.Add(new KeyValuePair<string, string>("GitHub", release.Installer));
+            foreach (var from in sources)
             {
-                file = await Task.Run(() => Updates.Download(release, percent => Post(() =>
+                bool last = from.Key == "GitHub";
+                problem = null;
+                updatePercent = 0;
+                ShowUpdate();
+                try
                 {
-                    if (updating != "downloading" || percent == updatePercent) return;
-                    updatePercent = percent;
-                    ShowUpdate();
-                })));
-                string mismatch = await Task.Run(() => Updates.Mismatch(file, release));
-                if (mismatch != null)
-                {
-                    Log.Write("update " + release.Version + " refused: the download does not match GitHub's " + mismatch);
+                    file = await Task.Run(() => Updates.Download(release, from.Value, percent => Post(() =>
+                    {
+                        if (updating != "downloading" || percent == updatePercent) return;
+                        updatePercent = percent;
+                        ShowUpdate();
+                    })));
+                    string mismatch = await Task.Run(() => Updates.Mismatch(file, release));
+                    if (mismatch == null) { source = from.Key; break; }
+                    Log.Write(last ? "update " + release.Version + " refused: the download does not match GitHub's " + mismatch
+                        : "update " + release.Version + ": the download from " + from.Key + " does not match GitHub's " + mismatch + "; trying GitHub");
                     problem = mismatch == "size" ? "下载的安装程序不完整" : "下载的安装程序与 GitHub 记录的文件哈希不一致";
                 }
+                catch (Exception e)
+                {
+                    problem = Updates.Describe(e);
+                    Log.Write("update download " + (last ? "failed: " : "from " + from.Key + " failed, trying GitHub: ") + Updates.LogText(e));
+                }
+                if (cleanedUp) return;
             }
-            catch (Exception e) { problem = Updates.Describe(e); Log.Write("update download failed: " + Updates.LogText(e)); }
             if (cleanedUp) return;
             if (problem != null)
             {
@@ -2886,7 +2915,7 @@ namespace ModelHarbor
                 Notify("更新没有完成：" + problem + "，所以什么也没有安装。可以稍后再试。");
                 return;
             }
-            Log.Write("update " + release.Version + " downloaded and verified; starting the installer");
+            Log.Write("update " + release.Version + " downloaded from " + source + " and verified; starting the installer");
             updating = "installing";
             ShowUpdate();
             try
