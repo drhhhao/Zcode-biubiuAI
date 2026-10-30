@@ -2,12 +2,11 @@
 // first (quicker in China) and only run it when its size and SHA-256 are what GitHub records, so this script takes the
 // installer from GitHub, checks it against GitHub's record, puts it on a Gitee release of the same tag and name, and then
 // downloads it back from Gitee as a user would (no token) to check it again. Drafts and prereleases are never copied.
-// Gitee takes no uploads from GitHub's machines in the US (nothing came back in 30 minutes), so .github/workflows/gitee.yml
-// runs it with --release-only (the release and its notes, no installer) and the installer is put there from a computer
-// in China, after publishing:
+// Gitee's API is unreliable from GitHub's machines in the US (an upload got no answer in 30 minutes, later connections
+// timed out), so .github/workflows/gitee.yml only pushes the tag and this runs on a computer in China after publishing:
 //   GITEE_TOKEN=... HTTPS_PROXY=http://127.0.0.1:7897 NO_PROXY=gitee.com,.gitee.com NODE_USE_ENV_PROXY=1 \
 //     node build/companion-dev/gitee-release.mjs v<version>
-// Usage: node gitee-release.mjs <tag> [--release-only]
+// Usage: node gitee-release.mjs <tag>
 // Environment: GITEE_TOKEN; GITHUB_TOKEN (optional), GITHUB_REPOSITORY and GITEE_REPOSITORY (owner/name, these repositories
 // by default).
 import { spawnSync } from 'node:child_process';
@@ -17,12 +16,11 @@ import os from 'node:os';
 import path from 'node:path';
 
 const tag = process.argv[2];
-const releaseOnly = process.argv.includes('--release-only');
 const { GITHUB_TOKEN, GITEE_TOKEN } = process.env;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'drhhhao/Zcode-biubiuAI';
 const GITEE_REPOSITORY = process.env.GITEE_REPOSITORY || 'drhhhao_0/Zcode-biubiuAI';
 if (!tag || !GITEE_TOKEN) {
-  console.error('usage: node gitee-release.mjs <tag> [--release-only], with GITEE_TOKEN set');
+  console.error('usage: node gitee-release.mjs <tag>, with GITEE_TOKEN set');
   process.exit(2);
 }
 const version = tag.replace(/^v/, '');
@@ -48,8 +46,12 @@ async function giteeApi(method, path, form) {
   let body;
   if (form) { form.set('access_token', GITEE_TOKEN); body = form; } else url.searchParams.set('access_token', GITEE_TOKEN);
   for (let attempt = 1; ; attempt++) {
-    const res = await fetch(url, { method, body });
-    const text = await res.text();
+    let res, text;
+    try { res = await fetch(url, { method, body }); text = await res.text(); } catch (e) {
+      if (attempt === 3) fail(`Gitee ${method} ${path}: ${e.cause?.code || e.message}`);
+      await new Promise(done => setTimeout(done, 5000 * attempt));
+      continue;
+    }
     if (res.ok) return text ? JSON.parse(text) : null;
     if (res.status === 404 && method === 'GET') return null;
     if (res.status < 500 || attempt === 3) fail(`Gitee ${method} ${path}: HTTP ${res.status} ${text.slice(0, 200)}`);
@@ -97,14 +99,6 @@ if (!mirrored || !mirrored.id) {
 // An installer already there stays if it is GitHub's; anything else of that name goes.
 const page = `https://gitee.com/${GITEE_REPOSITORY}/releases/download/${encodeURIComponent(tag)}/${name}`;
 const files = (await giteeApi('GET', `/releases/${mirrored.id}/attach_files?per_page=100`)) || [];
-if (releaseOnly) {
-  const note = files.some(f => f.name === name)
-    ? `${name} is already on Gitee`
-    : `${name} is not on Gitee yet: put it there from a computer in China with node build/companion-dev/gitee-release.mjs ${tag} (until then installed copies take it from GitHub)`;
-  console.log(files.some(f => f.name === name) ? note : `::warning::${note}`);
-  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${note}\n`);
-  process.exit(0);
-}
 let present = false;
 for (const file of files.filter(f => f.name === name)) {
   const there = await download(file.browser_download_url, `${name} on Gitee`);

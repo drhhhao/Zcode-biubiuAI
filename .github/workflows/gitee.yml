@@ -1,11 +1,12 @@
 # 同步到 Gitee：国内镜像 https://gitee.com/drhhhao_0/Zcode-biubiuAI ，国内用户下载和一键更新都比 GitHub 快得多。
-# 推送到 main 时把 main 原样推过去；在 GitHub 上正式发布 Release 时（草稿和预发布不算），把标签推过去，
-# 再用 build/companion-dev/gitee-release.mjs --release-only 在 Gitee 建同名 Release（说明照搬 GitHub 的）。
-# 安装程序不在这里传：GitHub 在美国的机器往 Gitee 上传，30 分钟 Gitee 一个字节都不回。发布后在国内的电脑上运行
-# node build/companion-dev/gitee-release.mjs v<版本>，它上传安装程序，并像用户一样不带令牌下载回来、核对大小和 SHA-256
+# 推送到 main 时把 main 原样推过去；在 GitHub 上正式发布 Release 时（草稿和预发布不算），把它的标签推过去。
+# Release 和安装程序不在这里做：GitHub 在美国的机器连 Gitee 的接口时好时坏（2026-10-30 实测：上传 30 分钟一个字节都不回，
+# 之后连接直接超时），git 推送却一直正常。所以正式发布后在国内的电脑上运行
+#   node build/companion-dev/gitee-release.mjs v<版本>
+# 它在 Gitee 建同名 Release（说明照搬 GitHub 的）、上传安装程序，并像用户一样不带令牌下载回来，核对大小和 SHA-256
 # 与 GitHub 记录的一致。已装好的 biubiu AI 先从 Gitee 下载，但只认 GitHub 记录的哈希，
-# 所以 Gitee 上的文件还没传、缺失或不对时，它会改从 GitHub 下载。
-# Gitee 的私人令牌放在仓库的 Actions 机密 GITEE_TOKEN 里。也可以在 Actions → 同步到 Gitee → Run workflow 手动补一个版本。
+# 所以 Gitee 上还没有、缺失或不对时，它会改从 GitHub 下载。
+# Gitee 的私人令牌放在仓库的 Actions 机密 GITEE_TOKEN 里。也可以在 Actions → 同步到 Gitee → Run workflow 手动推一个标签。
 name: 同步到 Gitee
 
 on:
@@ -16,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 要同步的版本标签（如 v0.8.12）；留空只同步 main
+        description: 一起推过去的版本标签（如 v0.8.12）；留空只同步 main
         required: false
 
 concurrency:
@@ -33,7 +34,7 @@ jobs:
   sync:
     name: 同步到 Gitee
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,20 +42,18 @@ jobs:
       - name: 推送代码与标签
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TAG: ${{ (github.event_name == 'release' && !github.event.release.prerelease && github.event.release.tag_name) || inputs.tag }}
         run: |
           remote="https://drhhhao_0:${GITEE_TOKEN}@gitee.com/${GITEE_REPOSITORY}.git"
           refs="refs/remotes/origin/main:refs/heads/main"
           if [ -n "$TAG" ]; then refs="$refs refs/tags/$TAG:refs/tags/$TAG"; fi
           for try in 1 2 3; do
-            git -c credential.helper= push "$remote" $refs && exit 0
+            if git -c credential.helper= push "$remote" $refs; then
+              if [ -n "$TAG" ]; then
+                echo "$TAG 已推到 Gitee。Release 和安装程序请在国内的电脑上运行：node build/companion-dev/gitee-release.mjs $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
+              fi
+              exit 0
+            fi
             echo "推送失败，$((try * 20)) 秒后再试"; sleep $((try * 20))
           done
           exit 1
-      - name: 同步 Release
-        if: (github.event_name == 'release' && !github.event.release.prerelease) || inputs.tag != ''
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: node build/companion-dev/gitee-release.mjs "$TAG" --release-only
