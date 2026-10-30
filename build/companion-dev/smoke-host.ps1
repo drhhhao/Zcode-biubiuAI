@@ -236,7 +236,7 @@ function Check-Panel([string]$step, $fake, [int]$procId, [string]$side = '') {
   # The side is what the step set up for, which needs room for the panel (340 at least) beside ZCode. On a screen too narrow
   # for that (GitHub's machines are 1024 wide and cannot be changed) only the placement above, by the panel's rule, is judged.
   $rooms = "rooms: left $($f.L - $fake.WA[0]), right $($fake.WA[0] + $fake.WA[2] - $f.Rt)"
-  if ($side -eq 'right' -and ($fake.WA[0] + $fake.WA[2] - $f.Rt) -lt (Px 340 $s)) { Write-Output "SKIP  $step / dock side is ${side}: the screen is too narrow for the panel beside ZCode ($($fake.WA[2]) wide; $rooms)" }
+  if ($side -eq 'right' -and ($fake.WA[0] + $fake.WA[2] - $f.Rt) -lt (Px 340 $s)) { [Console]::Out.WriteLine("SKIP  $step / dock side is ${side}: the screen is too narrow for the panel beside ZCode ($($fake.WA[2]) wide; $rooms)") }
   elseif ($side) { Check "$step / dock side is $side" ($e.Side -eq $side) $rooms }
   Check "$step / panel directly above ZCode in z-order" ([W]::Above($panel, $fake.H)) ''
   return $panel
@@ -280,7 +280,7 @@ function Check-Corners([string]$step, $win, [string]$shot = '') {
     $top = [W]::Luma($r.Rt - 2, $r.T + 1); $bottom = [W]::Luma($r.Rt - 2, $r.B - 2); $middle = [W]::Luma($r.Rt - 3, [int](($r.T + $r.B) / 2))
     # Where Windows draws square window corners (Windows Server, as on GitHub) only the edge's own color is checked.
     if ($script:roundCorners) { Check "$step / outer corners rounded" (($top -gt 150) -and ($bottom -gt 150) -and ($middle -lt 100)) "luma: top corner $top, bottom corner $bottom, middle of the edge $middle" }
-    else { Write-Output "SKIP  $step / outer corners rounded: this Windows draws square window corners (luma: top corner $top, middle of the edge $middle)" }
+    else { [Console]::Out.WriteLine("SKIP  $step / outer corners rounded: this Windows draws square window corners (luma: top corner $top, middle of the edge $middle)") }
     if ($shot) {
       $w = ($r.Rt - $r.L) + 56; $h = [Math]::Min(220, $r.B - $r.T + 16)
       $bmp = New-Object Drawing.Bitmap $w, $h
