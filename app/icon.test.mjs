@@ -103,7 +103,7 @@ test('the build embeds the icon and writes it beside the exe', async () => {
 
 test('the old name appears nowhere the user or a developer reads', async () => {
   const files = ['README.md', 'AGENTS.md', 'package.json', 'app/build.mjs', 'app/icon.mjs', 'app/preview.mjs', 'app/server.mjs', 'app/server.test.mjs', 'app/host/ModelHarbor.cs', 'app/host/app.manifest',
-    'build/companion-dev/smoke-host.ps1', 'build/companion-dev/live-zcode.ps1', 'build/companion-dev/site-window-check.mjs', 'build/companion-dev/SiteWindowCheck.cs', 'build/companion-dev/logo-design.mjs',
+    'build/companion-dev/smoke-host.ps1', 'build/companion-dev/verify.mjs', 'build/companion-dev/live-zcode.ps1', 'build/companion-dev/site-window-check.mjs', 'build/companion-dev/SiteWindowCheck.cs', 'build/companion-dev/logo-design.mjs',
     'app/installer/Setup.cs', 'app/installer/setup.manifest', 'app/installer/package.mjs', 'app/installer/package.test.mjs', 'build/companion-dev/installer-check.ps1',
     'app/demo.mjs', 'docs/tutorial.md', 'docs/development.md', 'build/companion-dev/docs-shots.mjs', 'build/companion-dev/docs-installer.ps1', 'build/companion-dev/window-helpers.ps1'];
   for (const name of await fs.readdir(path.join(appDir, 'lib'))) files.push(`app/lib/${name}`);

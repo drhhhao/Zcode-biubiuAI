@@ -142,8 +142,15 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 .amount{display:block;margin-top:2px;font:700 42px/1.1 var(--rounded);letter-spacing:-.025em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .siteopen{display:inline-flex;align-items:baseline;gap:6px;margin:10px 0 0 -10px;color:var(--accent-ink)}:is(.link,.hide).siteopen:hover:not(:disabled){background:var(--accent-wash)}
 .siteopen .arrow{font:13px/1 var(--sans);transition:transform .35s var(--ease)}.siteopen:hover .arrow{transform:translate(2px,-2px)}
-#siteError{scroll-margin-top:72px}
+/* What scrolls into view on the site page stops below the tabs, which stay at the top. */
+#siteError,#siteGroups .grow,#siteKeys .svc{scroll-margin-top:72px}
 .sitehead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:26px 4px 8px}.sitehead .sub{font-size:13px;font-weight:600;color:var(--ink)}.sitehead .count{margin-left:0}
+/* 分组 and 站内 Key fold under their headings, so a long account does not make the page long. */
+.fold{display:inline-flex;align-items:center;margin:-4px 0 -4px -10px;padding:4px 10px;border:0;border-radius:999px;background:transparent;transition:background-color .2s var(--ease),transform .25s var(--ease)}
+.fold:hover{background:var(--fill)}.fold:active{transform:scale(.96)}.fold:focus-visible{border-radius:999px}
+.fold::after{content:'';width:6px;height:6px;margin:0 2px 1px 9px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(-135deg);transition:transform .35s var(--ease),margin .35s var(--ease)}
+.fold[aria-expanded=false]::after{margin-bottom:4px;transform:rotate(45deg)}
+:is(#siteGroupsBody,#siteKeysBody):not([hidden]){animation:enter .35s var(--ease)}
 /* 分组: one card per platform; a row asks its own questions below its name. */
 .gplat{margin-top:12px}.gplathead{padding:0 4px 6px;font-size:11.5px;font-weight:600;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .grow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 14px 12px 16px}
@@ -151,8 +158,8 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 .gname{font:700 15px/1.4 var(--display);overflow-wrap:anywhere}
 .gnote{font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}.grow.on .gnote{color:var(--ok-ink)}
 .gside{display:flex;align-items:center;gap:12px;flex:none}
-.grate{padding:3px 9px;border-radius:999px;background:var(--accent-wash);font:700 12.5px/1.4 var(--rounded);font-variant-numeric:tabular-nums;color:var(--accent-ink)}.gact{display:flex;justify-content:flex-end;gap:2px;min-width:62px;margin-right:-6px}
-.gask{flex-basis:100%;padding-bottom:2px;animation:enter .35s var(--ease)}
+.grate{padding:3px 9px;border-radius:999px;background:var(--accent-wash);font:700 12.5px/1.4 var(--rounded);font-variant-numeric:tabular-nums;color:var(--accent-ink)}.svcinfo .grate{display:inline-block;margin-left:8px;padding:0 8px;font-size:12px;line-height:1.6}.gact{display:flex;justify-content:flex-end;gap:2px;min-width:62px;margin-right:-6px}
+.gask{flex-basis:100%;padding-bottom:2px;animation:enter .35s var(--ease)}.grow>.keypick{flex-basis:100%;min-width:0;margin-top:4px}
 #siteGroupsPart>.note{margin-top:10px}#siteStatus{margin:12px 0 0}
 /* A group change's outcome shows in its row; the line under the list still says it to screen readers. */
 #siteStatus.aside{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -198,13 +205,17 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 <div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div></div>
 <div class="note fail" id="siteError" hidden></div>
 <div id="siteGroupsPart" hidden>
-<div class="sitehead"><span class="sub">分组</span><span class="count" id="siteGroupCount"></span></div>
+<div class="sitehead"><button class="fold" id="siteGroupsFold" type="button" aria-expanded="true" aria-controls="siteGroupsBody"><span class="sub">分组</span></button><span class="count" id="siteGroupCount"></span></div>
+<div id="siteGroupsBody">
 <div id="siteGroups"></div>
-<div class="note">添加：用分组的 Key 导入全部模型。删除：只从 ZCode 移除，网站上的 Key 保留。</div>
+<div class="note">添加、选择模型：列出网站现在提供的模型，勾选的才在 ZCode 里使用。删除：只从 ZCode 移除，网站上的 Key 保留。</div>
+</div>
 <div class="status" id="siteStatus" role="status" aria-live="polite"></div>
 </div>
-<div class="sitehead"><span class="sub">站内 Key</span><span class="count" id="siteKeyCount"></span></div>
+<div class="sitehead"><button class="fold" id="siteKeysFold" type="button" aria-expanded="true" aria-controls="siteKeysBody"><span class="sub">站内 Key</span></button><span class="count" id="siteKeyCount"></span></div>
+<div id="siteKeysBody">
 <div id="siteKeys" role="list" aria-label="站内 Key"></div>
+</div>
 <div class="status" id="siteKeyStatus" role="status" aria-live="polite"></div>
 </div>
 </section>
@@ -236,7 +247,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 <div id="savedList" role="list" aria-label="已导入的服务"></div>
 </section>
 </div>
-<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.11</span><button class="link update" id="updateLink" type="button" hidden></button></div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.12</span><button class="link update" id="updateLink" type="button" hidden></button></div>
 </main>
 <template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
 <script>
@@ -318,6 +329,10 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     const next = { ArrowRight: names[(i + 1) % names.length], ArrowLeft: names[(i + names.length - 1) % names.length], Home: names[0], End: names[names.length - 1] }[e.key];
     if (next) { e.preventDefault(); showPage(next, true); }
   });
+  // 分组 and 站内 Key fold under their headings; each stays as the user left it until the panel reloads.
+  const FOLDS = { siteGroupsFold: 'siteGroupsBody', siteKeysFold: 'siteKeysBody' };
+  function fold(button, open) { button.setAttribute('aria-expanded', String(open)); button.title = open ? '收起' : '展开'; $(FOLDS[button.id]).hidden = !open; }
+  for (const id of Object.keys(FOLDS)) { const b = $(id); fold(b, true); b.onclick = () => fold(b, b.getAttribute('aria-expanded') !== 'true'); }
   async function call(name, args = {}) {
     const response = await bridge(name, args);
     if (response.isError) throw new Error(response.content?.find(c => c.type === 'text')?.text || '操作未完成，请重试。');
@@ -619,7 +634,8 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     finally { balanceReading = false; balanceAt = Date.now(); watchBalance(); }
   }
   // 站内 Key: a key's models open under it and 删除 asks under it, both here on the site page. Both stay open when the
-  // list is drawn again, as long as the key is still listed; focus goes back to the button named.
+  // list is drawn again, as long as the key is still listed; focus goes back to the button named. A group's models open
+  // under its row instead (pick.group).
   function renderKeys(focus) {
     const keys = site?.keys || [];
     if (pick && !keys.some(k => k.id === pick.id && !k.blocked)) pick = null;
@@ -628,18 +644,20 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     $('siteKeys').replaceChildren(...(keys.length ? keys.map(siteKeyItem) : site?.error ? [] : [el('div', 'empty', site?.groups ? '这个账户还没有 Key，添加分组时可以新建一个。' : '这个账户还没有 Key，可以先在网站上创建。')]));
     if (focus) $('siteKeys').querySelector(`[data-focus="${CSS.escape(focus)}"]`)?.focus();
   }
-  // A site key: its group, its value behind the eye, its quota and expiry. 添加到 ZCode (选择模型 once it is in ZCode)
-  // reads its models and lists them under it, and 删除 asks under it first. The site's own test keys have no 删除, as on
-  // the site; a key ZCode cannot use says why instead of offering its models.
+  // A site key: its group with the group's billing rate, its value behind the eye, its quota and expiry. 添加到 ZCode
+  // (选择模型 once it is in ZCode) reads its models and lists them under it, and 删除 asks under it first. The site's own
+  // test keys have no 删除, as on the site; a key ZCode cannot use says why instead of offering its models.
   function siteKeyItem(k, i) {
     const item = el('div', 'svc'), head = el('div', 'svchead'), info = el('dl', 'svcinfo'), secret = el('dd', 'secret'), text = el('span', 'masked', k.hasKey ? MASK : '未提供');
-    const index = el('span', 'svcidx', String(i + 1).padStart(2, '0')), foot = el('div', 'sitefoot'), side = el('span', 'keyact'), open = pick?.id === k.id;
+    const index = el('span', 'svcidx', String(i + 1).padStart(2, '0')), foot = el('div', 'sitefoot'), side = el('span', 'keyact'), open = pick?.id === k.id && !pick.group;
     const button = (cls, label, focus, onclick) => { const b = el('button', cls, label); b.type = 'button'; b.dataset.site = ''; b.dataset.focus = `${k.id}:${focus}`; b.disabled = busy || !bridge; b.onclick = onclick; return b; };
     item.setAttribute('role', 'listitem'); index.setAttribute('aria-hidden', 'true');
     head.append(index, el('span', 'svcname', k.name), el('span', 'svcmeta', k.statusLabel));
     secret.append(text);
     if (k.hasKey) secret.append(keyEye(text, `「${k.name}」的 Key`, { siteKeyId: k.id }, siteFailed));
-    info.append(el('dt', '', '分组'), el('dd', '', [k.group, k.platformName].filter(Boolean).join(' · ') || '—'), el('dt', '', 'Key'), secret);
+    const group = el('dd', '', [k.group, k.platformName].filter(Boolean).join(' · ') || '—');
+    if (k.multiplier != null) { const rate = el('span', 'grate', `×${k.multiplier}`); rate.title = '计费倍率'; group.append(rate); }
+    info.append(el('dt', '', '分组'), group, el('dt', '', 'Key'), secret);
     if (k.quota > 0) info.append(el('dt', '', '额度'), el('dd', '', `已用 ${money(k.quotaUsed ?? 0)} / ${money(k.quota)}`));
     const expires = k.expiresAt ? new Date(k.expiresAt) : null;
     if (expires && !Number.isNaN(expires.getTime())) info.append(el('dt', '', '到期'), el('dd', '', expires.toLocaleDateString('zh-CN')));
@@ -652,7 +670,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       side.append(drop);
     }
     if (!k.blocked) {
-      const name = k.inZCode ? '选择模型' : '添加到 ZCode', models = button('small', open ? pick.loading ? '正在读取…' : '收起' : name, 'models', () => open ? closePick(k) : openPick(k));
+      const name = k.inZCode ? '选择模型' : '添加到 ZCode', models = button('small', open ? pick.loading ? '正在读取…' : '收起' : name, 'models', () => open ? closePick() : openPick(k));
       models.setAttribute('aria-label', open ? `收起「${k.name}」的模型` : `${k.inZCode ? '为' : '把'}「${k.name}」${name}`);
       models.setAttribute('aria-expanded', String(open));
       if (open) models.setAttribute('aria-controls', 'keyPick');
@@ -660,7 +678,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     }
     item.append(head, info, foot);
     if (keyAsking?.id === k.id) item.append(keyAsk(k, button));
-    if (open) item.append(keyModels(k, button));
+    if (open) item.append(keyModels(k, button, k.id));
     return item;
   }
   // 删除 asks under the key: the key goes on the site too, with the services in ZCode that use it, without a backup once
@@ -673,21 +691,24 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     ask.append(bar);
     return ask;
   }
-  // The key's models under it. Ticked ones go to the key's own service in ZCode (named after the key the first time);
-  // the ones already there stay ticked and cannot be unticked, since adding never removes a model. More than eight get a
-  // search box. A tick redraws only the list and the count on 添加到 ZCode.
-  function keyModels(k, button) {
+  // The models of a key, under it, or of a group in ZCode, under its row (with the key its service there uses). Each
+  // model the site's gateway lists now has a tick, and so does each model the service has in ZCode that the gateway no
+  // longer lists: ticked is used in ZCode, unticked is not. The ones in ZCode start ticked, except those the site no longer
+  // offers, so opening the list shows what the site has changed; saving adds the newly ticked models and takes the
+  // unticked ones out of ZCode. More than eight get a search box. A tick redraws only the list and the save button.
+  // prefix names the row the list is under, for the buttons' focus.
+  function keyModels(k, button, prefix) {
     const box = el('div', 'keypick');
     box.id = 'keyPick'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `「${k.name}」的模型`);
     if (pick.loading) { box.append(el('div', 'empty', '正在读取模型…')); return box; }
-    if (!pick.result) { const bar = el('div', 'svcbar'); bar.append(button('small', '重试', 'retry', () => openPick(k))); box.append(el('div', 'note fail', pick.error || '没有读到模型，请重试。'), bar); return box; }
-    const models = pick.result.models, head = el('div', 'listhead'), found = el('span', 'found'), links = el('span'), list = el('div', 'list'), foot = el('div', 'foot'), add = el('button', 'primary', '添加到 ZCode');
-    const shown = () => { const q = pick.query.toLowerCase().trim(); return models.filter(m => m.id.toLowerCase().includes(q)); };
-    const all = button('link', '全选', 'all', () => { const free = shown().filter(m => !m.inZCode), every = free.every(m => pick.selected.has(m.id)); for (const m of free) if (every) pick.selected.delete(m.id); else pick.selected.add(m.id); draw(); });
-    add.id = 'keyPickAdd'; add.type = 'button'; add.dataset.focus = `${k.id}:add`; add.onclick = () => addPicked(k);
-    list.setAttribute('role', 'group'); list.setAttribute('aria-label', `「${k.name}」可添加的模型`);
+    if (!pick.result) { const bar = el('div', 'svcbar'); bar.append(button('small', '重试', 'retry', () => openPick(k, pick.group))); box.append(el('div', 'note fail', pick.error || '没有读到模型，请重试。'), bar); return box; }
+    const rows = pickRows(), offered = pick.result.models.length, head = el('div', 'listhead'), found = el('span', 'found'), links = el('span'), list = el('div', 'list'), foot = el('div', 'foot'), add = el('button', 'primary', '添加到 ZCode');
+    const shown = () => { const q = pick.query.toLowerCase().trim(); return rows.filter(m => m.id.toLowerCase().includes(q)); };
+    const all = button('link', '全选', 'all', () => { const visible = shown(), every = visible.every(m => pick.selected.has(m.id)); for (const m of visible) if (every) pick.selected.delete(m.id); else pick.selected.add(m.id); draw(); });
+    add.id = 'keyPickAdd'; add.type = 'button'; add.dataset.focus = `${prefix}:add`; add.onclick = () => savePicked(k);
+    list.setAttribute('role', 'group'); list.setAttribute('aria-label', `「${k.name}」的模型，勾选的在 ZCode 里使用`);
     links.append(all); head.append(found, links); box.append(head);
-    if (models.length > 8) {
+    if (rows.length > 8) {
       const search = el('input', 'input search');
       search.type = 'search'; search.placeholder = '搜索模型'; search.autocomplete = 'off'; search.value = pick.query; search.dataset.site = ''; search.disabled = busy || !bridge;
       search.setAttribute('aria-label', `搜索「${k.name}」的模型`);
@@ -695,77 +716,101 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       box.append(search);
     }
     function draw(focus) {
-      const visible = shown(), free = visible.filter(m => !m.inZCode), saved = models.filter(m => m.inZCode).length, n = pick.selected.size;
-      found.textContent = saved === models.length ? `找到 ${models.length} 个，都已在 ZCode` : `找到 ${models.length} 个${saved ? `，${saved} 个已在 ZCode` : ''}${n ? `，已选 ${n} 个` : '，勾选要添加的模型'}`;
-      all.hidden = !free.length; all.textContent = free.length && free.every(m => pick.selected.has(m.id)) ? '取消全选' : '全选';
+      const visible = shown(), using = rows.filter(m => m.inZCode && !m.gone).length, gone = rows.length - offered, n = pick.selected.size;
+      found.textContent = !using && !gone ? `找到 ${offered} 个${n ? `，已选 ${n} 个` : '，勾选要添加的模型'}` : `网站提供 ${offered} 个，ZCode 在用 ${using} 个${gone ? `，${gone} 个网站已不再提供` : ''}；勾选的就是要用的`;
+      all.hidden = !visible.length; all.textContent = visible.length && visible.every(m => pick.selected.has(m.id)) ? '取消全选' : '全选';
       list.replaceChildren(...visible.map(m => {
         const item = el('div', 'model' + (pick.selected.has(m.id) ? ' picked' : '')), line = el('div', 'line'), row = el('label', 'row'), tick = el('input'), info = el('span', 'info'), tested = pick.tests?.get(m.id);
-        tick.type = 'checkbox'; tick.checked = Boolean(m.inZCode) || pick.selected.has(m.id); tick.dataset.id = m.id;
-        if (m.inZCode) tick.disabled = true;
-        else { tick.dataset.site = ''; tick.disabled = busy || !bridge; tick.onchange = () => { if (tick.checked) pick.selected.add(m.id); else pick.selected.delete(m.id); draw(m.id); }; }
-        info.append(el('span', 'id', m.id), el('span', 'meta', `${m.inZCode ? '已在 ZCode · ' : ''}${describe(m.metadata || {})}`));
-        const test = testLink(m, pick.testing === m.id ? '测试中…' : '测试', model => testPicked(k, model));
-        test.dataset.site = ''; test.dataset.focus = `${k.id}:test:${m.id}`;
-        row.append(tick, info); line.append(row, test); item.append(line);
+        tick.type = 'checkbox'; tick.checked = pick.selected.has(m.id); tick.dataset.id = m.id; tick.dataset.site = ''; tick.disabled = busy || !bridge;
+        tick.onchange = () => { if (tick.checked) pick.selected.add(m.id); else pick.selected.delete(m.id); draw(m.id); };
+        info.append(el('span', 'id', m.id), el('span', 'meta', m.gone ? '网站已不再提供，还在 ZCode 里' : `${m.inZCode ? '已在 ZCode · ' : ''}${describe(m.metadata || {})}`));
+        row.append(tick, info); line.append(row);
+        // A model the site no longer offers cannot be tested through it.
+        if (!m.gone) { const test = testLink(m, pick.testing === m.id ? '测试中…' : '测试', model => testPicked(k, model)); test.dataset.site = ''; test.dataset.focus = `${prefix}:test:${m.id}`; line.append(test); }
+        item.append(line);
         if (tested) item.append(testNote(tested));
         return item;
       }), ...(visible.length ? [] : [el('div', 'empty', '没有匹配的模型')]));
       addButton(add);
       if (focus) for (const n of list.querySelectorAll('input[type=checkbox]')) if (n.dataset.id === focus) { n.focus(); break; }
     }
-    foot.append(add, el('div', 'note', '按列出的参数加入 ZCode，修改前自动备份。「测试」会用少量额度。'));
+    foot.append(add, el('div', 'note', '勾选的模型在 ZCode 里使用，取消勾选的从 ZCode 移除；新加的按列出的参数加入。修改前自动备份。「测试」会用少量额度。'));
     if (pick.message) foot.append(el('div', 'note', pick.message));
     if (pick.error) foot.append(el('div', 'note fail', pick.error));
     box.append(list, foot);
     draw();
     return box;
   }
-  // 添加到 ZCode under a key's models counts the ticked ones; it waits for one, and for the panel to be free.
+  // The open list's rows: the models the gateway lists, then the ones in ZCode it no longer lists (gone).
+  function pickRows() { return pick?.result ? [...pick.result.models, ...(pick.result.missing || []).map(id => ({ id, inZCode: true, gone: true }))] : []; }
+  // What saving would change: models to add (ticked, not in ZCode) and to take out (in ZCode, unticked). held counts the
+  // models in ZCode; keeping none of them is refused, as deleting the service does that.
+  function pickChanges() {
+    const rows = pickRows(), ticked = pick?.selected || new Set(), held = rows.filter(m => m.inZCode);
+    return { held: held.length, adds: rows.filter(m => !m.inZCode && ticked.has(m.id)).map(m => m.id), drops: held.filter(m => !ticked.has(m.id)).map(m => m.id), empty: held.length > 0 && !rows.some(m => ticked.has(m.id)) };
+  }
+  // The button under the models: 添加到 ZCode with the count while none is in ZCode, else 保存 with what changes. It waits
+  // for a change, and for the panel to be free.
   function addButton(add) {
     if (!add) return;
-    const n = pick?.selected?.size || 0;
-    add.disabled = busy || !bridge || !n;
-    add.textContent = busy && action === 'pick-add' ? '正在添加…' : n ? `添加到 ZCode（${n} 个）` : '添加到 ZCode';
+    const c = pickChanges(), changes = [c.adds.length ? `添加 ${c.adds.length} 个` : '', c.drops.length ? `移除 ${c.drops.length} 个` : ''].filter(Boolean).join('、');
+    add.disabled = busy || !bridge || !changes || c.empty;
+    add.textContent = busy && action === 'pick-add' ? '正在保存…' : c.empty ? '至少保留一个模型' : !c.held ? (c.adds.length ? `添加到 ZCode（${c.adds.length} 个）` : '添加到 ZCode') : changes ? `保存（${changes}）` : '与 ZCode 一致';
   }
-  // Reads a key's models from the site's gateway by the key's id alone and lists them under it; another key's close.
-  async function openPick(k) {
+  // Draws the key list and the group list again, with focus on the button named in the row the models were under.
+  function redrawPick(where, name) {
+    renderGroups(where.group && name ? `${where.group}:${name}` : undefined);
+    renderKeys(!where.group && name ? `${where.id}:${name}` : undefined);
+  }
+  // Reads a key's models from the site's gateway by the key's id alone and lists them under it, or under the row of the
+  // group (its id) whose service in ZCode uses the key; any other open list closes.
+  async function openPick(k, group = '') {
     if (busy || !bridge || !site?.signedIn || k.blocked) return;
-    pick = { id: k.id, loading: true }; keyAsking = null; keyStatus(''); siteStatus('');
-    setBusy(true, 'pick'); renderKeys();
+    const where = { id: k.id, group }, here = () => pick?.id === k.id && pick.group === group;
+    pick = { ...where, loading: true }; keyAsking = asking = null; keyStatus(''); siteStatus('');
+    setBusy(true, 'pick'); redrawPick(where);
+    revealPick();
     try {
       const fetched = await call('fetch_models', { baseUrl: k.baseUrl, protocol: k.protocol, siteKeyId: k.id });
       const models = await allModels(fetched);
-      if (pick?.id === k.id) pick = { id: k.id, result: { ...fetched, models, nextOffset: null }, selected: new Set(models.length === 1 && !models[0].inZCode ? [models[0].id] : []), query: '', message: '', error: '' };
-    } catch (e) { if (pick?.id === k.id) pick = { id: k.id, error: e.message }; }
-    finally { setBusy(false); renderKeys(`${k.id}:models`); }
+      const ticked = models.filter(m => m.inZCode).map(m => m.id);
+      if (here()) pick = { ...where, result: { ...fetched, models, missing: Array.isArray(fetched.missing) ? fetched.missing : [], nextOffset: null }, selected: new Set(ticked.length || models.length !== 1 ? ticked : [models[0].id]), query: '', message: '', error: '' };
+    } catch (e) { if (here()) pick = { ...where, error: e.message }; }
+    finally { setBusy(false); redrawPick(where, 'models'); revealPick(); }
   }
-  function closePick(k) { pick = null; renderKeys(`${k.id}:models`); }
-  // Adds the ticked models and keeps the list open, with them shown as in ZCode. The account and the services are read
-  // again while the panel is still busy, so the key, and its group, show as in ZCode.
-  async function addPicked(k) {
-    if (busy || !bridge || pick?.id !== k.id || !pick.result || !pick.selected.size) return;
-    const current = pick, ids = [...current.selected];
+  // A key low in the panel would open its models below the edge, its button turned 收起 the only change in sight: the key
+  // and its models scroll up into view, as much of them as the panel holds.
+  function revealPick() { $('keyPick')?.parentElement?.scrollIntoView({ block: 'nearest' }); }
+  function closePick() { const where = pick; pick = null; if (where) redrawPick(where, 'models'); }
+  // Adds the newly ticked models and takes the unticked ones out, in one write, and keeps the list open as ZCode has it
+  // now. The account and the services are read again while the panel is still busy, so the key, and its group, show as
+  // in ZCode.
+  async function savePicked(k) {
+    const current = pick, c = pickChanges();
+    if (busy || !bridge || current?.id !== k.id || !current.result || (!c.adds.length && !c.drops.length) || c.empty) return;
     setBusy(true, 'pick-add'); current.message = current.error = '';
     try {
-      const data = await call('import_models', { sessionId: current.result.sessionId, modelIds: ids, providerName: `${site.site?.name || hostname(k.baseUrl)} · ${k.name}`.slice(0, 100) });
-      for (const m of current.result.models) if (ids.includes(m.id)) m.inZCode = true;
-      current.selected.clear();
-      current.message = window.__HARBOR_PREVIEW__ ? `预览：已把 ${data.added} 个模型添加到「${data.providerName}」。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份；在 ZCode 的模型选择器里就能选到。`;
+      const name = (current.group && site.groups?.find(g => g.id === current.group)?.name) || k.name;
+      const data = await call('import_models', { sessionId: current.result.sessionId, modelIds: c.adds, removeModelIds: c.drops, providerName: `${site.site?.name || hostname(k.baseUrl)} · ${name}`.slice(0, 100) });
+      for (const m of current.result.models) m.inZCode = current.selected.has(m.id);
+      current.result.missing = current.result.missing.filter(id => current.selected.has(id));
+      const done = [data.added ? `添加了 ${data.added} 个模型` : '', data.removed ? `移除了 ${data.removed} 个模型` : ''].filter(Boolean).join('、');
+      current.message = window.__HARBOR_PREVIEW__ ? `预览：「${data.providerName}」${done || '没有变化'}。真实 ZCode 配置没有改动。` : data.unchanged ? '和 ZCode 里的一致，配置没有改动。' : `「${data.providerName}」${done}。原配置已自动备份；在 ZCode 的模型选择器里就能看到，没看到的话重新打开模型选择器。`;
       await Promise.all([loadSite(), loadProviders()]);
     } catch (e) { current.error = e.message; }
-    finally { setBusy(false); renderKeys(`${k.id}:models`); }
+    finally { setBusy(false); redrawPick(current, 'models'); }
   }
-  // 测试 under a key: one short request to one of its models through the site's gateway; the outcome stays under it.
+  // 测试 under the models: one short request to one of them through the site's gateway; the outcome stays under it.
   async function testPicked(k, m) {
     if (busy || !bridge || pick?.id !== k.id || !pick.result) return;
     const current = pick;
     current.tests ||= new Map(); current.testing = m.id;
-    setBusy(true, 'pick-test'); renderKeys();
+    setBusy(true, 'pick-test'); redrawPick(current);
     try { current.tests.set(m.id, await call('test_model', { sessionId: current.result.sessionId, modelId: m.id })); }
     catch (e) { current.tests.set(m.id, { ok: false, error: e.message }); }
-    finally { current.testing = ''; setBusy(false); renderKeys(`${k.id}:test:${m.id}`); }
+    finally { current.testing = ''; setBusy(false); redrawPick(current, `test:${m.id}`); }
   }
-  function askKey(k) { keyAsking = { id: k.id, error: '' }; if (pick?.id === k.id) pick = null; renderKeys(`${k.id}:cancel`); }
+  function askKey(k) { keyAsking = { id: k.id, error: '' }; if (pick?.id === k.id && !pick.group) pick = null; renderKeys(`${k.id}:cancel`); }
   // 确认删除: the key's services leave ZCode, then the key leaves the site. The account and the services are read again
   // while the panel is still busy. The outcome shows under the list; a refusal shows in the question, which stays open.
   async function deleteKey(k, trigger) {
@@ -785,14 +830,15 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
   // The outcome of deleting a key, under the list of keys.
   function keyStatus(text, error = false) { const box = $('siteKeyStatus'); box.style.display = text ? 'block' : 'none'; box.classList.toggle('error', error); box.textContent = text; }
   // 分组: all of the account's groups in one list, by platform as the site's group page has them. A group in ZCode has
-  // 删除; the others have 添加, which puts all of the group's models in ZCode with one of its working keys, and for a
-  // group without one asks in its row before a key is made on the site. 删除 asks in the row too. A local server older
-  // than this panel sends no groups, and the part stays hidden.
+  // 选择模型 and 删除; the others have 添加, which puts all of the group's models in ZCode with one of its working keys,
+  // and for a group without one asks in its row before a key is made on the site. 删除 asks in the row too. A local
+  // server older than this panel sends no groups, and the part stays hidden.
   function renderGroups(focus) {
     const groups = site?.groups;
     $('siteGroupsPart').hidden = !Array.isArray(groups);
     if (!Array.isArray(groups)) return;
     if (asking && !groups.some(g => g.id === asking.id && !g.blocked && (asking.kind === 'delete') === Boolean(g.inZCode?.length))) asking = null;
+    if (pick?.group && !groups.some(g => g.id === pick.group && g.keyId === pick.id)) pick = null;
     $('siteGroupCount').textContent = groups.length ? `已添加 ${groups.filter(g => g.inZCode?.length).length} / ${groups.length} 个` : '';
     const platforms = new Map();
     for (const g of groups) { const name = g.platformName || '其他'; if (!platforms.has(name)) platforms.set(name, []); platforms.get(name).push(g); }
@@ -817,31 +863,33 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     const note = g.blocked || (held ? `已加入 ZCode · ${models} 个模型` : g.remark);
     if (note) { const said = el('span', 'gnote', note); if (held && !g.blocked) said.title = `ZCode 里的${names}`; main.append(said); }
     if (g.multiplier != null) { const rate = el('span', 'grate', `×${g.multiplier}`); rate.title = '计费倍率'; side.append(rate); }
-    // The buttons sit in a slot of one width, so the rates line up whether a row has 添加, 补全 and 删除, or nothing.
+    // The buttons sit in a slot of one width, so the rates line up whether a row has 添加, 选择模型 and 删除, or nothing.
     const slot = el('span', 'gact');
+    // 添加 and 选择模型 open the group's models under the row, read with its key (keyId): for a group in ZCode the key its
+    // service there uses, so what the site offers now shows beside what ZCode has; for another group one of its working
+    // keys. Nothing is added until the user ticks models and saves. 添加 on a group without a working key asks first.
+    const pickKey = !g.blocked && g.keyId != null ? site?.keys?.find(k => k.id === g.keyId && !k.blocked) : null, open = Boolean(pickKey) && pick?.group === g.id;
+    const label = open ? pick.loading ? '正在读取…' : '收起' : held ? '选择模型' : '添加';
+    if (!g.blocked && (pickKey || !held)) {
+      const choose = button(held ? 'link' : 'small', label, 'models', () => open ? closePick() : pickKey ? openPick(pickKey, g.id) : g.hasUsableKey ? chooseGroup(g, false, choose) : openAsk(g, 'key'));
+      choose.setAttribute('aria-label', open ? `收起分组「${g.name}」的模型` : held ? `选择分组「${g.name}」在 ZCode 里使用的模型` : `添加分组「${g.name}」，先选择模型`); choose.setAttribute('aria-expanded', String(open));
+      choose.title = held ? '对照网站现在提供的模型，选择在 ZCode 里使用哪些' : '列出这个分组的模型，勾选要加入 ZCode 的';
+      if (open) choose.setAttribute('aria-controls', 'keyPick');
+      slot.append(choose);
+    }
     if (!g.blocked && held) {
-      // 补全 adds what ZCode does not have yet of the group, such as models the site added later or ones left out when
-      // a key of the group was added with only some of its models; they join the group's service.
-      if (g.hasUsableKey) {
-        const fill = button('link', '补全', 'fill', () => addGroup(g, false, fill));
-        fill.setAttribute('aria-label', `补全分组「${g.name}」的模型`); fill.title = '把这个分组里还没加入 ZCode 的模型加进去';
-        slot.append(fill);
-      }
       const drop = button('link danger', '删除', 'action', () => openAsk(g, 'delete'));
       drop.setAttribute('aria-label', `删除分组「${g.name}」`);
       slot.append(drop);
-    } else if (!g.blocked) {
-      const action = button('small', '添加', 'action', () => g.hasUsableKey ? addGroup(g, false, action) : openAsk(g, 'key'));
-      action.setAttribute('aria-label', `添加分组「${g.name}」`);
-      slot.append(action);
     }
     side.append(slot);
     row.append(main, side);
+    if (open) row.append(keyModels(pickKey, button, g.id));
     if (asking?.id === g.id) {
       const ask = el('div', 'gask'), bar = el('div', 'svcbar'), key = asking.kind === 'key';
-      const yes = key ? button('small go', '新建 Key 并添加', 'yes', () => addGroup(g, true, yes)) : button('small stop', '确认删除', 'yes', () => removeGroup(g, yes));
-      bar.append(button('small', '取消', 'cancel', () => { asking = null; renderGroups(`${g.id}:action`); }), yes);
-      ask.append(el('div', 'svcask', key ? `「${g.name}」还没有可用的 Key。要在网站上为它新建一个 Key（不限额度、不过期），再把它的全部模型加入 ZCode 吗？` : `从 ZCode 删除分组「${g.name}」：${names}和它的 ${models} 个模型？删除前会自动备份，网站上的 Key 保留。`), bar);
+      const yes = key ? button('small go', '新建 Key 并选择模型', 'yes', () => chooseGroup(g, true, yes)) : button('small stop', '确认删除', 'yes', () => removeGroup(g, yes));
+      bar.append(button('small', '取消', 'cancel', () => { asking = null; renderGroups(`${g.id}:${key ? 'models' : 'action'}`); }), yes);
+      ask.append(el('div', 'svcask', key ? `「${g.name}」还没有可用的 Key。要在网站上为它新建一个 Key（不限额度、不过期），再选择要加入 ZCode 的模型吗？` : `从 ZCode 删除分组「${g.name}」：${names}和它的 ${models} 个模型？删除前会自动备份，网站上的 Key 保留。`), bar);
       row.append(ask);
     } else if (groupOutcome?.id === g.id) {
       const out = el('div', 'gask goutcome');
@@ -850,7 +898,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     }
     return row;
   }
-  function openAsk(g, kind) { siteStatus(''); asking = { id: g.id, kind }; renderGroups(`${g.id}:cancel`); }
+  function openAsk(g, kind) { siteStatus(''); asking = { id: g.id, kind }; if (pick?.group === g.id) pick = null; renderGroups(`${g.id}:cancel`); }
   // A group change reports in the row it was made in (id), where the user is looking, and in the line under the list,
   // which screen readers hear and which shows on screen only when the row is gone. A key's deletion reports under the
   // keys. A new action clears both. The account and the services list are read again while the panel is still busy, so
@@ -865,18 +913,31 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     const text = trigger.textContent;
     setBusy(true, 'group'); trigger.textContent = label; siteStatus(''); keyStatus('');
     try { siteStatus(await work(), false, g.id); } catch (e) { siteStatus(e.message, true, g.id); }
-    finally { asking = null; await Promise.all([loadSite(), loadProviders()]); trigger.textContent = text; setBusy(false); }
+    finally { asking = null; await Promise.all([loadSite(), loadProviders()]); trigger.textContent = text; setBusy(false); revealOutcome(); }
   }
-  // 添加, or 补全 on a group already in ZCode. The outcome tells where the models are now.
-  function addGroup(g, createKey, trigger) {
-    const fill = Boolean(g.inZCode?.length);
-    return groupChange(g, trigger, fill ? '正在补全…' : '正在添加…', async () => {
-      const r = await call('site_add_group', { groupId: g.id, createKey });
-      if (r.unchanged) return `分组「${r.groupName}」的模型已经都在 ZCode 里。`;
-      const made = r.createdKey ? `，并在网站上新建了 Key「${r.createdKey}」` : '';
-      const done = `${fill ? '已补全' : '已添加'}分组「${r.groupName}」：${r.added} 个模型加入 ZCode「${r.providerName}」${made}。`;
-      return window.__HARBOR_PREVIEW__ ? `预览：${done}真实 ZCode 配置没有改动。` : `${done}原配置已自动备份；在 ZCode 的模型选择器里就能选到，没看到的话重新打开模型选择器。`;
-    });
+  // The outcome under a row low in the panel would land below its edge: the row and its outcome scroll into view.
+  function revealOutcome() { $('siteGroups').querySelector('.goutcome')?.parentElement?.scrollIntoView({ block: 'nearest' }); }
+  // 添加 on a group whose working key the panel does not list, or, with createKey after the question in its row, on one
+  // without a working key: the server finds the key, or makes one on the site, and adds no model (keyOnly); the account
+  // is read again so the key is listed, and the group's models open under the row for the user to tick.
+  async function chooseGroup(g, createKey, trigger) {
+    if (busy || !bridge) return;
+    const text = trigger.textContent;
+    let found = null;
+    setBusy(true, 'group'); trigger.textContent = createKey ? '正在新建 Key…' : '正在读取…'; siteStatus(''); keyStatus('');
+    try { found = await call('site_add_group', { groupId: g.id, createKey, keyOnly: true }); }
+    catch (e) { siteStatus(e.message, true, g.id); }
+    finally { asking = null; if (found) await loadSite(); trigger.textContent = text; setBusy(false); }
+    if (!found) { renderGroups(`${g.id}:models`); revealOutcome(); return; }
+    const key = site?.keys?.find(k => k.id === found.keyId && !k.blocked);
+    if (!key) { siteStatus(`${found.createdKey ? `已在网站上新建 Key「${found.createdKey}」，但` : ''}没有读到分组「${found.groupName}」的 Key，请刷新账户后再试。`, true, g.id); renderGroups(); revealOutcome(); return; }
+    await openPick(key, g.id);
+    // A key made just now is said where the models are, so the user knows it is on the site whatever they pick.
+    if (found.createdKey && pick?.group === g.id) {
+      const made = `已在网站上为「${found.groupName}」新建 Key「${found.createdKey}」`;
+      if (pick.result) pick.message = `${made}。勾选要用的模型，再点「添加到 ZCode」。`; else pick.error = `${made}，但没能读取模型：${pick.error || ''}`;
+      redrawPick(pick);
+    }
   }
   function removeGroup(g, trigger) {
     return groupChange(g, trigger, '正在删除…', async () => {

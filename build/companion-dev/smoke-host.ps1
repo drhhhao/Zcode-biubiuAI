@@ -684,3 +684,5 @@ finally {
   Write-Output "temp folder removed: $(-not (Test-Path $tmp))"
   Write-Output "SUMMARY passed=$($script:passed) failed=$($script:failed)"
 }
+# A failure is the exit code too, for npm run verify and the GitHub check.
+if ($script:failed -gt 0) { exit 1 }

@@ -361,7 +361,7 @@ test('adding a group with a working key puts all of its models in ZCode as one s
   assert.equal(again.structuredContent.unchanged, true); assert.match(again.content[0].text, /已经都在 ZCode 里/);
 });
 
-test('补全 on a group in ZCode adds what its service lacks, with the key that service has, and makes no second service', async t => {
+test('adding a group in ZCode again adds what its service lacks, with the key that service has, and makes no second service', async t => {
   const { harbor, state, config } = await setup(t);
   await login(harbor);
   // Key 5 of the Claude group went in with one of its models: the group shows as in ZCode, model-b still missing.
@@ -394,7 +394,7 @@ test('a group without a working key gets a key made on the site only when the pa
   assert.deepEqual(secretsIn(JSON.stringify([first, second]), state), []);
   const account = (await callTool(harbor, 'site_account')).structuredContent;
   assert.equal(account.keys.length, 6);
-  assert.deepEqual(account.groups.find(g => g.id === '74'), { id: '74', name: 'Grok 组', platform: 'grok', platformName: 'Grok', multiplier: 0.9, remark: '', blocked: '', hasUsableKey: true, inZCode: [{ name: 'biubiu AI · Grok 组', modelCount: 2 }] });
+  assert.deepEqual(account.groups.find(g => g.id === '74'), { id: '74', name: 'Grok 组', platform: 'grok', platformName: 'Grok', multiplier: 0.9, remark: '', blocked: '', hasUsableKey: true, inZCode: [{ name: 'biubiu AI · Grok 组', modelCount: 2 }], keyId: '100' });
   await callTool(harbor, 'site_remove_group', { groupId: '74' });
   assert.equal((await callTool(harbor, 'site_add_group', { groupId: '74' })).isError, undefined, 'the key made before is used again');
   assert.equal(keysMade(state).length, 1);
@@ -611,4 +611,132 @@ test('keys go by the site\'s own id (localId), which its groups name them by and
   const removed = await callTool(harbor, 'site_delete_key', { siteKeyId: '505' });
   assert.equal(removed.isError, undefined, removed.content[0].text);
   assert.deepEqual(deletes(state).map(c => c.path), ['/api/client/platforms/5/api-keys/505']);
+});
+
+// A model gateway whose list the test changes as the site's own list does: ids is read at every request.
+function serveModels(harbor, ids) {
+  harbor.fetchImpl = async (url, options) => options.method === 'POST'
+    ? Response.json({ content: [{ type: 'text', text: 'OK' }] })
+    : Response.json({ data: ids.map(id => ({ id })) });
+}
+const ruleIds = (rules, providerId) => rules.filter(r => r.providerId === providerId).map(r => r.modelId);
+
+test('each site key bills at its group\'s multiplier', async t => {
+  const { harbor, state } = await setup(t);
+  const data = (await login(harbor)).structuredContent;
+  assert.deepEqual(data.keys.map(k => [k.id, k.multiplier ?? null]), [['1', 1], ['2', 0.8], ['3', 0.5], ['4', 1], ['5', 1]]);
+  assert.deepEqual(secretsIn(JSON.stringify(data), state), []);
+});
+
+test('a group in ZCode names the site key its service uses, and fetching that key again lists the models the site dropped', async t => {
+  const { harbor, state } = await setup(t);
+  await login(harbor);
+  const listed = ['model-a', 'model-b', 'model-c'];
+  serveModels(harbor, listed);
+  const added = await callTool(harbor, 'site_add_group', { groupId: '71' });
+  assert.equal(added.isError, undefined, added.content[0].text);
+  const account = (await callTool(harbor, 'site_account')).structuredContent;
+  const group = account.groups.find(g => g.id === '71');
+  assert.deepEqual(group.inZCode, [{ name: 'biubiu AI · Claude 组', modelCount: 3 }]);
+  assert.equal(group.keyId, '1', 'the group\'s service holds key 1');
+  assert.deepEqual(account.groups.filter(g => g.id !== '71').map(g => [g.id, g.keyId ?? null]), [['72', '2'], ['73', null], ['74', null]], 'another group names a working key of its own; a Gemini group or one without a key names none');
+  listed.splice(1); // the site no longer lists model-b and model-c
+  const fetched = await callTool(harbor, 'fetch_models', { baseUrl: ORIGIN, protocol: 'anthropic-messages', siteKeyId: '1' });
+  assert.equal(fetched.isError, undefined, fetched.content[0].text);
+  assert.deepEqual(fetched.structuredContent.models.map(m => [m.id, m.inZCode ?? false]), [['model-a', true]]);
+  assert.deepEqual(fetched.structuredContent.missing, ['model-b', 'model-c']);
+  assert.deepEqual(secretsIn(JSON.stringify(fetched), state), []);
+});
+
+test('taking models out of a service removes them and their settings, with a backup, and leaves other services alone', async t => {
+  const { harbor, state, config, configPath } = await setup(t);
+  await login(harbor);
+  const listed = ['model-a', 'model-b', 'model-c'];
+  serveModels(harbor, listed);
+  for (const groupId of ['71', '72']) assert.equal((await callTool(harbor, 'site_add_group', { groupId })).isError, undefined);
+  let doc = await config();
+  const claude = doc.config.providerConfigRules.providerRules.find(p => p.providerName === 'biubiu AI · Claude 组');
+  const gpt = doc.config.providerConfigRules.providerRules.find(p => p.providerName === 'biubiu AI · GPT 组');
+  const gptRules = JSON.stringify(doc.config.modelConfigRules.providerModelRules.filter(r => r.providerId === gpt.providerId));
+  listed.splice(1); // the site no longer lists model-b and model-c
+  let fetched = (await callTool(harbor, 'fetch_models', { baseUrl: ORIGIN, protocol: 'anthropic-messages', siteKeyId: '1' })).structuredContent;
+  assert.deepEqual(fetched.missing, ['model-b', 'model-c']);
+  const beforeRaw = await fs.readFile(configPath, 'utf8');
+  const onlyRemoved = await callTool(harbor, 'import_models', { sessionId: fetched.sessionId, modelIds: [], removeModelIds: ['model-b', 'model-a'] });
+  assert.equal(onlyRemoved.isError, undefined, onlyRemoved.content[0].text);
+  assert.deepEqual([onlyRemoved.structuredContent.added, onlyRemoved.structuredContent.removed], [0, 2]);
+  assert.equal(onlyRemoved.content[0].text, '已从 biubiu AI · Claude 组 移除 2 个模型。');
+  assert.equal(await fs.readFile(onlyRemoved.structuredContent.backupPath, 'utf8'), beforeRaw, 'the config as it was is backed up');
+  doc = await config();
+  const claudeNow = doc.config.providerConfigRules.providerRules.find(p => p.providerName === 'biubiu AI · Claude 组');
+  assert.deepEqual(claudeNow.config.personalModelIds, ['model-c']);
+  assert.deepEqual(claudeNow.config.modelOrder, ['model-c']);
+  assert.deepEqual(ruleIds(doc.config.modelConfigRules.providerModelRules, claude.providerId), ['model-c']);
+  assert.deepEqual(ruleIds(doc.config.modelConfigRules.manualProviderModelRules, claude.providerId), []);
+  assert.equal(JSON.stringify(doc.config.providerConfigRules.providerRules.find(p => p.providerName === 'biubiu AI · GPT 组')), JSON.stringify(gpt), 'the other service is unchanged');
+  assert.equal(JSON.stringify(doc.config.modelConfigRules.providerModelRules.filter(r => r.providerId === gpt.providerId)), gptRules, 'and so are its model settings');
+  // One model still listed leaves while another the site dropped comes back, in one write.
+  fetched = (await callTool(harbor, 'fetch_models', { baseUrl: ORIGIN, protocol: 'anthropic-messages', siteKeyId: '1' })).structuredContent;
+  assert.deepEqual(fetched.missing, ['model-c']);
+  const both = await callTool(harbor, 'import_models', { sessionId: fetched.sessionId, modelIds: ['model-a'], removeModelIds: ['model-c'] });
+  assert.equal(both.isError, undefined, both.content[0].text);
+  assert.deepEqual([both.structuredContent.added, both.structuredContent.removed], [1, 1]);
+  assert.equal(both.content[0].text, '已向 biubiu AI · Claude 组 新增 1 个、移除 1 个模型。');
+  doc = await config();
+  const final = doc.config.providerConfigRules.providerRules.find(p => p.providerName === 'biubiu AI · Claude 组');
+  assert.deepEqual(final.config.personalModelIds, ['model-a']);
+  assert.deepEqual(final.config.modelOrder, ['model-a']);
+  assert.deepEqual(ruleIds(doc.config.modelConfigRules.providerModelRules, claude.providerId), ['model-a']);
+  assert.deepEqual(secretsIn(JSON.stringify([onlyRemoved, both]), state), []);
+});
+
+test('unticking is refused for every model, a model ZCode still uses, one not in the fetch or one also ticked, leaving the config as it was', async t => {
+  const { harbor, config, configPath } = await setup(t);
+  await login(harbor);
+  serveModels(harbor, ['model-a', 'model-b']);
+  assert.equal((await callTool(harbor, 'site_add_group', { groupId: '71' })).isError, undefined);
+  const doc = await config(), target = doc.config.providerConfigRules.providerRules[0];
+  const before = await fs.readFile(configPath, 'utf8');
+  const fetched = (await callTool(harbor, 'fetch_models', { baseUrl: ORIGIN, protocol: 'anthropic-messages', siteKeyId: '1' })).structuredContent;
+  assert.deepEqual(fetched.missing, []);
+  const refused = async (args, message) => {
+    const r = await callTool(harbor, 'import_models', { sessionId: fetched.sessionId, ...args });
+    assert.equal(r.isError, true, JSON.stringify(args)); assert.match(r.content[0].text, message);
+    assert.equal(await fs.readFile(configPath, 'utf8'), before, JSON.stringify(args));
+  };
+  await refused({ modelIds: [], removeModelIds: ['model-a', 'model-b'] }, /至少要保留一个模型/);
+  await refused({ modelIds: [], removeModelIds: ['model-zzz'] }, /只能移除本次读取/);
+  await refused({ modelIds: ['model-a'], removeModelIds: ['model-a'] }, /既添加又移除/);
+  // ZCode's own setting still naming the model keeps it.
+  doc.config.defaultModelSelection = { providerId: target.providerId, modelId: 'model-a' };
+  await fs.writeFile(configPath, JSON.stringify(doc));
+  const used = await fs.readFile(configPath, 'utf8');
+  const kept = await callTool(harbor, 'import_models', { sessionId: fetched.sessionId, modelIds: [], removeModelIds: ['model-a'] });
+  assert.equal(kept.isError, true); assert.match(kept.content[0].text, /默认模型/);
+  assert.equal(await fs.readFile(configPath, 'utf8'), used);
+  // A service that is not in ZCode has nothing to take out.
+  const other = (await callTool(harbor, 'fetch_models', { baseUrl: `${ORIGIN}/v1`, protocol: 'openai-responses', siteKeyId: '2' })).structuredContent;
+  const none = await callTool(harbor, 'import_models', { sessionId: other.sessionId, modelIds: [], removeModelIds: ['model-a'] });
+  assert.equal(none.isError, true); assert.match(none.content[0].text, /已不在 ZCode/);
+  assert.equal(await fs.readFile(configPath, 'utf8'), used);
+});
+
+test('添加 in the panel only finds or makes the group\'s key, by keyOnly, and adds no model', async t => {
+  const { harbor, state, config } = await setup(t);
+  await login(harbor);
+  serveModels(harbor, ['model-a', 'model-b']);
+  const before = JSON.stringify(await config());
+  const found = await callTool(harbor, 'site_add_group', { groupId: '71', keyOnly: true });
+  assert.deepEqual([found.structuredContent, found.content[0].text], [{ groupId: '71', groupName: 'Claude 组', keyId: '1' }, '已找到分组「Claude 组」可用的 Key。']);
+  const refused = await callTool(harbor, 'site_add_group', { groupId: '74', keyOnly: true });
+  assert.equal(refused.isError, true, 'no key is made without createKey'); assert.deepEqual(keysMade(state), []);
+  const made = await callTool(harbor, 'site_add_group', { groupId: '74', keyOnly: true, createKey: true });
+  assert.deepEqual([made.structuredContent, made.content[0].text], [{ groupId: '74', groupName: 'Grok 组', keyId: '100', createdKey: 'ZCode · Grok 组' }, '已在网站上为分组「Grok 组」新建 Key「ZCode · Grok 组」。']);
+  assert.equal(keysMade(state).length, 1);
+  assert.equal(JSON.stringify(await config()), before, 'no model went to ZCode');
+  assert.deepEqual(secretsIn(JSON.stringify([found, made]), state), []);
+  // The key made is listed with the account, so the panel opens the group's models with it.
+  const account = (await callTool(harbor, 'site_account')).structuredContent;
+  assert.equal(account.groups.find(g => g.id === '74').keyId, '100');
+  assert.ok(account.keys.some(k => k.id === '100'));
 });

@@ -52,6 +52,11 @@ function mentions(value, id) {
   if (Array.isArray(value)) return value.some(v => mentions(v, id));
   return Boolean(value) && typeof value === 'object' && (value.providerId === id || Object.values(value).some(v => mentions(v, id)));
 }
+// True when anything under value still names one model of the provider, such as ZCode's default model choice.
+function mentionsModel(value, id, modelId) {
+  if (Array.isArray(value)) return value.some(v => mentionsModel(v, id, modelId));
+  return Boolean(value) && typeof value === 'object' && ((value.providerId === id && value.modelId === modelId) || Object.values(value).some(v => mentionsModel(v, id, modelId)));
+}
 // A template service takes its address from ZCode's built-in template, so only its key can be changed here.
 function publicProvider(p) {
   const models = providerModels(p.config);
@@ -111,6 +116,8 @@ export class Harbor {
   async siteLogin(input) { return this.markInZCode(await this.requireSite().login(input)); }
   siteLogout() { return this.requireSite().logout(); }
   // Marks each site key, and each site group, with the ZCode services that already hold it; the comparison stays on the server.
+  // A group also names, by id only, the site key (keyId) the panel opens its models with, under the group, to choose which
+  // of them ZCode uses: the key its service in ZCode uses, or for a group not in ZCode one of its keys that works.
   async markInZCode(data) {
     if (!data.keys?.length && !data.groups?.length) return data;
     const providers = await this.personalProviders().catch(() => []);
@@ -119,8 +126,12 @@ export class Harbor {
       if (p) k.inZCode = p.providerName || p.providerId;
     }
     for (const g of data.groups || []) {
-      const held = this.groupProviders(providers, this.site.groups.get(g.id));
-      if (held.length) g.inZCode = held.map(p => ({ name: p.providerName || p.providerId, modelCount: providerModels(p.config).length }));
+      const group = this.site.groups.get(g.id), held = this.groupProviders(providers, group);
+      if (!held.length) { const key = group?.keys.find(k => this.site.usable(k.id)); if (key && !g.blocked) g.keyId = key.id; continue; }
+      g.inZCode = held.map(p => ({ name: p.providerName || p.providerId, modelCount: providerModels(p.config).length }));
+      const values = new Set(held.map(p => p.config.access?.apiKey));
+      const key = group.keys.map(k => this.site.keys.get(k.id)).find(k => k?.key && !k.blocked && values.has(k.key));
+      if (key) g.keyId = key.id;
     }
     return data;
   }
@@ -136,12 +147,15 @@ export class Harbor {
   }
   // 添加分组: the group's own key, or a key made on the site after the panel asked, fetches the group's models from the
   // site's gateway, and all of them go to ZCode in one write, as a service named after the group. A group already in
-  // ZCode (补全) goes with the key its service there has, so the models it lacks join that service instead of a second one.
-  async siteAddGroup({ groupId, createKey = false } = {}) {
+  // ZCode goes with the key its service there has, so the models it lacks join that service instead of a second one.
+  // The panel adds no model unticked: it passes keyOnly, which stops once the key is found or made and returns its id
+  // alone, and then opens the group's models with that key (as with markInZCode's keyId) for the user to tick.
+  async siteAddGroup({ groupId, createKey = false, keyOnly = false } = {}) {
     const site = this.requireSite();
     return this.oneSiteChange(async () => {
       const inZCode = new Set(this.siteProviders(await this.personalProviders().catch(() => [])).map(p => p.config.access?.apiKey).filter(Boolean));
       const { group, key, created } = await site.groupKey(groupId, { create: createKey === true, prefer: value => inZCode.has(value) });
+      if (keyOnly === true) return { groupId: group.id, groupName: group.name, keyId: key.id, ...(created ? { createdKey: key.name } : {}) };
       let fetched;
       try {
         fetched = await this.fetchModels({ baseUrl: key.baseUrl, protocol: key.protocol, siteKeyId: key.id });
@@ -248,22 +262,24 @@ export class Harbor {
       }
       let models;
       try { models = parseModels(await boundedJson(response)); } catch (e) { failures.push(e instanceof PanelError ? e.message : '无法读取响应'); continue; }
-      // The service an import would add to; models it already has come back marked inZCode.
-      let providerId = existingProviderId, templateId, savedRules = [], saved = new Set();
+      // The service an import would add to; models it already has come back marked inZCode, and the ones it has that the
+      // service no longer lists come back in missing, so the panel can offer to take them out.
+      let providerId = existingProviderId, templateId, savedRules = [], saved = new Set(), personal = [];
       try {
         const { doc } = await readConfig(this.configPath);
         const candidate = doc.config.providerConfigRules.providerRules.find(p => p.providerId === existingProviderId) || doc.config.providerConfigRules.providerRules.find(p => p.config?.api?.baseUrl && normalizeUrl(p.config.api.baseUrl) === baseUrl && p.config.api.type === protocol && keyMatches(p, { siteKey, apiKey }));
         providerId = candidate?.providerId; templateId = candidate?.templateId;
         savedRules = [...doc.config.modelConfigRules.providerModelRules, ...doc.config.modelConfigRules.manualProviderModelRules];
-        if (candidate) saved = new Set(providerModels((await this.resolvedProvider(candidate)).config));
+        if (candidate) { const config = (await this.resolvedProvider(candidate)).config; saved = new Set(providerModels(config)); personal = [...saved].filter(id => config.personalModelIds?.includes(id)); }
       } catch {}
       models = (await this.metadataCatalog.enrich(models, { baseUrl, protocol, providerId, templateId, savedRules })).map(m => saved.has(m.id) ? { ...m, inZCode: true } : m);
+      const listedIds = new Set(models.map(m => m.id)), missing = personal.filter(id => !listedIds.has(id));
       const now = Date.now();
       for (const [id, s] of this.sessions) if (now - s.created > 30 * 60 * 1000) this.sessions.delete(id);
       if (this.sessions.size >= 40) this.sessions.delete(this.sessions.keys().next().value);
       const sessionId = crypto.randomUUID();
-      this.sessions.set(sessionId, { created: now, baseUrl, apiKey, protocol, models, existingProviderId, savedHeaders, savedKey, siteKey });
-      return { sessionId, models, endpoint, baseUrl, count: models.length };
+      this.sessions.set(sessionId, { created: now, baseUrl, apiKey, protocol, models, missing, existingProviderId, savedHeaders, savedKey, siteKey });
+      return { sessionId, models, missing, endpoint, baseUrl, count: models.length };
     }
     throw new PanelError(`未找到可用的模型列表：${[...new Set(failures)].join('；')}。请确认服务商支持 /models 或 /v1/models。`);
   }
@@ -305,10 +321,15 @@ export class Harbor {
   // (metadata.mjs: ZCode's own values where its rules know the model, else 256K / 128K / low·high·max, lowered by what
   // the service or the catalog states), only in fields its rule leaves empty; models the service already has, and every
   // other service, stay as they are. Everything else about a model is set in ZCode.
-  async importModels({ sessionId, modelIds, providerName } = {}) {
+  // removeModelIds takes models out of that service instead (the panel's unticked ones): only models of this fetch, or
+  // ones the service has that the fetch no longer listed, only models added to it rather than built in, never the last
+  // one, and none that ZCode's default model or another setting still names; their model settings go with them.
+  async importModels({ sessionId, modelIds = [], removeModelIds = [], providerName } = {}) {
     const s = this.sessions.get(sessionId);
     if (!s || Date.now() - s.created > 30 * 60 * 1000) { this.sessions.delete(sessionId); throw new PanelError('拉取结果已过期，请重新拉取模型。'); }
-    if (!Array.isArray(modelIds) || !modelIds.length || modelIds.length > 5000 || modelIds.some(id => !s.models.some(m => m.id === id))) throw new PanelError('请至少选择一个本次拉取的模型。');
+    if (!Array.isArray(removeModelIds) || removeModelIds.length > 5000 || removeModelIds.some(id => typeof id !== 'string' || (!s.models.some(m => m.id === id) && !s.missing?.includes(id)))) throw new PanelError('只能移除本次读取时这个服务里的模型，请重新读取模型。');
+    if (!Array.isArray(modelIds) || (!modelIds.length && !removeModelIds.length) || modelIds.length > 5000 || modelIds.some(id => !s.models.some(m => m.id === id))) throw new PanelError('请至少选择一个本次拉取的模型。');
+    if (modelIds.some(id => removeModelIds.includes(id))) throw new PanelError('同一个模型不能既添加又移除。');
     providerName = String(providerName || new URL(s.baseUrl).hostname).trim();
     if (!providerName || providerName.length > 100 || /[\x00-\x1F]/.test(providerName)) throw new PanelError('供应商名称应为 1–100 个字符。');
     return this.changeConfig(async doc => {
@@ -321,6 +342,7 @@ export class Harbor {
       if (s.existingProviderId && (!target || normalizeUrl(resolvedTarget.config.api?.baseUrl) !== s.baseUrl || resolvedTarget.config.api?.type !== s.protocol || (savedKey !== s.savedKey && savedKey !== s.apiKey))) throw new PanelError('原供应商配置已变化，请重新选择供应商并拉取。');
       const created = !target;
       if (target && target.config?.group !== 'standard-personal') throw new PanelError('只支持导入自定义供应商。');
+      if (created && removeModelIds.length) throw new PanelError('这个服务已不在 ZCode 里，没有可移除的模型。请重新读取模型。');
       if (!target) {
         target = { providerId: `model-harbor-${crypto.randomUUID()}`, providerName, config: { group: 'standard-personal', access: { type: 'api-key', apiKey: s.apiKey }, api: { type: s.protocol, baseUrl: s.baseUrl, ...(s.savedHeaders ? { headers: s.savedHeaders } : {}) }, personalModelIds: [], modelOrder: [] } };
         rules.push(target);
@@ -340,8 +362,20 @@ export class Harbor {
         if (!rule) { rule = { providerId: target.providerId, modelId, config: { enabled: true } }; modelRules.providerModelRules.push(rule); rulesAdded = true; }
         if (fresh.has(modelId)) applyPlan(rule.config, s.models.find(m => m.id === modelId).plan);
       }
-      if (!created && !added.length && !credentialChanged && !rulesAdded) return { added: 0, selected: selected.length, providerName: target.providerName, unchanged: true };
-      return { added: added.length, selected: selected.length, providerName: target.providerName, created };
+      const builtin = new Set(resolvedTarget?.config.builtinModelIds || []), removed = [];
+      for (const modelId of new Set(removeModelIds)) {
+        if (builtin.has(modelId)) throw new PanelError(`「${modelId}」是 ZCode 内置的模型，不能在这里移除。`);
+        if (!target.config.personalModelIds?.includes(modelId)) continue;
+        target.config.personalModelIds = target.config.personalModelIds.filter(id => id !== modelId);
+        target.config.modelOrder = (target.config.modelOrder || []).filter(id => id !== modelId);
+        modelRules.providerModelRules = modelRules.providerModelRules.filter(r => r.providerId !== target.providerId || r.modelId !== modelId);
+        modelRules.manualProviderModelRules = modelRules.manualProviderModelRules.filter(r => r.providerId !== target.providerId || r.modelId !== modelId);
+        if (mentionsModel(doc.config, target.providerId, modelId)) throw new PanelError(`「${modelId}」还是 ZCode 的默认模型，或在其他设置里使用，没有改动。请先在 ZCode 里换成其他模型，再取消勾选。`);
+        removed.push(modelId);
+      }
+      if (removed.length && !builtin.size && !target.config.personalModelIds.length) throw new PanelError('至少要保留一个模型，没有改动。不再使用这个服务的话，请删除它。');
+      if (!created && !added.length && !removed.length && !credentialChanged && !rulesAdded) return { added: 0, removed: 0, selected: selected.length, providerName: target.providerName, unchanged: true };
+      return { added: added.length, removed: removed.length, selected: selected.length, providerName: target.providerName, created };
     }, '本次导入已取消。请再次点击导入。');
   }
   // Changes a listed service's address or key. An empty key keeps the saved one, and the result never carries a key.

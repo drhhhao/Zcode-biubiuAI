@@ -73,5 +73,6 @@ export function demoBackend() {
     return Promise.resolve(Response.json({ data: sampleIds.map(id => ({ id, ...(id.startsWith('deepseek') ? { context_window: 1048576, max_output_tokens: 393216, effort: { supported_levels: ['low', 'high', 'max'], default_level: 'high' }, input_modalities: ['text'] } : {}) })) }));
   }
 
-  return { isDemo, siteFetch, serviceFetch };
+  // models is each platform's list on the demo gateway; the tutorial changes it to show a group the site has changed.
+  return { isDemo, siteFetch, serviceFetch, models };
 }

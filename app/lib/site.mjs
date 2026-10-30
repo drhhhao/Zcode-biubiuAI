@@ -113,6 +113,11 @@ export class Site {
       if (groups.status === 'fulfilled') {
         this.groups = new Map(groups.value.map(g => [g.id, g]));
         result.groups = groups.value.map(g => this.publicGroup(g));
+        // Each key bills at its group's rate: the group that names the key, else the one with its group's name and platform.
+        for (const k of result.keys) {
+          const g = groups.value.find(g => g.keys.some(x => x.id === k.id)) || groups.value.find(g => g.name === k.group && g.platform === k.platform);
+          if (g?.multiplier != null) k.multiplier = g.multiplier;
+        }
       }
       const errors = [balance.status === 'rejected' ? `余额读取失败：${balance.reason.message}` : '', keys.status === 'rejected' ? `Key 读取失败：${keys.reason.message}` : '', groups.status === 'rejected' ? `分组读取失败：${groups.reason.message}` : ''].filter(Boolean);
       if (errors.length) result.error = errors.join(' ');

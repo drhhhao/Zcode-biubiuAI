@@ -250,7 +250,7 @@ test('the panel has two pages: the site account first, then connecting a service
   // A site key's models open on the site page itself and never on the connect page; problems on the site page are
   // reported there, not in the status line, which belongs to the connect page.
   const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at)); };
-  for (const name of ['siteKeyItem', 'keyModels', 'openPick', 'addPicked', 'deleteKey']) assert.doesNotMatch(source(name), /showPage|connectForm|savedProvider|(?<![A-Za-z])status\(/, name);
+  for (const name of ['siteKeyItem', 'keyModels', 'openPick', 'savePicked', 'deleteKey']) assert.doesNotMatch(source(name), /showPage|connectForm|savedProvider|(?<![A-Za-z])status\(/, name);
   assert.ok(!html.includes("showPage('connect'") && !html.includes('useSiteKey'), 'nothing moves a site key to the connect page');
   assert.match(source('siteKeyItem'), /\{ siteKeyId: k\.id \}, siteFailed\)/);
   const failed = html.split('\n').find(line => line.includes('async function siteFailed(')), logout = html.slice(html.indexOf("$('siteLogout').onclick"), html.indexOf('\n  };\n', html.indexOf("$('siteLogout').onclick")));
@@ -332,22 +332,27 @@ test('a group row adds with its own key at once, asks in the row before a key is
   const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => typeof c === 'object' ? all(c, match) : [])];
   const button = (n, text) => all(n, c => c.tag === 'button' && c.textContent === text)[0];
   const calls = [], renders = [], statuses = [];
-  const ctx = { el, busy: false, bridge: () => {}, asking: null, groupOutcome: null, renderGroups: focus => renders.push(focus), siteStatus: text => { statuses.push(text); ctx.groupOutcome = null; },
-    addGroup: (g, createKey) => calls.push(['add', g.id, createKey]), removeGroup: g => calls.push(['remove', g.id]) };
+  const ctx = { el, busy: false, bridge: () => {}, asking: null, groupOutcome: null, pick: null, site: { keys: [] }, renderGroups: focus => renders.push(focus), siteStatus: text => { statuses.push(text); ctx.groupOutcome = null; },
+    chooseGroup: (g, createKey) => calls.push(['add', g.id, createKey]), removeGroup: g => calls.push(['remove', g.id]),
+    openPick: (k, group) => calls.push(['pick', k.id, group]), closePick: () => calls.push(['close']), keyModels: (k, b, prefix) => { calls.push(['models', k.id, prefix]); return el('div', 'keypick'); } };
   vm.runInNewContext(`${source}\n${ask}`, ctx);
   const ready = { id: '1', name: 'gpt-plus', platformName: 'GPT', multiplier: 0.3, hasUsableKey: true };
   const row = ctx.groupRow(ready);
   assert.equal(all(row, c => c.className === 'grate')[0].textContent, '×0.3');
   button(row, '添加').onclick();
-  assert.deepEqual(calls, [['add', '1', false]], 'a group with a working key is added at once, and no key is made');
+  assert.deepEqual(calls, [['add', '1', false]], 'a group with a working key the panel does not list asks the server for it, and no key is made');
+  ctx.site.keys = [{ id: '11', name: 'plus', blocked: '' }];
+  button(ctx.groupRow({ ...ready, keyId: '11' }), '添加').onclick();
+  assert.deepEqual(calls.at(-1), ['pick', '11', '1'], '添加 opens the group\'s models under it with its key; nothing is added before a tick');
+  calls.pop(); ctx.site.keys = [];
   const bare = { id: '2', name: 'grok-heavy', platformName: 'Grok', multiplier: 0.3, hasUsableKey: false };
   button(ctx.groupRow(bare), '添加').onclick();
   assert.deepEqual([{ ...ctx.asking }, renders.at(-1), calls.length], [{ id: '2', kind: 'key' }, '2:cancel', 1], 'it asks in the row first, with 取消 focused');
   let asked = ctx.groupRow(bare);
   assert.match(all(asked, c => c.className === 'svcask')[0].textContent, /「grok-heavy」还没有可用的 Key。要在网站上为它新建一个 Key（不限额度、不过期）/);
   button(asked, '取消').onclick();
-  assert.deepEqual([ctx.asking, renders.at(-1), calls.length], [null, '2:action', 1], '取消 makes nothing and goes back to 添加');
-  button(ctx.groupRow(bare), '添加').onclick(); button(ctx.groupRow(bare), '新建 Key 并添加').onclick();
+  assert.deepEqual([ctx.asking, renders.at(-1), calls.length], [null, '2:models', 1], '取消 makes nothing and goes back to 添加');
+  button(ctx.groupRow(bare), '添加').onclick(); button(ctx.groupRow(bare), '新建 Key 并选择模型').onclick();
   assert.deepEqual(calls.at(-1), ['add', '2', true], 'createKey only from the question\'s own button');
   const held = { id: '3', name: 'ccmax满血', platformName: 'Claude', multiplier: 1.6, hasUsableKey: true, inZCode: [{ name: 'biubiu AI · ccmax满血', modelCount: 4 }] };
   asked = ctx.groupRow(held);
@@ -357,13 +362,25 @@ test('a group row adds with its own key at once, asks in the row before a key is
   assert.deepEqual({ ...ctx.asking }, { id: '3', kind: 'delete' }); assert.equal(calls.length, 2, 'nothing is deleted before 确认删除');
   button(ctx.groupRow(held), '确认删除').onclick();
   assert.deepEqual(calls.at(-1), ['remove', '3']);
-  // 补全 adds at once what ZCode lacks of a group it has, with no key made; without a working key there is nothing to
-  // add it with, and only 删除 is left.
+  // 选择模型 opens the group's models under its row, read with the key its service in ZCode uses (keyId), and adds
+  // nothing by itself; without that key among the account's working keys only 删除 is left.
   ctx.asking = null;
-  assert.deepEqual(all(ctx.groupRow(held), c => c.tag === 'button').map(b => b.textContent), ['补全', '删除']);
-  button(ctx.groupRow(held), '补全').onclick();
-  assert.deepEqual(calls.at(-1), ['add', '3', false]);
-  assert.deepEqual(all(ctx.groupRow({ ...held, hasUsableKey: false }), c => c.tag === 'button').map(b => b.textContent), ['删除']);
+  const choices = g => all(ctx.groupRow(g), c => c.tag === 'button').map(b => b.textContent);
+  assert.deepEqual(choices(held), ['删除']);
+  ctx.site.keys = [{ id: '17', name: 'ZCode · ccmax满血', blocked: '' }, { id: '18', name: 'old', blocked: '已停用，请先在网站上启用。' }];
+  const withKey = { ...held, keyId: '17' };
+  assert.deepEqual([choices(withKey), choices({ ...held, keyId: '18' }), choices({ ...held, keyId: '99' })], [['选择模型', '删除'], ['删除'], ['删除']]);
+  const before = calls.length;
+  button(ctx.groupRow(withKey), '选择模型').onclick();
+  assert.deepEqual(calls.slice(before), [['pick', '17', '3']], 'no model is added at once');
+  ctx.pick = { id: '17', group: '3', result: { models: [] } };
+  const opened = ctx.groupRow(withKey);
+  assert.deepEqual([button(opened, '收起').attrs['aria-expanded'], all(opened, c => c.className === 'keypick').length, calls.at(-1)], ['true', 1, ['models', '17', '3']], 'the models open in the row, focus named by the group');
+  assert.equal(all(ctx.groupRow({ ...withKey, id: '5' }), c => c.className === 'keypick').length, 0, 'only under the group they were opened for');
+  button(opened, '收起').onclick(); assert.deepEqual(calls.at(-1), ['close']);
+  button(opened, '删除').onclick();
+  assert.deepEqual([ctx.pick, { ...ctx.asking }], [null, { id: '3', kind: 'delete' }], 'asking in the row closes its models');
+  ctx.asking = null;
   // A change's outcome shows in its own row, where the user clicked, and nowhere else; asking in that row clears it.
   const outcome = n => all(n, c => c.className === 'note' || c.className === 'note fail').map(c => [c.className, c.textContent]);
   ctx.groupOutcome = { id: '1', text: '已添加分组「gpt-plus」：2 个模型加入 ZCode「biubiu AI · gpt-plus」。', error: false };
@@ -377,14 +394,16 @@ test('a group row adds with its own key at once, asks in the row before a key is
   const blocked = ctx.groupRow(gemini);
   assert.deepEqual(all(blocked, c => c.tag === 'button'), [], 'a Gemini group has no button'); assert.match(all(blocked, c => c.className === 'gnote')[0].textContent, /Gemini/);
   for (const tool of ['site_add_group', 'site_remove_group']) assert.equal(html.split(`call('${tool}'`).length, 2, tool);
+  assert.ok(!html.includes('补全'), 'adding a group again is 选择模型 now, which adds nothing unasked');
 });
 test('the group list is called empty only when the site could be read, and a change\'s outcome shows in its row, under the list only when the row is gone', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
   const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
   const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => all(c, match))];
+  const scrolled = [];
   const node = tag => {
-    const n = { tag, children: [], attrs: {}, dataset: {}, style: {}, hidden: false, classes: new Set(), className: '',
-      append(...c) { for (const x of c) x.parent = n; n.children.push(...c); }, replaceChildren(...c) { for (const x of c) x.parent = n; n.children = c; },
+    const n = { tag, children: [], attrs: {}, dataset: {}, style: {}, hidden: false, classes: new Set(), className: '', scrollIntoView(options) { scrolled.push([n, options]); },
+      append(...c) { for (const x of c) x.parent = x.parentElement = n; n.children.push(...c); }, replaceChildren(...c) { for (const x of c) x.parent = x.parentElement = n; n.children = c; },
       setAttribute(k, v) { n.attrs[k] = String(v); }, remove() { n.parent.children = n.parent.children.filter(c => c !== n); },
       querySelector(selector) { const cls = /^\.([\w-]+)$/.exec(selector)?.[1]; return cls ? all(n, c => c !== n && c.className.split(' ').includes(cls))[0] || null : null; } };
     n.classList = { toggle(c, on) { if (on) n.classes.add(c); else n.classes.delete(c); } };
@@ -392,8 +411,8 @@ test('the group list is called empty only when the site could be read, and a cha
   };
   const el = (tag, cls, text) => { const n = node(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const els = { siteGroupsPart: node('div'), siteGroupCount: node('span'), siteGroups: node('div'), siteStatus: node('div') };
-  const ctx = { el, $: id => els[id], CSS: { escape: s => s }, window: {}, busy: false, bridge: () => {}, asking: null, groupOutcome: null, site: null, addGroup() {}, removeGroup() {} };
-  vm.runInNewContext(['renderGroups', 'groupRow', 'openAsk', 'siteStatus'].map(source).join('\n'), ctx);
+  const ctx = { el, $: id => els[id], CSS: { escape: s => s }, window: {}, busy: false, bridge: () => {}, asking: null, groupOutcome: null, pick: null, site: null, chooseGroup() {}, removeGroup() {} };
+  vm.runInNewContext(['renderGroups', 'groupRow', 'openAsk', 'siteStatus', 'revealOutcome'].map(source).join('\n'), ctx);
   const texts = n => all(n, c => c.textContent !== undefined && !c.children.length).map(c => c.textContent);
   const groups = [{ id: '1', name: 'gpt-plus', platformName: 'GPT', hasUsableKey: true }, { id: '2', name: 'claude-max', platformName: 'Claude', hasUsableKey: true }];
 
@@ -409,6 +428,9 @@ test('the group list is called empty only when the site could be read, and a cha
   const row = id => all(els.siteGroups, c => c.className.startsWith('grow') && c.children.some(m => all(m, x => x.className === 'gname' && x.textContent === groups.find(g => g.id === id).name).length))[0];
   assert.ok(texts(row('1')).includes(ctx.groupOutcome.text)); assert.ok(!texts(row('2')).includes(ctx.groupOutcome.text));
   assert.deepEqual([els.siteStatus.textContent, els.siteStatus.style.display, els.siteStatus.classes.has('aside')], [ctx.groupOutcome.text, 'block', true]);
+  // A row low in the panel would show its outcome below the edge: the row scrolls into view with it.
+  ctx.revealOutcome();
+  assert.deepEqual(scrolled.splice(0).map(([n, options]) => [n === row('1'), options.block]), [[true, 'nearest']]);
   // A failure that empties the list shows under it instead, unless the error above the list says the same.
   ctx.siteStatus('「gpt-plus」还没有可用的 Key，需要先在网站上新建一个。', true, '1');
   ctx.site = { signedIn: true, error: 'biubiu AI 网站暂时出错（HTTP 500），请稍后重试。', groups: [] }; ctx.renderGroups();
@@ -426,8 +448,9 @@ test('a site key\'s models open under it on the site page and are added from the
   const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
   const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => all(c, match))];
   let focused = null;
+  const scrolled = [];
   const node = tag => ({ tag, children: [], attrs: {}, dataset: {}, style: {}, hidden: false, disabled: false, classList: { toggle() {} },
-    append(...n) { this.children.push(...n); }, replaceChildren(...n) { this.children = n; }, setAttribute(k, v) { this.attrs[k] = String(v); }, focus() { focused = this; }, scrollIntoView() {},
+    append(...n) { for (const c of n) c.parentElement = this; this.children.push(...n); }, replaceChildren(...n) { this.children = n; }, setAttribute(k, v) { this.attrs[k] = String(v); }, focus() { focused = this; }, scrollIntoView(options) { scrolled.push([this, options]); },
     querySelectorAll() { return all(this, c => c.tag === 'input'); }, querySelector(selector) { const wanted = /data-focus="([^"]+)"/.exec(selector)[1]; return all(this, c => c.dataset.focus === wanted)[0] || null; } });
   const el = (tag, cls, text) => { const n = node(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const els = { siteKeys: node('div'), siteKeyCount: node('span'), siteKeyStatus: node('div') };
@@ -438,12 +461,14 @@ test('a site key\'s models open under it on the site page and are added from the
     { id: '9', name: 'Gemini', group: 'Gemini 组', platformName: 'Gemini', statusLabel: '正常', hasKey: true, baseUrl: 'https://ro.biubiu007.com/v1', protocol: 'openai-chat-completions', blocked: 'ZCode 暂不支持 Gemini 原生接口，这个 Key 只能查看。', testKey: false },
   ];
   // No showPage, connect form or status line here: touching any of them throws.
-  const ctx = { el, $: id => els[id], CSS: { escape: s => s }, MASK: '•', window: {}, busy: false, action: '', bridge: () => {}, pick: null, keyAsking: null,
+  const ctx = { el, $: id => id === 'keyPick' ? picker() || null : els[id], CSS: { escape: s => s }, MASK: '•', window: {}, busy: false, action: '', bridge: () => {}, pick: null, keyAsking: null,
     site: { signedIn: true, site: { name: 'biubiu AI', origin: 'https://ro.biubiu007.com' }, keys, groups: [] },
     money: String, hostname: () => 'ro.biubiu007.com', keyEye: () => node('span'), siteFailed() {}, groupStatus: [], siteStatus: text => ctx.groupStatus.push(text), describe: v => v.contextWindow ? `上下文 ${v.contextWindow}` : '未识别参数',
     setBusy(value, kind = '') { ctx.busy = value; ctx.action = value ? kind : ''; }, loadSite: async () => { loads.push('site'); }, loadProviders: async () => { loads.push('providers'); },
     call: async (name, args) => { calls.push([name, JSON.parse(JSON.stringify(args))]); const answer = answers[name]; if (answer instanceof Error) throw answer; return structuredClone(answer); } };
-  vm.runInNewContext(['renderKeys', 'siteKeyItem', 'keyAsk', 'keyModels', 'addButton', 'allModels', 'openPick', 'closePick', 'addPicked', 'testPicked', 'askKey', 'deleteKey', 'keyStatus', 'testLink', 'testNote'].map(source).join('\n'), ctx);
+  vm.runInNewContext(['renderKeys', 'siteKeyItem', 'keyAsk', 'keyModels', 'pickRows', 'pickChanges', 'addButton', 'redrawPick', 'allModels', 'openPick', 'revealPick', 'closePick', 'savePicked', 'testPicked', 'askKey', 'deleteKey', 'keyStatus', 'testLink', 'testNote'].map(source).join('\n'), ctx);
+  // keyStatus's source runs on into renderGroups: the group list is not drawn here.
+  ctx.renderGroups = () => {};
   const item = i => els.siteKeys.children[i], button = (n, text) => all(n, c => c.tag === 'button' && c.textContent === text)[0];
   const buttons = n => all(n, c => c.tag === 'button').map(b => b.textContent), ticks = () => all(item(0), c => c.type === 'checkbox').map(t => [t.dataset.id, t.checked, t.disabled]);
   const picker = () => all(item(0), c => c.className === 'keypick')[0], text = (n, cls) => all(n, c => c.className === cls).map(c => c.textContent);
@@ -453,36 +478,54 @@ test('a site key\'s models open under it on the site page and are added from the
   assert.equal(text(item(2), 'note')[0], keys[2].blocked);
 
   // 添加到 ZCode reads the key's models by its id alone and lists them under it, on this page.
-  answers.fetch_models = { sessionId: 's1', count: 3, nextOffset: null, models: [{ id: 'model-a', metadata: { contextWindow: 200000 }, inZCode: true }, { id: 'model-b', metadata: {} }, { id: 'model-c', metadata: {} }] };
+  answers.fetch_models = { sessionId: 's1', count: 3, nextOffset: null, missing: ['model-old'], models: [{ id: 'model-a', metadata: { contextWindow: 200000 }, inZCode: true }, { id: 'model-b', metadata: {} }, { id: 'model-c', metadata: {} }] };
   button(item(0), '添加到 ZCode').onclick();
   assert.deepEqual([ctx.busy, text(picker(), 'empty'), buttons(item(0))], [true, ['正在读取模型…'], ['删除', '正在读取…']]);
+  // A key low in the panel would open its models out of sight: the key with its models scrolls into view, while they load
+  // and once they are listed.
+  const reveals = () => scrolled.splice(0).map(([n, options]) => [n === item(0), options.block]);
+  assert.deepEqual(reveals(), [[true, 'nearest']]);
   await settle();
   assert.deepEqual(calls, [['fetch_models', { baseUrl: 'https://ro.biubiu007.com', protocol: 'anthropic-messages', siteKeyId: '7' }]], 'no key and no saved service go with it');
   assert.deepEqual([ctx.busy, focused.textContent, focused.attrs['aria-expanded'], focused.attrs['aria-controls']], [false, '收起', 'true', 'keyPick']);
-  assert.equal(text(picker(), 'found')[0], '找到 3 个，1 个已在 ZCode，勾选要添加的模型');
-  assert.deepEqual(ticks(), [['model-a', true, true], ['model-b', false, false], ['model-c', false, false]], 'a model already in ZCode stays ticked and cannot be unticked');
-  assert.equal(text(picker(), 'meta')[0], '已在 ZCode · 上下文 200000');
+  assert.deepEqual(reveals(), [[true, 'nearest']]);
+  // Ticked is used in ZCode. What ZCode has starts ticked, except a model the site no longer offers, which is listed
+  // after the others, unticked, so saving would take it out; nothing changes before 保存.
+  assert.equal(text(picker(), 'found')[0], '网站提供 3 个，ZCode 在用 1 个，1 个网站已不再提供；勾选的就是要用的');
+  assert.deepEqual(ticks(), [['model-a', true, false], ['model-b', false, false], ['model-c', false, false], ['model-old', false, false]], 'a model in ZCode can be unticked');
+  assert.deepEqual(text(picker(), 'meta'), ['已在 ZCode · 上下文 200000', '未识别参数', '未识别参数', '网站已不再提供，还在 ZCode 里']);
+  assert.equal(all(item(0), c => c.attrs['aria-label'] === '测试 model-old').length, 0, 'a model the site no longer offers cannot be tested through it');
+  const add = () => all(item(0), c => c.className === 'primary')[0];
+  assert.deepEqual([add().textContent, add().disabled], ['保存（移除 1 个）', false]);
   // 测试 beside a model sends one short request for it, and its outcome stays under the model.
   answers.test_model = { modelId: 'model-b', ok: true, elapsedMs: 1200 };
   all(item(0), c => c.attrs['aria-label'] === '测试 model-b')[0].onclick(); await settle();
   assert.deepEqual(calls.at(-1), ['test_model', { sessionId: 's1', modelId: 'model-b' }]);
   assert.deepEqual([text(picker(), 'testnote pass'), focused.dataset.focus, ctx.busy], [['✓ 可以正常调用（1.2 秒）'], '7:test:model-b', false]);
-  const add = () => all(item(0), c => c.className === 'primary')[0];
-  assert.deepEqual([add().textContent, add().disabled], ['添加到 ZCode', true]);
-  button(item(0), '全选').onclick(); assert.equal(add().textContent, '添加到 ZCode（2 个）'); assert.equal(button(item(0), '取消全选').textContent, '取消全选');
-  button(item(0), '取消全选').onclick(); assert.equal(add().disabled, true);
-  const tick = all(item(0), c => c.type === 'checkbox')[1]; tick.checked = true; tick.onchange();
-  assert.deepEqual([add().textContent, add().disabled, focused.dataset.id], ['添加到 ZCode（1 个）', false, 'model-b'], 'a tick keeps the focus on its model');
+  button(item(0), '全选').onclick(); assert.equal(add().textContent, '保存（添加 2 个）'); assert.equal(button(item(0), '取消全选').textContent, '取消全选');
+  button(item(0), '取消全选').onclick(); assert.deepEqual([add().textContent, add().disabled], ['至少保留一个模型', true], 'keeping none is deleting the service, which is done there');
+  const tick = id => { const box = all(item(0), c => c.type === 'checkbox' && c.dataset.id === id)[0]; box.checked = !box.checked; box.onchange(); };
+  tick('model-a'); assert.deepEqual([add().textContent, add().disabled], ['保存（移除 1 个）', false]);
+  tick('model-b');
+  assert.deepEqual([add().textContent, add().disabled, focused.dataset.id], ['保存（添加 1 个、移除 1 个）', false, 'model-b'], 'a tick keeps the focus on its model');
 
-  // The ticked models go to the key's own service; the list stays open with them in ZCode.
-  answers.import_models = { added: 1, providerName: 'biubiu AI · Key 7', created: true };
+  // 保存 adds the newly ticked models to the key's own service and takes the unticked ones out, in one write; the list
+  // stays open as ZCode has it now.
+  answers.import_models = { added: 1, removed: 1, providerName: 'biubiu AI · Key 7' };
   add().onclick(); await settle();
-  assert.deepEqual(calls.at(-1), ['import_models', { sessionId: 's1', modelIds: ['model-b'], providerName: 'biubiu AI · Key 7' }]);
+  assert.deepEqual(calls.at(-1), ['import_models', { sessionId: 's1', modelIds: ['model-b'], removeModelIds: ['model-old'], providerName: 'biubiu AI · Key 7' }]);
   assert.deepEqual(loads, ['site', 'providers'], 'the account and the services are read again');
-  assert.deepEqual(ticks(), [['model-a', true, true], ['model-b', true, true], ['model-c', false, false]]);
-  assert.match(text(picker(), 'note').join(' '), /已把 1 个模型添加到「biubiu AI · Key 7」/);
+  assert.deepEqual(ticks(), [['model-a', true, false], ['model-b', true, false], ['model-c', false, false]]);
+  assert.match(text(picker(), 'note').join(' '), /「biubiu AI · Key 7」添加了 1 个模型、移除了 1 个模型。/);
+  assert.deepEqual([add().textContent, add().disabled], ['与 ZCode 一致', true]);
   button(item(0), '收起').onclick();
   assert.deepEqual([ctx.pick, picker(), focused.textContent], [null, undefined, '添加到 ZCode']);
+  // A key not in ZCode yet starts with nothing ticked, and its button counts what would be added.
+  answers.fetch_models = { sessionId: 's3', count: 2, nextOffset: null, missing: [], models: [{ id: 'model-x', metadata: {} }, { id: 'model-y', metadata: {} }] };
+  button(item(0), '添加到 ZCode').onclick(); await settle();
+  assert.deepEqual([text(picker(), 'found')[0], add().textContent, add().disabled], ['找到 2 个，勾选要添加的模型', '添加到 ZCode', true]);
+  tick('model-y'); assert.equal(add().textContent, '添加到 ZCode（1 个）');
+  button(item(0), '收起').onclick();
 
   // 删除 asks in the row; 取消 deletes nothing, 确认删除 deletes the key on the site and its services in ZCode.
   calls.length = 0; loads.length = 0;
@@ -501,7 +544,7 @@ test('a site key\'s models open under it on the site page and are added from the
   button(item(0), '确认删除').onclick(); await settle();
   assert.deepEqual([ctx.keyAsking, els.siteKeyStatus.textContent, els.siteKeyStatus.style.display], [null, '已删除站内 Key「Key 7」，并从 ZCode 删除了「biubiu AI · Key 7」。', 'block']);
   assert.deepEqual(loads, ['site', 'providers', 'site', 'providers']);
-  assert.deepEqual(ctx.groupStatus, ['', '', ''], 'each key action clears the last group outcome, so only the newest shows');
+  assert.deepEqual(ctx.groupStatus, ['', '', '', ''], 'each key action clears the last group outcome, so only the newest shows');
 
   // Models that cannot be read say why under the key, with 重试.
   answers.fetch_models = new Error('接口拒绝访问（401），请检查 API Key 和模型列表权限。');

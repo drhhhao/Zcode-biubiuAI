@@ -1,6 +1,6 @@
 {
   "name": "model-harbor-project",
-  "version": "0.8.11",
+  "version": "0.8.12",
   "private": true,
   "type": "module",
   "description": "biubiu AI desktop companion for ZCode: a WebView2 side panel that docks beside the ZCode window",
@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "verify": "node build/companion-dev/verify.mjs",
     "test": "node --test app/lib/core.test.mjs app/lib/metadata.test.mjs app/lib/site.test.mjs app/server.test.mjs app/icon.test.mjs app/installer/package.test.mjs",
     "preview": "node app/preview.mjs",
     "app:server": "node app/server.mjs",

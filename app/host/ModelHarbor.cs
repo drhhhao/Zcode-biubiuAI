@@ -31,9 +31,9 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.11.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.11.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.11")]
+[assembly: System.Reflection.AssemblyVersion("0.8.12.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.12.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.12")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
@@ -41,7 +41,7 @@ namespace ModelHarbor
 {
     static class Program
     {
-        public const string Version = "0.8.11";
+        public const string Version = "0.8.12";
         public const string ShowEventName = @"Local\ModelHarbor.Companion.Show";
         public const string QuitEventName = @"Local\ModelHarbor.Companion.Quit";
         public const string CollapseEventName = @"Local\ModelHarbor.Companion.Collapse";

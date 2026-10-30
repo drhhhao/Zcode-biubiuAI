@@ -137,10 +137,16 @@ async function panelShots() {
       await page.run(`__docs.click(${row}.querySelector('.gact button'))`);
       await page.until(`Boolean(${row}?.querySelector('.gask'))`, 'the question under the group');
       await page.shot('panel-group-ask.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
-      await page.run(`__docs.click(__docs.byText('button', '新建 Key 并添加', ${row}))`);
-      // The outcome shows in the group's own row.
-      await page.until(`document.querySelector('#siteGroups .goutcome')?.textContent.startsWith('已添加分组')`, 'the group to be added');
-      await page.until(`!document.querySelector('#siteGroups button:disabled')`, 'the panel to be ready');
+      await page.run(`__docs.click(__docs.byText('button', '新建 Key 并选择模型', ${row}))`);
+      // The group's models open under its row; only the ticked ones go to ZCode.
+      await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
+      await page.run(`__docs.tick('#keyPick', 2)`);
+      await page.run('scrollTo(0, 0), true');
+      await page.shot('panel-group-pick.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+      await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
+      await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the group to be added');
+      await page.until(`!document.querySelector('#siteGroups button:disabled:not(#keyPickAdd)')`, 'the panel to be ready');
+      await page.run('scrollTo(0, 0), true');
       await page.shot('panel-group-added.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
 
       // A site key's models, opened under it and ticked.
@@ -150,8 +156,18 @@ async function panelShots() {
       await page.run(`__docs.tick('#keyPick', 2)`);
       await page.shot('panel-key-models.png', { from: '#siteKeys .svc:has(#keyPick)', to: '#siteKeys .svc:has(#keyPick)', margin: 8 });
       await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
-      await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.startsWith('已把') || n.classList.contains('fail'))`, 'the key\'s models to be added');
+      await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the key\'s models to be added');
       await page.until(`![...document.querySelectorAll('#siteKeys button:not(#keyPickAdd)')].some(b => b.disabled)`, 'the panel to be ready');
+
+      // 选择模型 on a group in ZCode after the site changed it: a model it added waits unticked, one it dropped is marked.
+      demo.models.anthropic.splice(0, demo.models.anthropic.length, 'claude-opus-5-5', 'claude-opus-5-5-fast', 'claude-sonnet-5-5');
+      await page.run(`__docs.click(__docs.byText('button', '选择模型', ${row}))`);
+      await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
+      await page.run(`__docs.click(${row}.querySelector('#keyPick input[data-id="claude-opus-5-5-fast"]'))`);
+      await page.run('scrollTo(0, 0), true');
+      await page.shot('panel-group-models.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+      await page.run(`__docs.click(__docs.byText('button', '收起', ${row}))`);
+      await page.until(`!document.querySelector('#keyPick')`, 'the group\'s models to close');
 
       // 连接服务: an address and a key, the models found, a few ticked.
       await page.run(`__docs.click(document.querySelector('#connectTab'))`);

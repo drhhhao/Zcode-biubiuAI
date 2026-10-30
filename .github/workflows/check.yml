@@ -1,0 +1,61 @@
+# 检查：每次推送都在 GitHub 的一台干净 Windows 机器上把全部检查跑一遍，包括本机不方便跑的那一项——
+# 安装程序的端到端检查（app:installer-check 要往「设置 → 应用」里装、再卸掉，机器上装着 biubiu AI 时拒绝运行）。
+# 这台机器用完就扔，所以本机不用为了测试卸载自己在用的 biubiu AI，也不会留下什么。
+#
+# 推送到其他分支时由这里直接触发；推送到 main 时由发版流程（release.yml）调用，检查通过才可能建 Release 草稿。
+# 也可以在仓库网页的 Actions → 检查 → Run workflow 手动跑。截图和日志作为附件留在这次运行里。
+name: 检查
+
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  windows:
+    name: 测试、打包、界面与安装程序检查
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      # 文件原样取出来（仓库里都是 LF），和本机打包用的一模一样
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      # 安装程序带的就是运行打包脚本的这个 Node.js，版本固定；
+      # 换版本时同时改 build/companion-dev/release-deps.ps1 里它的许可证哈希
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.19.0
+      # WebView2 SDK（核对 SHA-256）、Node.js 许可证（核对 SHA-256）、WebView2 运行时引导安装程序（核对微软签名）
+      - name: 取第三方文件
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build/companion-dev/release-deps.ps1
+      - name: 测试
+        run: npm test
+      - name: 编译并打安装程序
+        run: npm run app:installer
+      - name: 核对安装程序
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          file="dist/biubiuAI-Setup-$version.exe"
+          if [ ! -f "$file" ]; then echo "::error::没生成 $file"; ls -l dist; exit 1; fi
+          cat "$file.sha256"
+      # 网站窗口、登录交接、更新检查的解析与校验、托盘菜单（替身网站，不用账号）
+      - name: 网站窗口与托盘菜单
+        run: npm run app:site-check
+      # 静默安装到临时目录，对装好的副本跑完整的冒烟测试（窗口跟随、Key 隐藏、修改与删除服务），
+      # 原地升级、一键更新（替身 Release，含哈希不符时拒绝）、卸载，再像用户一样在窗口里点一遍安装
+      - name: 安装程序端到端
+        run: npm run app:installer-check
+      - name: 留下截图
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: build/companion-dev/*.png
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v7
+        with:
+          name: setup
+          path: dist/biubiuAI-Setup-*.exe
+          if-no-files-found: error
