@@ -31,9 +31,9 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.10.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.10.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.10")]
+[assembly: System.Reflection.AssemblyVersion("0.8.11.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.11.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.11")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
@@ -41,7 +41,7 @@ namespace ModelHarbor
 {
     static class Program
     {
-        public const string Version = "0.8.10";
+        public const string Version = "0.8.11";
         public const string ShowEventName = @"Local\ModelHarbor.Companion.Show";
         public const string QuitEventName = @"Local\ModelHarbor.Companion.Quit";
         public const string CollapseEventName = @"Local\ModelHarbor.Companion.Collapse";
@@ -360,14 +360,15 @@ namespace ModelHarbor
         public static double Clamp(double value, double min, double max) { return Math.Max(min, Math.Min(max, value)); }
     }
 
-    // Colors mirror the light and dark variables in panel.html: one ink on one paper, swapped in the dark theme, with
-    // every gray made by laying the ink over the paper at the strength the page uses.
+    // Colors mirror the light and dark variables in panel.html: the page color (--bg) as the paper and its ink, with
+    // every gray made by laying the ink over the paper.
     static class Palette
     {
-        static readonly Color Cream = Color.FromArgb(0xf9, 0xf8, 0xf6), Black = Color.FromArgb(0x1c, 0x1c, 0x1c);
+        static readonly Color LightPaper = Color.FromArgb(0xf2, 0xf2, 0xf7), LightInk = Color.FromArgb(0x1d, 0x1d, 0x1f);
+        static readonly Color DarkPaper = Color.FromArgb(0x1c, 0x1c, 0x1e), DarkInk = Color.FromArgb(0xf5, 0xf5, 0xf7);
 
-        public static Color Paper(bool dark) { return dark ? Black : Cream; }
-        public static Color Ink(bool dark) { return dark ? Cream : Black; }
+        public static Color Paper(bool dark) { return dark ? DarkPaper : LightPaper; }
+        public static Color Ink(bool dark) { return dark ? DarkInk : LightInk; }
         public static Color Line(bool dark) { return Tint(dark, 0.1); }
         public static Color HoverLine(bool dark) { return Tint(dark, 0.4); }
         public static Color Edge(bool dark) { return Tint(dark, dark ? 0.45 : 0.5); }
@@ -1307,7 +1308,7 @@ namespace ModelHarbor
             if (!ready) return;
             string bg = ColorTranslator.ToHtml(Palette.Paper(dark)), ink = ColorTranslator.ToHtml(Palette.Ink(dark));
             allowNextDocument = true;
-            web.CoreWebView2.NavigateToString("<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><body style=\"margin:0;padding:40px 28px;background:" + bg + ";color:" + ink + ";font:14px/1.65 'Segoe UI','Microsoft YaHei UI',sans-serif\"><h1 style=\"margin:0 0 16px;font:400 40px/1.1 'Sitka Heading',Georgia,'Noto Serif SC',SimSun,serif;letter-spacing:-.02em\">biubiu AI</h1><p style=\"margin:0;max-width:30em\">" + WebUtility.HtmlEncode(text) + "</p></body></html>");
+            web.CoreWebView2.NavigateToString("<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><body style=\"margin:0;padding:40px 28px;background:" + bg + ";color:" + ink + ";font:14px/1.6 'Segoe UI Variable Text','Segoe UI','Microsoft YaHei UI',sans-serif\"><h1 style=\"margin:0 0 14px;font:650 30px/1.15 'Segoe UI Variable Display','Segoe UI','Microsoft YaHei UI',sans-serif;letter-spacing:-.01em\">biubiu AI</h1><p style=\"margin:0;max-width:30em\">" + WebUtility.HtmlEncode(text) + "</p></body></html>");
         }
 
         public void ApplyTheme(bool isDark)
@@ -1489,7 +1490,7 @@ namespace ModelHarbor
         readonly Bitmap slot = new Bitmap(1, 1, PixelFormat.Format32bppArgb);
         // GDI quietly draws a missing family in Microsoft Sans Serif, so each font names what it can fall back on.
         readonly Font body = new Font(Installed("Microsoft YaHei UI", "Segoe UI"), 9.75f);
-        readonly Font heading = new Font(Installed("Sitka Heading", "Georgia", "Segoe UI"), 11.25f);
+        readonly Font heading = new Font(Installed("Segoe UI Semibold", "Segoe UI"), 10.5f);
         readonly ToolStripMenuItem title;
         bool dark, rounded;
         float unit = 1f;

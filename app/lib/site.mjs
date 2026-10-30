@@ -21,8 +21,8 @@ const PLATFORMS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini', antigr
 // How ZCode reaches each group platform through the site's own gateway. Gemini groups speak only Gemini's API, which
 // ZCode has no protocol for; other platforms (grok, new-api) are tried as OpenAI-compatible.
 const ROUTES = { anthropic: ['anthropic-messages', ''], antigravity: ['anthropic-messages', '/antigravity'], openai: ['openai-responses', '/v1'] };
-const UNSUPPORTED = { gemini: 'ZCode 暂不支持 Gemini 原生接口，这个 Key 只能查看。' };
-const UNSUPPORTED_GROUP = { gemini: 'ZCode 暂不支持 Gemini 原生接口，不能添加这个分组。' };
+const UNSUPPORTED = { gemini: 'ZCode 暂不支持 Gemini 接口，只能查看。' };
+const UNSUPPORTED_GROUP = { gemini: 'ZCode 暂不支持 Gemini 接口，不能添加。' };
 // The keys the site makes to test its groups, named as its key page recognizes them; that page cannot delete them.
 const TEST_KEY = /^(?:hub-[pc]test-(?:i:[a-z0-9][a-z0-9-]{1,10}[a-z0-9]-)?g:\d+|【subApiHub测试】g\d+)$/u;
 
@@ -161,7 +161,7 @@ export class Site {
   keyEntry(k) {
     const platform = clean(k.groupPlatform, 40).toLowerCase(), [protocol, route] = ROUTES[platform] || ['openai-chat-completions', '/v1'];
     const status = clean(k.status, 40), name = clean(k.name) || '未命名 Key', key = fullKey(k.key);
-    const blocked = UNSUPPORTED[platform] || (!key ? '网站没有返回这个 Key 的完整内容。' : status === 'inactive' ? '这个 Key 已停用，请先在网站上启用。' : status === 'expired' ? '这个 Key 已过期，请在网站上续期或换一个 Key。' : '');
+    const blocked = UNSUPPORTED[platform] || (!key ? '网站没有返回完整的 Key。' : status === 'inactive' ? '已停用，请先在网站上启用。' : status === 'expired' ? '已过期，请在网站上续期。' : '');
     return { id: String(k.localId ?? k.id), name, group: clean(k.groupName), platform, platformName: PLATFORMS[platform] || clean(k.groupPlatform, 40), status, statusLabel: STATUS[status] || status || '未知',
       baseUrl: `${this.origin}${route}`, protocol, blocked, testKey: typeof k.name === 'string' && TEST_KEY.test(k.name), quota: amount(k.quota), quotaUsed: amount(k.quotaUsed), expiresAt: clean(k.expiresAt, 40) || null, key };
   }

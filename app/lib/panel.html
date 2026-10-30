@@ -4,157 +4,174 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>biubiu AI</title>
 <style>
-:root{color-scheme:light;--bg:#f9f8f6;--ink:#1c1c1c;--rgb:28 28 28;--muted:rgb(var(--rgb)/.66);--edge:rgb(var(--rgb)/.5);--hover:rgb(var(--rgb)/.4);--line:rgb(var(--rgb)/.1);--wash:rgb(var(--rgb)/.025);--pick:rgb(var(--rgb)/.045);--ease:cubic-bezier(.19,1,.22,1);--round-lg:12px;--round:10px;--round-sm:8px;--round-xs:4px;--han:"Noto Serif SC","Source Han Serif SC","Songti SC",STSong,SimSun,serif;--serif:"Sitka Heading",Georgia,var(--han);--serif-body:"Sitka Text",Georgia,var(--han);--italic:"Sitka Text",Georgia,KaiTi,STKaiti,"Kaiti SC",var(--han);--sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC",sans-serif;--mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font:14px/1.65 var(--sans);font-synthesis:none}
-html[data-theme=dark]{color-scheme:dark;--bg:#1c1c1c;--ink:#f9f8f6;--rgb:249 248 246;--muted:rgb(var(--rgb)/.6);--edge:rgb(var(--rgb)/.45);--wash:rgb(var(--rgb)/.03);--pick:rgb(var(--rgb)/.06)}
+/* iOS-like: grouped cards on a soft gray page, a system sans in place of the serifs, rounded controls, a segmented
+   control for the pages and spring-like motion. One ink, the mark's orange for ticks, focus and the site link, red only
+   for what deletes. The page and ink colors are copied into the host's Palette (ModelHarbor.cs). */
+:root{color-scheme:light;--bg:#f2f2f7;--card:#fff;--ink:#1d1d1f;--muted:#6e6e73;--faint:#aeaeb2;--edge:rgb(60 60 67/.3);--line:rgb(60 60 67/.12);--fill:rgb(118 118 128/.12);--fill-hi:rgb(118 118 128/.2);--accent:#ea580c;--accent-ink:#c2410c;--accent-wash:rgb(234 88 12/.08);--danger:#d70015;--danger-wash:rgb(255 59 48/.1);--ok:#34c759;--ok-ink:#248a3d;--lift:0 1px 3px rgb(0 0 0/.12),0 3px 10px rgb(0 0 0/.06);--ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.4,.64,1);--round-lg:16px;--round:14px;--round-sm:10px;--round-xs:7px;--pad:20px;--sans:"SF Pro Text",-apple-system,"Segoe UI Variable Text","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--display:"SF Pro Display",-apple-system,"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--rounded:"SF Pro Rounded",ui-rounded,var(--display);--mono:"SF Mono",ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font:14px/1.5 var(--sans);font-synthesis:none;-webkit-font-smoothing:antialiased}
+html[data-theme=dark]{color-scheme:dark;--bg:#1c1c1e;--card:#2c2c2e;--ink:#f5f5f7;--muted:#98989f;--faint:#636366;--edge:rgb(235 235 245/.3);--line:rgb(235 235 245/.1);--fill:rgb(118 118 128/.24);--fill-hi:rgb(118 118 128/.34);--accent:#f97316;--accent-ink:#ff9a52;--accent-wash:rgb(249 115 22/.14);--danger:#ff6961;--danger-wash:rgb(255 69 58/.16);--ok:#30d158;--ok-ink:#30d158;--lift:0 1px 3px rgb(0 0 0/.5),0 3px 10px rgb(0 0 0/.25)}
 *,::before,::after{box-sizing:border-box}[hidden]{display:none!important}
 /* The window has the rounded corners of ZCode's own (Windows 11 draws them), so the boxes inside are rounded too:
-   buttons, notices, check boxes and the scroll bar. Fields keep their single underline. */
-::-webkit-scrollbar{width:8px;height:8px;background:transparent}::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:var(--edge) padding-box}::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{background-color:var(--ink)}::-webkit-scrollbar-corner{background:transparent}
-body{margin:0;background:var(--bg);color:var(--ink)}
-::selection{background:var(--ink);color:var(--bg)}
+   cards, buttons, fields, notices, check boxes and the scroll bar. */
+::-webkit-scrollbar{width:8px;height:8px;background:transparent}::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:var(--edge) padding-box}::-webkit-scrollbar-thumb:hover,::-webkit-scrollbar-thumb:active{background-color:var(--muted)}::-webkit-scrollbar-corner{background:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);transition:background-color .4s var(--ease),color .4s var(--ease)}
+::selection{background:var(--accent-wash);color:inherit}
 button,input,select{margin:0;border-radius:0;font:inherit;color:inherit;letter-spacing:inherit}button,select{cursor:pointer}
-button:disabled,input:disabled,select:disabled{cursor:default}button:disabled{opacity:.45}
-:focus-visible{outline:1px solid var(--ink);outline-offset:3px}:is(.link,.hide,.pagetab,.eye,button.svcmeta):focus-visible{border-radius:var(--round-xs)}
-.shell{max-width:640px;margin:0 auto;padding:20px 28px 26px}
-.top{padding-bottom:12px}
-.bar{display:flex;align-items:center;gap:14px;min-height:38px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:11px;line-height:1.5;letter-spacing:.2em;color:var(--muted)}
-.state{display:flex;align-items:center;gap:10px;min-width:0}
-.dot{flex:none;width:7px;height:7px;border:1px solid currentColor;border-radius:50%;transition:background-color .5s var(--ease),border-color .5s var(--ease)}.dot.on{border-color:var(--ink);background:var(--ink)}
-.tag{display:none;padding:0 7px;border:1px solid var(--ink);border-radius:var(--round-xs);color:var(--ink);font-size:10px;line-height:18px}
-.link,.hide,button.svcmeta{position:relative;padding:3px 0;border:0;background:none;color:var(--muted);font-size:12px;line-height:1.5;letter-spacing:.08em;transition:color .5s var(--ease)}
-.link{border-bottom:1px solid var(--line)}.hide{margin-left:auto;font-size:11px;letter-spacing:.2em}
-:is(.link,.hide,button.svcmeta)::before{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:currentColor;transform:scaleX(0);transform-origin:right;transition:transform .5s var(--ease)}
-:is(.link,.hide,button.svcmeta):hover:not(:disabled){color:var(--ink)}
-:is(.link,.hide,button.svcmeta):hover:not(:disabled)::before{transform:scaleX(1);transform-origin:left}
-.part{padding:40px 0 48px;border-top:1px solid var(--line)}
-.part h2{display:flex;align-items:baseline;gap:14px;margin:0 0 30px;font:400 28px/1.2 var(--serif);letter-spacing:-.02em}
-.num{flex:none;font:italic 15px/1 var(--italic);letter-spacing:0;color:var(--muted)}
-.count{margin-left:auto;font:11px/1 var(--sans);letter-spacing:.2em;color:var(--muted)}
-/* The page tabs stay at the top of the panel while a page scrolls under them. Scroll anchoring is off: with a focused tab
-   stuck there, Chrome's anchoring threw the panel to its top or bottom when a page switched or grew. */
+button:disabled,input:disabled,select:disabled{cursor:default}button:disabled{opacity:.4}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}:is(.link,.hide,.eye,button.svcmeta):focus-visible{border-radius:999px}
+@keyframes enter{from{opacity:0;transform:translateY(6px)}}
+@keyframes pop{from{transform:scale(.6)}}
+.shell{max-width:640px;margin:0 auto;padding:14px var(--pad) 24px}
+.top{padding-bottom:2px}
+.bar{display:flex;align-items:center;gap:12px;min-height:30px;font-size:12px;line-height:1.5;color:var(--muted)}
+.state{display:flex;align-items:center;gap:8px;min-width:0}
+.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--faint);transition:background-color .4s var(--ease),box-shadow .4s var(--ease)}.dot.on{background:var(--ok);box-shadow:0 0 0 3px rgb(52 199 89/.2)}
+.tag{display:none;padding:0 8px;border-radius:999px;background:var(--accent-wash);color:var(--accent-ink);font-size:11px;font-weight:600;line-height:20px}
+/* Text buttons: the ink, with a soft rounded fill under the pointer and a small press. */
+.link,.hide,button.svcmeta{position:relative;padding:4px 10px;border:0;border-radius:999px;background:transparent;color:var(--ink);font-size:13px;font-weight:600;line-height:1.45;white-space:nowrap;transition:background-color .2s var(--ease),color .2s var(--ease),transform .25s var(--ease)}
+.hide{margin:0 -10px 0 auto;color:var(--muted);font-size:12px}
+:is(.link,.hide,button.svcmeta):hover:not(:disabled){background:var(--fill)}
+:is(.link,.hide,button.svcmeta,.small,.primary,.eye):active:not(:disabled){transform:scale(.96)}
+.link.danger{color:var(--danger)}.link.danger:hover:not(:disabled){background:var(--danger-wash)}
+.part{padding:26px 0 6px}
+.part h2{display:flex;align-items:baseline;gap:10px;margin:0 4px 12px;font:700 20px/1.25 var(--display);letter-spacing:-.01em}
+.num{flex:none;font:600 13px/1 var(--rounded);font-variant-numeric:tabular-nums;color:var(--faint)}
+.count{margin-left:auto;font:500 12.5px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--muted)}
+/* The page tabs are a segmented control on a frosted band that stays at the top of the panel while a page scrolls under
+   it; the thumb slides to the chosen page. Scroll anchoring is off: with a focused tab stuck there, Chrome's anchoring
+   threw the panel to its top or bottom when a page switched or grew. */
 html{overflow-anchor:none}
-.pages{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:baseline;gap:0 30px;padding-top:14px;border-bottom:1px solid var(--line);background:var(--bg)}
-.pagetab{position:relative;display:flex;align-items:baseline;gap:10px;padding:0 0 13px;border:0;background:none;color:var(--muted);font:400 20px/1.3 var(--serif);letter-spacing:-.01em;white-space:nowrap;transition:color .5s var(--ease)}
-.pagetab::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--ink);transform:scaleX(0);transform-origin:right;transition:transform .5s var(--ease)}
-.pagetab:hover,.pagetab[aria-selected=true]{color:var(--ink)}
-.pagetab[aria-selected=true]::after{transform:scaleX(1);transform-origin:left}
-.pagenote{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}
-.page>.part:first-child{border-top:0}
-.field{position:relative;margin-bottom:28px;padding-top:20px}
-.field>label,.sub,.svcinfo dt{font-size:11px;line-height:16px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
-.field>label{position:absolute;top:0;left:0;max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;pointer-events:none;transform-origin:0 0;transition:transform .5s var(--ease),letter-spacing .5s var(--ease)}
-.input,.select{display:block;width:100%;height:42px;padding:8px 0 7px;border:0;border-bottom:1px solid var(--edge);background:transparent;color:var(--ink);font:17px/1.4 var(--serif-body);outline:none;transition:border-color .5s var(--ease)}
-.input:hover:not(:disabled,:focus),.select:hover:not(:disabled,:focus){border-bottom-color:var(--muted)}
-.input:focus,.select:focus{border-bottom-color:var(--ink)}
-.input::placeholder{color:var(--muted);opacity:1;font-style:italic}
-.input:disabled,.select:disabled{color:var(--muted);border-bottom-style:dotted}
-/* An empty field shows its label where the text goes, and the label moves up on focus. A placeholder that says what an
-   empty field does (it starts with 留空) stays visible instead, with the label up. */
-.float:has(.input:placeholder-shown:not(:focus):not([placeholder^="留空"]))>label{transform:translateY(29px) scale(1.36);letter-spacing:.04em}
-.float .input:not(:focus):not([placeholder^="留空"])::placeholder{color:transparent}
+.pages{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:1fr 1fr;margin:0 calc(-1*var(--pad));padding:8px var(--pad) 10px;background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:saturate(180%) blur(20px)}
+.pages::before,.pages::after{content:'';position:relative;z-index:0;grid-row:1}
+.pages::before{grid-column:1/3;border-radius:12px;background:var(--fill)}
+.pages::after{grid-column:1;margin:2px;border-radius:10px;background:var(--card);box-shadow:var(--lift);transition:transform .45s var(--ease)}
+.pages:has(#connectTab[aria-selected=true])::after{transform:translateX(calc(100% + 4px))}
+.pagetab{position:relative;z-index:1;grid-row:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;height:36px;padding:0 10px;border:0;background:none;color:var(--muted);font:500 13.5px/1.4 var(--sans);white-space:nowrap;transition:color .3s var(--ease)}
+#siteTab{grid-column:1}#connectTab{grid-column:2}
+.pagetab:hover,.pagetab[aria-selected=true]{color:var(--ink)}.pagetab[aria-selected=true]{font-weight:600}
+.pagetab:focus-visible{outline-offset:-2px;border-radius:10px}
+.pagenote{overflow:hidden;text-overflow:ellipsis;font:500 12px/1 var(--rounded);font-variant-numeric:tabular-nums;color:var(--muted)}
+.page{animation:enter .4s var(--ease)}
+.page>.part:first-child{padding-top:14px}
+/* Fields: a label above a softly filled, rounded box that rings in the mark's orange while typed in. */
+.field{position:relative;margin-bottom:16px}
+.field>label{display:block;margin:0 4px 6px;font-size:13px;font-weight:500;line-height:18px;color:var(--muted)}
+.sub,.svcinfo dt{font-size:12.5px;line-height:18px;color:var(--muted)}
+.input,.select{display:block;width:100%;height:44px;padding:0 14px;border:1px solid transparent;border-radius:var(--round-sm);background-color:var(--bg);color:var(--ink);font:500 15px/1.4 var(--sans);outline:none;transition:border-color .25s var(--ease),box-shadow .25s var(--ease),background-color .25s var(--ease)}
+.input:hover:not(:disabled,:focus),.select:hover:not(:disabled,:focus){border-color:var(--line)}
+.input:focus,.select:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-wash)}
+.input::placeholder{color:var(--faint);opacity:1}
+.input:disabled,.select:disabled{color:var(--muted);opacity:.7}
 /* A native popup takes its background from the select, so the select carries the page color rather than none. */
-.select{appearance:none;padding-right:26px;background-color:var(--bg)}.select option{background:var(--bg);color:var(--ink)}
-.field:has(>.select)::after{content:'';position:absolute;top:34px;right:5px;width:7px;height:7px;border:solid var(--muted);border-width:0 1px 1px 0;transform:rotate(45deg);pointer-events:none}
-.keybox{position:relative}.keybox .input{padding-right:36px}.keybox .eye{position:absolute;top:5px;right:-7px}
-.eye{display:inline-grid;place-items:center;flex:none;width:32px;height:32px;padding:0;border:0;background:none;color:var(--muted);transition:color .5s var(--ease)}
-.eye:hover:not(:disabled){color:var(--ink)}
-.eye svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:square}
+.select{appearance:none;padding-right:34px;background-color:var(--bg)}.select option{background:var(--bg);color:var(--ink)}
+.field:has(>.select)::after{content:'';position:absolute;bottom:19px;right:16px;width:7px;height:7px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);pointer-events:none}
+.keybox{position:relative}.keybox .input{padding-right:44px}.keybox .eye{position:absolute;top:6px;right:6px}
+.eye{display:inline-grid;place-items:center;flex:none;width:32px;height:32px;padding:0;border:0;border-radius:999px;background:none;color:var(--muted);transition:color .2s var(--ease),background-color .2s var(--ease),transform .25s var(--ease)}
+.eye:hover:not(:disabled){color:var(--ink);background:var(--fill)}
+.eye svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .eye[aria-pressed=true] .eye-open,.eye:not([aria-pressed=true]) .eye-shut{display:none}
-.note{margin-top:8px;font-size:12px;line-height:1.65;color:var(--muted);text-wrap:pretty}
-.note.fail{margin-top:14px;padding:10px 14px;border-radius:var(--round-sm);background:var(--ink);color:var(--bg)}
-details{margin:-4px 0 32px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}
-details:has(>summary:hover){border-color:var(--hover)}
-summary{display:flex;align-items:center;justify-content:space-between;padding:14px 0;list-style:none;cursor:pointer;user-select:none;font-size:11px;line-height:16px;letter-spacing:.2em;color:var(--muted);transition:color .5s var(--ease)}
-summary::-webkit-details-marker{display:none}summary:hover{color:var(--ink)}
-summary::after{content:'+';font:300 18px/16px var(--sans);letter-spacing:0}details[open]>summary::after{content:'−'}
-details[open]>summary{margin-bottom:4px}details .field:last-child{margin-bottom:24px}
-.primary{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;height:54px;padding:0 22px;border:1px solid var(--ink);border-radius:var(--round);background:var(--ink);color:var(--bg);font-size:13px;letter-spacing:.1em;text-align:left;transition:background-color .5s var(--ease),color .5s var(--ease),border-color .5s var(--ease)}
-.primary::after{content:'→';flex:none;font:17px/1 var(--sans);letter-spacing:0;transition:transform .5s var(--ease)}
-.primary:hover:not(:disabled){background:transparent;color:var(--ink)}.primary:hover:not(:disabled)::after{transform:translateX(8px)}
-.primary:disabled{opacity:1;border-color:var(--line);background:transparent;color:var(--muted)}
-.listhead{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px 16px;margin-bottom:18px}
-#found,.found{font:italic 15px/1.6 var(--italic);color:var(--muted)}
-.listhead span:last-child{display:flex;gap:18px;white-space:nowrap}
-#search,.search{height:38px;margin-bottom:16px;font-size:15px}:is(#search,.search)::-webkit-search-cancel-button{appearance:none}
-.list{max-height:440px;overflow:auto;border-top:1px solid var(--line)}
-.model{border-bottom:1px solid var(--line);transition:background-color .5s var(--ease)}.model:hover{background:var(--wash)}.model.picked{background:var(--pick)}
-.row{display:flex;align-items:flex-start;gap:14px;padding:15px 8px 15px 4px;cursor:pointer}
-.row input{appearance:none;display:grid;place-content:center;flex:none;width:16px;height:16px;margin:5px 0 0;border:1px solid var(--edge);border-radius:var(--round-xs);background:transparent;cursor:pointer;transition:background-color .3s var(--ease),border-color .3s var(--ease)}
-.row input::after{content:'';width:9px;height:5px;margin-top:-2px;border:solid var(--bg);border-width:0 0 1.5px 1.5px;transform:rotate(-45deg);opacity:0}
-.row input:checked{border-color:var(--ink);background:var(--ink)}.row input:checked::after{opacity:1}
-.row:hover input:not(:disabled){border-color:var(--ink)}.row input:disabled{opacity:.45}
+.note{margin:8px 4px 0;font-size:12.5px;line-height:1.6;color:var(--muted);text-wrap:pretty}
+.note.fail{margin:12px 0 0;padding:10px 14px;border-radius:var(--round-sm);background:var(--danger-wash);color:var(--danger);font-weight:500;animation:enter .35s var(--ease)}
+/* Cards: the grouped lists and forms. Rows inside are parted by hairlines that stop short of the left edge. */
+:is(.model,.svc,.grow){position:relative}:is(.model+.model,.svc+.svc,.grow+.grow)::before{content:'';position:absolute;top:0;left:16px;right:0;height:1px;background:var(--line)}.model+.model::before{left:46px}
+#connectForm,#siteLogin,.acct,.list,#savedList,#siteKeys,.gplat>[role=list]{border-radius:var(--round-lg);background:var(--card)}
+#connectForm,#siteLogin{padding:18px 16px 16px}
+details{margin:2px 0 18px;border-radius:var(--round-sm);background:var(--bg)}
+summary{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:var(--round-sm);list-style:none;cursor:pointer;user-select:none;font-size:14px;font-weight:600;color:var(--ink);transition:background-color .2s var(--ease)}
+summary::-webkit-details-marker{display:none}summary:hover{background:var(--fill)}
+summary::after{content:'';width:7px;height:7px;margin:-3px 3px 0 0;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .35s var(--ease),margin .35s var(--ease)}
+details[open]>summary::after{margin-top:3px;transform:rotate(-135deg)}
+details[open]>:not(summary){animation:enter .35s var(--ease)}
+details .field{margin:0 14px 14px}details>.field:nth-child(2){margin-top:6px}details .input,details .select{background-color:var(--card)}
+.primary{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:48px;padding:0 22px;border:0;border-radius:var(--round);background:var(--ink);color:var(--card);font-size:15px;font-weight:600;letter-spacing:.01em;transition:background-color .25s var(--ease),color .25s var(--ease),opacity .25s var(--ease),transform .25s var(--ease)}
+.primary:hover:not(:disabled){opacity:.86}
+.primary:disabled{opacity:1;background:var(--fill);color:var(--faint)}
+.listhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;margin:0 0 10px 4px}
+#found,.found{font-size:13px;line-height:1.5;color:var(--muted)}
+.listhead span:last-child{display:flex;gap:4px;margin-right:-6px;white-space:nowrap}
+#search,.search{height:38px;margin-bottom:10px;padding:0 14px 0 36px;background:var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.75'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E") 12px 50%/16px no-repeat;font-size:14px}:is(#search,.search)::-webkit-search-cancel-button{appearance:none}
+.list{max-height:440px;overflow:auto}
+.model{transition:background-color .25s var(--ease)}
+.model:hover,.model.picked{background:var(--accent-wash)}
+.row{display:flex;align-items:flex-start;gap:12px;padding:12px 6px 12px 14px;cursor:pointer}
+.row input{appearance:none;display:grid;place-content:center;flex:none;width:20px;height:20px;margin:1px 0 0;border:1.5px solid var(--edge);border-radius:50%;background:transparent;cursor:pointer;transition:background-color .25s var(--ease),border-color .25s var(--ease)}
+.row input::after{content:'';width:9px;height:5px;margin-top:-2px;border:solid #fff;border-width:0 0 2px 2px;transform:rotate(-45deg);opacity:0}
+.row input:checked{border-color:var(--accent);background:var(--accent);animation:pop .35s var(--spring)}.row input:checked::after{opacity:1}
+.row:hover input:not(:disabled,:checked){border-color:var(--accent)}.row input:disabled{opacity:.45}
 .info{flex:1;min-width:0}
-.id{display:block;font:16px/1.45 var(--serif-body);overflow-wrap:anywhere}.row:hover .id{font-style:italic}
-.meta{display:block;margin-top:3px;font-size:12px;line-height:1.6;color:var(--muted)}
+.id{display:block;font-size:14.5px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.meta{display:block;margin-top:2px;font-size:12px;line-height:1.55;color:var(--muted)}
 .sub{display:block}
 /* A model row: its tick and name, and 测试 beside them, outside the label so a test never ticks the model. */
-.line{display:flex;align-items:flex-start}.line .row{flex:1;min-width:0}.line>.link{flex:none;margin:15px 8px 0 0}
-.small{height:34px;padding:0 16px;border:1px solid var(--edge);border-radius:var(--round-sm);background:transparent;color:var(--ink);font-size:12px;letter-spacing:.12em;transition:background-color .5s var(--ease),border-color .5s var(--ease),color .5s var(--ease)}
-.small:hover:not(:disabled){border-color:var(--ink);background:var(--ink);color:var(--bg)}
-.small.go,.small.stop{border-color:var(--ink);background:var(--ink);color:var(--bg)}
-.small.go:hover:not(:disabled),.small.stop:hover:not(:disabled){background:transparent;color:var(--ink)}
-.small.go:disabled{opacity:1;border-color:var(--line);background:transparent;color:var(--muted)}
-.testnote{display:block;margin-top:-7px;padding:0 8px 13px 34px;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.testnote.fail{font-style:italic}
-.empty{padding:28px 0;font:italic 15px/1.6 var(--italic);color:var(--muted);text-align:center}
-#savedList{border-top:1px solid var(--line)}
-.svc{padding:22px 0 20px;border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}.svc:hover{border-bottom-color:var(--hover)}
-.svchead{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
-.svcidx{flex:none;font:italic 14px/1 var(--italic);color:var(--muted)}
-.svcname{min-width:0;font:21px/1.3 var(--serif);letter-spacing:-.01em;overflow-wrap:anywhere}
-.svcmeta{flex:none;margin-left:auto;font-size:12px;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
-button.svcmeta::after{content:'';display:inline-block;width:5px;height:5px;margin:0 2px 3px 9px;border:solid currentColor;border-width:0 1px 1px 0;transform:rotate(45deg)}
-button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135deg)}
-.svcinfo{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:6px 18px;margin:0}
+.line{display:flex;align-items:flex-start}.line .row{flex:1;min-width:0}.line>.link{flex:none;margin:9px 8px 0 0}
+.small{height:32px;padding:0 15px;border:0;border-radius:999px;background:var(--fill);color:var(--ink);font-size:13px;font-weight:600;white-space:nowrap;transition:background-color .2s var(--ease),color .2s var(--ease),opacity .2s var(--ease),transform .25s var(--ease)}
+.small:hover:not(:disabled){background:var(--fill-hi)}
+.small.go{background:var(--ink);color:var(--card)}.small.stop{background:var(--danger);color:#fff}
+.small.go:hover:not(:disabled),.small.stop:hover:not(:disabled){opacity:.86}
+.small.go:disabled{opacity:1;background:var(--fill);color:var(--faint)}
+.testnote{display:block;margin-top:-6px;padding:0 14px 12px 46px;font-size:12px;line-height:1.55;overflow-wrap:anywhere;animation:enter .3s var(--ease)}.testnote.fail{color:var(--danger)}
+.empty{padding:26px 16px;font-size:13.5px;line-height:1.6;color:var(--muted);text-align:center}
+.svc{padding:15px 16px 14px}
+.svchead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.svcidx{flex:none;font:600 12px/1 var(--rounded);font-variant-numeric:tabular-nums;color:var(--faint)}
+.svcname{min-width:0;font:700 16px/1.35 var(--display);letter-spacing:-.005em;overflow-wrap:anywhere}
+.svcmeta{flex:none;margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+span.svcmeta{padding:2px 9px;border-radius:999px;background:var(--fill);font-weight:500;line-height:1.5}
+button.svcmeta{margin-right:-8px;padding:3px 8px;color:var(--muted);font-size:12.5px}
+button.svcmeta::after{content:'';display:inline-block;width:6px;height:6px;margin:0 2px 2px 8px;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .35s var(--ease),margin .35s var(--ease)}
+button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-135deg)}
+.svcinfo{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:baseline;gap:5px 16px;margin:0}
 .svcinfo dt{white-space:nowrap}
-.svcinfo dd{min-width:0;margin:0;font:12.5px/1.7 var(--mono);overflow-wrap:anywhere}
-.secret{display:flex;align-items:center;gap:8px}.secret span{flex:1;min-width:0}.secret .eye{margin:-7px -7px -7px 0}
+.svcinfo dd{min-width:0;margin:0;font:500 12.5px/1.6 var(--mono);overflow-wrap:anywhere}
+.secret{display:flex;align-items:center;gap:8px}.secret span{flex:1;min-width:0}.secret .eye{margin:-7px -6px -7px 0}
 .masked{color:var(--muted);letter-spacing:.1em}.revealed{user-select:all}
-.svcfoot{display:flex;justify-content:flex-end;gap:22px;margin-top:12px}
-.svcfoot.open{display:block;margin-top:6px}
-.svcedit .field{margin-bottom:22px}
-.svcask{font:italic 15px/1.75 var(--italic);text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
-.svcbar{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
-.svcmodels{max-height:240px;overflow:auto;margin:16px 0 0;padding:0;border-top:1px solid var(--line);list-style:none}
-.svcmodels li{padding:6px 0;border-bottom:1px solid var(--line);font:12.5px/1.6 var(--mono);overflow-wrap:anywhere}.svcmodels li:last-child{border-bottom:0}
-.foot{margin-top:28px}.foot .note{margin-top:12px}
-#siteLogin .note{margin-top:12px}
-/* The account page opens with the account and its total top-ups, then the balance and the link that opens the site. */
-#siteInfo{margin-bottom:30px}
-.balance{margin:0 0 28px}.balance .sub{display:block}
-.amount{display:block;margin-top:4px;font:400 46px/1.1 var(--serif);letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums;overflow-wrap:anywhere}
-.siteopen{display:inline-flex;align-items:baseline;gap:7px;margin-top:12px;font-size:12.5px}
-.siteopen .arrow{font:13px/1 var(--sans);letter-spacing:0;transition:transform .5s var(--ease)}.siteopen:hover .arrow{transform:translate(2px,-2px)}
+.svcfoot{display:flex;justify-content:flex-end;gap:4px;margin:8px -10px 0 0}
+.svcfoot.open{display:block;margin:10px 0 0;animation:enter .35s var(--ease)}
+.svcedit .field{margin-bottom:14px}
+.svcask{font-size:14px;font-weight:500;line-height:1.65;text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
+.svcbar{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.svcmodels{max-height:240px;overflow:auto;margin:12px 0 0;padding:4px 12px;border-radius:var(--round-sm);background:var(--bg);list-style:none;animation:enter .35s var(--ease)}
+.svcmodels li{padding:7px 0;font:12.5px/1.5 var(--mono);overflow-wrap:anywhere}.svcmodels li+li{border-top:1px solid var(--line)}
+.foot{margin-top:16px}.foot .note{margin-top:10px}
+#siteLogin .primary{margin-top:6px}#siteLogin .note{margin-top:12px}
+/* The account card: the account and its total top-ups with 刷新 and 退出登录 beside them, then the balance and the link
+   that opens the site. */
+.acct{margin-top:2px;padding:16px 16px 14px}
+.siteme{display:flex;align-items:flex-start;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}.siteme .svcinfo{flex:1;min-width:0;padding-top:3px}.siteme .svcinfo dd{font:600 13.5px/1.5 var(--sans);font-variant-numeric:tabular-nums}
+.siteacts{display:flex;gap:2px;flex:none;margin:-1px -10px 0 0}
+.balance{padding-top:14px}.balance .sub{display:block}
+.amount{display:block;margin-top:2px;font:700 42px/1.1 var(--rounded);letter-spacing:-.025em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.siteopen{display:inline-flex;align-items:baseline;gap:6px;margin:10px 0 0 -10px;color:var(--accent-ink)}:is(.link,.hide).siteopen:hover:not(:disabled){background:var(--accent-wash)}
+.siteopen .arrow{font:13px/1 var(--sans);transition:transform .35s var(--ease)}.siteopen:hover .arrow{transform:translate(2px,-2px)}
 #siteError{scroll-margin-top:72px}
-.sitehead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-top:34px;padding-bottom:10px;border-bottom:1px solid var(--line)}.sitehead .count{margin-left:0}
-/* 分组: one list by platform; a row asks its own questions below its name. */
-.gplat{margin-top:22px}.gplathead{padding-bottom:4px;font-size:11px;line-height:16px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
-.grow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:13px 0;border-bottom:1px solid var(--line);transition:border-color .5s var(--ease)}.grow:hover{border-bottom-color:var(--hover)}
-.gmain{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
-.gname{font:17px/1.45 var(--serif-body);overflow-wrap:anywhere}
-.gnote{font-size:12px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}.grow.on .gnote{color:var(--ink)}
-.gside{display:flex;align-items:center;gap:16px;flex:none}
-.grate{font:12px/1 var(--mono);letter-spacing:.04em;color:var(--muted)}.gact{display:flex;justify-content:flex-end;gap:14px;min-width:62px}
-.gask{flex-basis:100%;padding-bottom:2px}
-#siteGroupsPart>.note{margin-top:14px}#siteStatus{margin:16px 0 0}
+.sitehead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:26px 4px 8px}.sitehead .sub{font-size:13px;font-weight:600;color:var(--ink)}.sitehead .count{margin-left:0}
+/* 分组: one card per platform; a row asks its own questions below its name. */
+.gplat{margin-top:12px}.gplathead{padding:0 4px 6px;font-size:11.5px;font-weight:600;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.grow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 14px 12px 16px}
+.gmain{display:flex;flex-direction:column;gap:1px;flex:1;min-width:0}
+.gname{font:700 15px/1.4 var(--display);overflow-wrap:anywhere}
+.gnote{font-size:12px;line-height:1.55;color:var(--muted);overflow-wrap:anywhere}.grow.on .gnote{color:var(--ok-ink)}
+.gside{display:flex;align-items:center;gap:12px;flex:none}
+.grate{padding:3px 9px;border-radius:999px;background:var(--accent-wash);font:700 12.5px/1.4 var(--rounded);font-variant-numeric:tabular-nums;color:var(--accent-ink)}.gact{display:flex;justify-content:flex-end;gap:2px;min-width:62px;margin-right:-6px}
+.gask{flex-basis:100%;padding-bottom:2px;animation:enter .35s var(--ease)}
+#siteGroupsPart>.note{margin-top:10px}#siteStatus{margin:12px 0 0}
 /* A group change's outcome shows in its row; the line under the list still says it to screen readers. */
 #siteStatus.aside{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-.sitefoot{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px}.sitefoot .note{flex:1;min-width:0;margin:0}
+.sitefoot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.sitefoot .note{flex:1;min-width:0;margin:0}
 /* 站内 Key: 删除 asks under the key, and a key's models open under it, on this page. A model already in ZCode stays ticked. */
-.keyact{display:flex;align-items:center;gap:20px;flex:none}
-.keyask{margin-top:14px}
-.keypick{margin-top:24px}.keypick .list{max-height:320px}.keypick .foot{margin-top:22px}
+.keyact{display:flex;align-items:center;gap:6px;flex:none}
+.keyask{margin-top:12px;padding:14px;border-radius:var(--round);background:var(--danger-wash);animation:enter .35s var(--ease)}
+.keypick{margin-top:14px;animation:enter .35s var(--ease)}.keypick .list{max-height:320px;box-shadow:inset 0 0 0 1px var(--line)}.keypick .foot{margin-top:14px}
 .row:has(input:disabled){cursor:default}
-#siteKeyStatus{margin:16px 0 0;scroll-margin-top:72px}
-#siteAccount>.svcfoot{margin-top:18px}
-.status{display:none;margin:0 0 36px;padding:16px 18px;border:1px solid var(--line);border-radius:var(--round-lg);font-size:13px;line-height:1.7;overflow-wrap:anywhere;text-wrap:pretty;word-break:keep-all}
-.status.error{border-color:var(--ink);background:var(--ink);color:var(--bg)}
-.ver{display:flex;align-items:center;gap:8px;padding-top:22px;border-top:1px solid var(--line);font-size:11px;letter-spacing:.2em;color:var(--muted)}
-.ver .mark{width:19px;height:auto;flex:none;color:var(--ink)}
+#siteKeyStatus{margin:12px 0 0;scroll-margin-top:72px}
+.status{display:none;margin:14px 0 4px;padding:13px 16px;border-radius:var(--round);background:var(--card);font-size:13px;line-height:1.65;overflow-wrap:anywhere;text-wrap:pretty;word-break:keep-all;animation:enter .35s var(--ease)}
+.status.error{background:var(--danger-wash);color:var(--danger);font-weight:500}
+.ver{display:flex;align-items:center;gap:8px;margin-top:30px;padding:0 4px;font-size:12px;color:var(--muted)}
+.ver .mark{width:18px;height:auto;flex:none;color:var(--ink)}
 /* A newer version, which the host found: a link at the end of the footer, then its progress. */
-.ver .update{margin-left:auto;color:var(--ink);letter-spacing:.04em}.ver .update:disabled{color:var(--muted);border-bottom-color:transparent;cursor:default}
-@media(max-width:380px){.shell{padding:16px 20px 22px}.part h2{font-size:25px}.pages{column-gap:22px}.pagetab{font-size:18px}}
-@media(min-width:560px){.shell{padding:28px 48px 30px}}
-@media(prefers-reduced-motion:reduce){*,::before,::after{transition-duration:0s!important}}
+.ver .update{margin:0 -10px 0 auto;color:var(--accent-ink)}.ver .update:disabled{color:var(--muted);cursor:default}
+@media(max-width:380px){:root{--pad:14px}.pagetab{font-size:13px}}
+@media(min-width:560px){:root{--pad:28px}.shell{padding-top:20px}}
+@media(prefers-reduced-motion:reduce){*,::before,::after{transition-duration:0s!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -174,22 +191,21 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 <div class="field float"><label for="sitePassword">密码</label><input class="input" id="sitePassword" type="password" placeholder="网站的登录密码" autocomplete="current-password" maxlength="256"></div>
 <button class="primary" id="siteLoginBtn" type="submit" disabled>登录</button>
 <div class="note fail" id="siteLoginError" role="alert" hidden></div>
-<div class="note" id="siteNote">登录后自动读取余额和站内 Key。密码只用来登录，不会保存。</div>
+<div class="note" id="siteNote">密码只用于登录，不会保存。</div>
 </form>
 <div id="siteAccount" hidden>
-<dl class="svcinfo" id="siteInfo"></dl>
-<div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div>
+<div class="acct"><div class="siteme"><dl class="svcinfo" id="siteInfo"></dl><div class="siteacts"><button class="link" id="siteRefresh" type="button" data-site>刷新</button><button class="link" id="siteLogout" type="button" data-site>退出登录</button></div></div>
+<div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div></div>
 <div class="note fail" id="siteError" hidden></div>
 <div id="siteGroupsPart" hidden>
 <div class="sitehead"><span class="sub">分组</span><span class="count" id="siteGroupCount"></span></div>
 <div id="siteGroups"></div>
-<div class="note">添加会用分组里已有的 Key，把它的全部模型直接加入 ZCode；删除只从 ZCode 移除，网站上的 Key 保留，可以在下面的站内 Key 里删除。</div>
+<div class="note">添加：用分组的 Key 导入全部模型。删除：只从 ZCode 移除，网站上的 Key 保留。</div>
 <div class="status" id="siteStatus" role="status" aria-live="polite"></div>
 </div>
 <div class="sitehead"><span class="sub">站内 Key</span><span class="count" id="siteKeyCount"></span></div>
 <div id="siteKeys" role="list" aria-label="站内 Key"></div>
 <div class="status" id="siteKeyStatus" role="status" aria-live="polite"></div>
-<div class="svcfoot"><button class="link" id="siteRefresh" type="button" data-site>刷新</button><button class="link" id="siteLogout" type="button" data-site>退出登录</button></div>
 </div>
 </section>
 </div>
@@ -199,9 +215,9 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 <form id="connectForm" novalidate>
 <div class="field" id="savedField" hidden><label for="savedProvider">已保存的服务</label><select class="select" id="savedProvider"><option value="">添加新的服务</option></select></div>
 <div class="field float"><label for="baseUrl">服务地址</label><input class="input" id="baseUrl" type="url" placeholder="例如 https://api.example.com/v1" autocomplete="off" spellcheck="false"></div>
-<div class="field float"><label for="apiKey">API Key</label><div class="keybox"><input class="input" id="apiKey" type="password" placeholder="粘贴你的 API Key" autocomplete="off" spellcheck="false"><button class="eye" id="toggleKey" type="button" aria-pressed="false" aria-label="显示 Key" title="显示 Key"></button></div><div class="note" id="keyNote">Key 只保存在本机，不需要发到聊天里。</div></div>
+<div class="field float"><label for="apiKey">API Key</label><div class="keybox"><input class="input" id="apiKey" type="password" placeholder="粘贴你的 API Key" autocomplete="off" spellcheck="false"><button class="eye" id="toggleKey" type="button" aria-pressed="false" aria-label="显示 Key" title="显示 Key"></button></div><div class="note" id="keyNote">Key 只保存在本机。</div></div>
 <details id="more"><summary>更多设置</summary>
-<div class="field"><label for="protocol">接口类型</label><select class="select" id="protocol"><option value="openai-chat-completions">OpenAI 兼容（最常见）</option><option value="anthropic-messages">Anthropic（Claude）</option><option value="openai-responses">OpenAI Responses</option></select><div class="note">通常会根据服务地址自动选择。</div></div>
+<div class="field"><label for="protocol">接口类型</label><select class="select" id="protocol"><option value="openai-chat-completions">OpenAI 兼容（最常见）</option><option value="anthropic-messages">Anthropic（Claude）</option><option value="openai-responses">OpenAI Responses</option></select><div class="note">按服务地址自动选择。</div></div>
 <div class="field float"><label for="providerName">显示名称</label><input class="input" id="providerName" maxlength="100" placeholder="不填则使用网址域名" autocomplete="off"></div>
 </details>
 <button class="primary" id="fetchBtn" type="submit" disabled>获取模型</button>
@@ -212,7 +228,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 <div class="listhead"><span id="found"></span><span><button class="link" id="selectAll" type="button">全选</button></span></div>
 <input class="input" id="search" type="search" placeholder="搜索模型" aria-label="搜索模型" autocomplete="off" hidden>
 <div class="list" id="list" role="group" aria-label="可用模型"></div>
-<div class="foot"><button class="primary" id="importBtn" type="button" disabled>添加到 ZCode</button><div class="note">勾选的模型按每行列出的参数加入 ZCode，要改请到 ZCode 的模型设置里改；已有的模型和设置不变，修改前自动备份。「测试」只发一条很短的请求，会消耗少量额度。</div></div>
+<div class="foot"><button class="primary" id="importBtn" type="button" disabled>添加到 ZCode</button><div class="note">按列出的参数加入 ZCode，修改前自动备份。「测试」会用少量额度。</div></div>
 </section>
 <div class="status" id="status" role="status" aria-live="polite"></div>
 <section class="part" id="savedCard" hidden>
@@ -220,7 +236,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
 <div id="savedList" role="list" aria-label="已导入的服务"></div>
 </section>
 </div>
-<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.10</span><button class="link update" id="updateLink" type="button" hidden></button></div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.11</span><button class="link update" id="updateLink" type="button" hidden></button></div>
 </main>
 <template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
 <script>
@@ -506,7 +522,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
       const save = button('small go', '保存'); save.type = 'submit';
       form.noValidate = true;
       form.append(field('服务地址', url), field('API Key', key, box));
-      if (p.fixedAddress) form.append(el('div', 'note', '地址来自 ZCode 内置模板，这里只能修改 Key。'));
+      if (p.fixedAddress) form.append(el('div', 'note', '内置模板的地址固定，只能改 Key。'));
       form.append(error, bar(button('small', '取消', () => view('edit')), save));
       form.onsubmit = e => { e.preventDefault(); run(save, '正在保存…', async () => {
         const data = await call('update_provider', { providerId: p.id, baseUrl: url.value.trim(), apiKey: key.value.trim() });
@@ -554,7 +570,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
     if (!site) return;
     renderBalance();
     $('siteLogin').hidden = !!site.signedIn; $('siteAccount').hidden = !site.signedIn;
-    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `登录 ${site.site?.host || '网站'} 的账号后，自动读取余额和站内 Key。密码只用来登录，不会保存。`; updateControls(); return; }
+    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `用 ${site.site?.host || '网站'} 的账号登录，密码不会保存。`; updateControls(); return; }
     renderOpen();
     $('siteError').textContent = site.error || ''; $('siteError').hidden = !site.error;
     renderGroups();
@@ -627,9 +643,11 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
     if (k.quota > 0) info.append(el('dt', '', '额度'), el('dd', '', `已用 ${money(k.quotaUsed ?? 0)} / ${money(k.quota)}`));
     const expires = k.expiresAt ? new Date(k.expiresAt) : null;
     if (expires && !Number.isNaN(expires.getTime())) info.append(el('dt', '', '到期'), el('dd', '', expires.toLocaleDateString('zh-CN')));
-    foot.append(el('span', 'note', k.blocked || (k.inZCode ? `已在 ZCode：「${k.inZCode}」` : '')), side);
+    const said = el('span', 'note', k.blocked || (k.inZCode ? '已在 ZCode' : ''));
+    if (!k.blocked && k.inZCode) said.title = `ZCode 里的「${k.inZCode}」`;
+    foot.append(said, side);
     if (!k.testKey) {
-      const drop = button('link', '删除', 'delete', () => askKey(k));
+      const drop = button('link danger', '删除', 'delete', () => askKey(k));
       drop.setAttribute('aria-label', `删除站内 Key「${k.name}」`);
       side.append(drop);
     }
@@ -695,7 +713,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
       addButton(add);
       if (focus) for (const n of list.querySelectorAll('input[type=checkbox]')) if (n.dataset.id === focus) { n.focus(); break; }
     }
-    foot.append(add, el('div', 'note', '只添加勾选的模型，按每行列出的参数加入 ZCode，要改请到 ZCode 的模型设置里改；已有的模型和设置不变，修改前自动备份。「测试」只发一条很短的请求，会消耗少量额度。'));
+    foot.append(add, el('div', 'note', '按列出的参数加入 ZCode，修改前自动备份。「测试」会用少量额度。'));
     if (pick.message) foot.append(el('div', 'note', pick.message));
     if (pick.error) foot.append(el('div', 'note fail', pick.error));
     box.append(list, foot);
@@ -796,8 +814,8 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
     const button = (cls, text, focus, onclick) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.site = ''; b.dataset.focus = `${g.id}:${focus}`; b.disabled = busy || !bridge; b.onclick = onclick; return b; };
     row.setAttribute('role', 'listitem');
     main.append(el('span', 'gname', g.name));
-    const note = g.blocked || (held ? `已加入 ZCode：${names} · ${models} 个模型` : g.remark);
-    if (note) main.append(el('span', 'gnote', note));
+    const note = g.blocked || (held ? `已加入 ZCode · ${models} 个模型` : g.remark);
+    if (note) { const said = el('span', 'gnote', note); if (held && !g.blocked) said.title = `ZCode 里的${names}`; main.append(said); }
     if (g.multiplier != null) { const rate = el('span', 'grate', `×${g.multiplier}`); rate.title = '计费倍率'; side.append(rate); }
     // The buttons sit in a slot of one width, so the rates line up whether a row has 添加, 补全 and 删除, or nothing.
     const slot = el('span', 'gact');
@@ -809,7 +827,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:0;transform:rotate(-135d
         fill.setAttribute('aria-label', `补全分组「${g.name}」的模型`); fill.title = '把这个分组里还没加入 ZCode 的模型加进去';
         slot.append(fill);
       }
-      const drop = button('link', '删除', 'action', () => openAsk(g, 'delete'));
+      const drop = button('link danger', '删除', 'action', () => openAsk(g, 'delete'));
       drop.setAttribute('aria-label', `删除分组「${g.name}」`);
       slot.append(drop);
     } else if (!g.blocked) {

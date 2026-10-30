@@ -1,6 +1,6 @@
 {
   "name": "model-harbor-project",
-  "version": "0.8.10",
+  "version": "0.8.11",
   "private": true,
   "type": "module",
   "description": "biubiu AI desktop companion for ZCode: a WebView2 side panel that docks beside the ZCode window",

@@ -352,7 +352,7 @@ test('a group row adds with its own key at once, asks in the row before a key is
   const held = { id: '3', name: 'ccmax满血', platformName: 'Claude', multiplier: 1.6, hasUsableKey: true, inZCode: [{ name: 'biubiu AI · ccmax满血', modelCount: 4 }] };
   asked = ctx.groupRow(held);
   assert.equal(asked.className, 'grow on'); assert.equal(button(asked, '添加'), undefined);
-  assert.equal(all(asked, c => c.className === 'gnote')[0].textContent, '已加入 ZCode：「biubiu AI · ccmax满血」 · 4 个模型');
+  assert.deepEqual([all(asked, c => c.className === 'gnote')[0].textContent, all(asked, c => c.className === 'gnote')[0].title], ['已加入 ZCode · 4 个模型', 'ZCode 里的「biubiu AI · ccmax满血」']);
   button(asked, '删除').onclick();
   assert.deepEqual({ ...ctx.asking }, { id: '3', kind: 'delete' }); assert.equal(calls.length, 2, 'nothing is deleted before 确认删除');
   button(ctx.groupRow(held), '确认删除').onclick();
@@ -616,11 +616,11 @@ test('template-only provider resolves its URL and reuses its key without duplica
   const imported = await harbor.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id) }); assert.equal(imported.added, 0);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')); assert.deepEqual(saved.config.providerConfigRules.providerRules[0].config.personalModelIds, []); assert.equal(saved.config.providerConfigRules.providerRules[0].config.api, undefined);
 });
-test('the site page opens with the account and its total top-ups, then the balance and the link that opens the site', async () => {
+test('the site page opens with the account and its total top-ups beside 刷新 and 退出登录, then the balance and the link that opens the site', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
   const page = html.slice(html.indexOf('<section class="part" id="siteCard">'), html.indexOf('<div class="page" id="connectPage"'));
   assert.ok(page.length > 0 && !page.includes('<h2'), 'no heading: the tab names the site, and the link and the login note its address');
-  const order = ['id="siteLogin"', 'id="siteAccount"', 'id="siteInfo"', 'class="balance"', 'id="siteBalance"', 'id="siteOpen"', 'id="siteError"', 'id="siteGroupsPart"', 'id="siteKeys"'].map(marker => page.indexOf(marker));
+  const order = ['id="siteLogin"', 'id="siteAccount"', 'id="siteInfo"', 'id="siteRefresh"', 'id="siteLogout"', 'class="balance"', 'id="siteBalance"', 'id="siteOpen"', 'id="siteError"', 'id="siteGroupsPart"', 'id="siteKeys"'].map(marker => page.indexOf(marker));
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), JSON.stringify(order));
   assert.match(page, /<button class="link siteopen" id="siteOpen" type="button" hidden>/);
   const source = name => { const at = html.indexOf(`  function ${name}(`); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
@@ -637,10 +637,11 @@ test('the site page opens with the account and its total top-ups, then the balan
   assert.ok(html.includes("$('siteOpen').onclick = () => { if (openSite && site?.signedIn) openSite(); };"));
   assert.ok(html.includes("else if (e.data?.type === 'site-window' && e.data.error) siteProblem(String(e.data.error));"), 'a window that did not open says so on the site page');
 });
-test('buttons, notices, check boxes and the scroll bar are rounded like the window; fields keep their underline', async () => {
+test('cards, buttons, fields, notices, check boxes and the scroll bar are rounded like the window', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
   const css = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
   const rule = selector => { const at = css.indexOf(`${selector}{`); assert.ok(at >= 0, selector); return css.slice(at, css.indexOf('}', at)); };
-  for (const selector of ['.primary', '.small', '.status', '.note.fail', '.row input', '.tag', '.dot', '::-webkit-scrollbar-thumb']) assert.match(rule(selector), /border-radius:/, selector);
-  assert.doesNotMatch(rule('.input,.select'), /border-radius/);
+  for (const selector of ['.primary', '.small', '.status', '.note.fail', '.row input', '.tag', '.dot', '::-webkit-scrollbar-thumb', '.input,.select', '#connectForm,#siteLogin,.acct,.list,#savedList,#siteKeys,.gplat>[role=list]']) assert.match(rule(selector), /border-radius:/, selector);
+  // A native popup takes the select's own background, so it stays opaque, in the page color.
+  assert.match(rule('.select'), /background-color:var\(--bg\)/);
 });

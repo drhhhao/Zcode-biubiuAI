@@ -1,6 +1,6 @@
 # biubiu AI 图文使用教程
 
-biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.10 版，安装和卸载页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
+biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.11 版，安装和卸载页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
 
 <p align="center"><img src="images/overview.png" alt="biubiu AI 面板贴在 ZCode 窗口右侧（左边的 ZCode 是示意）" width="735"></p>
 
@@ -91,7 +91,7 @@ biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账�
 <p align="center"><img src="images/panel-site-account.png" alt="登录后的账户页：账户、余额、分组" width="402"></p>
 
 - 面板显示期间，余额每 30 秒自动刷新一次。
-- 页面最下方的 **刷新** 立即重新读取余额、分组和 Key；**退出登录** 会删除本机保存的登录状态。
+- 账户右边的 **刷新** 立即重新读取余额、分组和 Key；**退出登录** 会删除本机保存的登录状态。
 - 密码只用来登录，不会保存。登录状态加密保存在本机，重启电脑后不用重新登录。
 
 ## 5. 一键添加分组
