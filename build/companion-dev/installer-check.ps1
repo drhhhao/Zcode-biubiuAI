@@ -97,7 +97,9 @@ try {
   $env:MODEL_HARBOR_EXE = Join-Path $dir 'bin\ModelHarbor.exe'
   try { $smoke = @(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'smoke-host.ps1') 2>&1 | ForEach-Object { "$_" }) }
   finally { $env:PATH = $savedPath; Remove-Item Env:MODEL_HARBOR_EXE -ErrorAction SilentlyContinue }
-  $smoke | Where-Object { $_ -match '^FAIL' } | ForEach-Object { [Console]::Out.WriteLine("      smoke: $_") }
+  $smoke | Where-Object { $_ -match '^(FAIL|NOTE)' } | ForEach-Object { [Console]::Out.WriteLine("      smoke: $_") }
+  # The whole run stays beside the screenshots (GitHub keeps it with them).
+  [IO.File]::WriteAllLines((Join-Path $PSScriptRoot 'installed-smoke.txt'), [string[]]$smoke, (New-Object Text.UTF8Encoding $false))
   $summary = @($smoke | Where-Object { $_ -match '^SUMMARY' }) | Select-Object -Last 1
   Check 'installed copy / smoke test' ($summary -match 'failed=0') "$summary"
   Check 'installed copy / served by the bundled Node.js' (@($smoke | Where-Object { $_ -match '^PASS  node server / bundled runtime' }).Count -ge 1) ''

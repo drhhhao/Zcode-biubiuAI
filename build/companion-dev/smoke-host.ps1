@@ -381,13 +381,44 @@ function Open-Page([int]$procId, [string]$name) {
     $tab = $null
     if ($panel) { $tab = [Windows.Automation.AutomationElement]::FromHandle($panel).FindFirst([Windows.Automation.TreeScope]::Descendants, $condition) }
     if ($tab) {
-      $p = $null
-      if ($tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$p)) { $p.Select() } else { $tab.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke() }
-      return $true
+      # A tab found before the page has wired its clicks, or a Select that Chromium only marks, leaves the page as it
+      # was: the tab only counts as opened once the page itself marks it selected (aria-selected), else Invoke clicks it.
+      $p = $null; $i = $null
+      $hasSelect = $tab.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$p)
+      $hasInvoke = $tab.TryGetCurrentPattern([Windows.Automation.InvokePattern]::Pattern, [ref]$i)
+      if (-not $hasSelect) { if ($hasInvoke) { $i.Invoke() }; return $true }
+      foreach ($way in 'select', 'invoke', 'select', 'invoke') {
+        try { if ($way -eq 'select') { $p.Select() } elseif ($hasInvoke) { $i.Invoke() } } catch { }
+        $until = (Get-Date).AddSeconds(2)
+        do { try { if ($p.Current.IsSelected) { return $true } } catch { }; Start-Sleep -Milliseconds 200 } while ((Get-Date) -lt $until)
+      }
+      return $false
     }
     Start-Sleep -Milliseconds 300
   } while ((Get-Date) -lt $deadline)
   return $false
+}
+# When a page check fails, what the panel shows to UI Automation goes to the output as NOTE lines: the tabs with their
+# state and the first texts and buttons (the saved key only ever as the fake one or its mask).
+function Note-Panel([int]$procId, [string]$step) {
+  $wins = Get-Windows $procId
+  $panel = $wins | Where-Object { (Width $_) -gt 200 } | Select-Object -First 1
+  if (-not $panel) { [Console]::Out.WriteLine("NOTE  $step / no panel window"); return }
+  $r = [W]::Rect($panel)
+  [Console]::Out.WriteLine("NOTE  $step / panel at $($r.L),$($r.T) to $($r.Rt),$($r.B)")
+  $all = [Windows.Automation.AutomationElement]::FromHandle($panel).FindAll([Windows.Automation.TreeScope]::Descendants, [Windows.Automation.Condition]::TrueCondition)
+  $seen = 0
+  foreach ($el in $all) {
+    try { $name = $el.Current.Name; $type = $el.Current.ControlType.ProgrammaticName -replace '^ControlType\.', ''; $off = $el.Current.IsOffscreen } catch { continue }
+    if (-not $name) { continue }
+    $state = ''
+    $p = $null
+    if ($el.TryGetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern, [ref]$p)) { $state = " selected=$($p.Current.IsSelected)" }
+    if ($name.Length -gt 60) { $name = $name.Substring(0, 60) + '...' }
+    [Console]::Out.WriteLine("NOTE  $step / $type '$name'$state$(if ($off) { ' offscreen' })")
+    if (++$seen -ge 60) { break }
+  }
+  [Console]::Out.WriteLine("NOTE  $step / $($all.Count) elements in all")
 }
 function Wait-Config([scriptblock]$until) {
   $deadline = (Get-Date).AddSeconds(15)
@@ -649,6 +680,7 @@ try {
   Check 'keys / connect page opens' (Open-Page $companion.Id $connectName) ''
   $k = Wait-Keys $companion.Id { param($x) $x.Masked -ge 1 }
   Check 'keys / saved key masked by default' (($k.Masked -eq 1) -and ($k.Shown -eq 0) -and ($k.Pressed -eq 'Off')) (Show-Keys $k)
+  if ($k.Masked -ne 1) { Note-Panel $companion.Id 'keys' }
   $k = Reveal-Key $companion.Id
   Check 'keys / eye shows the full key' (($k.Shown -eq 1) -and ($k.Masked -eq 0) -and ($k.Pressed -eq 'On')) (Show-Keys $k)
   & $exe --collapse | Out-Null

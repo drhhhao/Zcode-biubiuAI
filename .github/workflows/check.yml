@@ -58,7 +58,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: screenshots
-          path: build/companion-dev/*.png
+          path: |
+            build/companion-dev/*.png
+            build/companion-dev/installed-smoke.txt
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v7
         with:

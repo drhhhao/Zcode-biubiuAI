@@ -8,6 +8,7 @@ build/*
 !build/companion-dev/
 build/companion-dev/*.png
 build/companion-dev/*.jpg
+build/companion-dev/installed-smoke.txt
 !build/companion-dev/biubiu-icon.png
 docs/plugin-era/
 releases/
