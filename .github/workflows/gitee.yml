@@ -1,8 +1,10 @@
 # 同步到 Gitee：国内镜像 https://gitee.com/drhhhao_0/Zcode-biubiuAI ，国内用户下载和一键更新都比 GitHub 快得多。
 # 推送到 main 时把 main 原样推过去；在 GitHub 上正式发布 Release 时（草稿和预发布不算），把标签推过去，
-# 再用 build/companion-dev/gitee-release.mjs 在 Gitee 建同名 Release、放上同一个安装程序，并像用户一样不带令牌下载回来、
-# 核对大小和 SHA-256 与 GitHub 记录的一致。已装好的 biubiu AI 先从 Gitee 下载，但只认 GitHub 记录的哈希，
-# 所以 Gitee 上的文件晚到、缺失或不对时，它会改从 GitHub 下载。
+# 再用 build/companion-dev/gitee-release.mjs --release-only 在 Gitee 建同名 Release（说明照搬 GitHub 的）。
+# 安装程序不在这里传：GitHub 在美国的机器往 Gitee 上传，30 分钟 Gitee 一个字节都不回。发布后在国内的电脑上运行
+# node build/companion-dev/gitee-release.mjs v<版本>，它上传安装程序，并像用户一样不带令牌下载回来、核对大小和 SHA-256
+# 与 GitHub 记录的一致。已装好的 biubiu AI 先从 Gitee 下载，但只认 GitHub 记录的哈希，
+# 所以 Gitee 上的文件还没传、缺失或不对时，它会改从 GitHub 下载。
 # Gitee 的私人令牌放在仓库的 Actions 机密 GITEE_TOKEN 里。也可以在 Actions → 同步到 Gitee → Run workflow 手动补一个版本。
 name: 同步到 Gitee
 
@@ -55,4 +57,4 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
-        run: node build/companion-dev/gitee-release.mjs "$TAG"
+        run: node build/companion-dev/gitee-release.mjs "$TAG" --release-only

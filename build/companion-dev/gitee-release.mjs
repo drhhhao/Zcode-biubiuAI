@@ -1,10 +1,15 @@
-// Copies a published GitHub release of biubiu AI to the Gitee mirror, for .github/workflows/gitee.yml. Installed copies
-// download the installer from Gitee first (quicker in China) and only run it when its size and SHA-256 are what GitHub
-// records, so this script takes the installer from GitHub, checks it against GitHub's record, puts it on a Gitee
-// release of the same tag and name, and then downloads it back from Gitee as a user would (no token) to check it again.
-// The tag must already be on Gitee (the workflow pushes it first). Drafts and prereleases are never copied.
-// Usage: node gitee-release.mjs <tag>
-// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY (owner/name), GITEE_TOKEN, GITEE_REPOSITORY (owner/name).
+// Copies a published GitHub release of biubiu AI to the Gitee mirror. Installed copies download the installer from Gitee
+// first (quicker in China) and only run it when its size and SHA-256 are what GitHub records, so this script takes the
+// installer from GitHub, checks it against GitHub's record, puts it on a Gitee release of the same tag and name, and then
+// downloads it back from Gitee as a user would (no token) to check it again. Drafts and prereleases are never copied.
+// Gitee takes no uploads from GitHub's machines in the US (nothing came back in 30 minutes), so .github/workflows/gitee.yml
+// runs it with --release-only (the release and its notes, no installer) and the installer is put there from a computer
+// in China, after publishing:
+//   GITEE_TOKEN=... HTTPS_PROXY=http://127.0.0.1:7897 NO_PROXY=gitee.com,.gitee.com NODE_USE_ENV_PROXY=1 \
+//     node build/companion-dev/gitee-release.mjs v<version>
+// Usage: node gitee-release.mjs <tag> [--release-only]
+// Environment: GITEE_TOKEN; GITHUB_TOKEN (optional), GITHUB_REPOSITORY and GITEE_REPOSITORY (owner/name, these repositories
+// by default).
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -12,9 +17,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 const tag = process.argv[2];
-const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITEE_TOKEN, GITEE_REPOSITORY } = process.env;
-if (!tag || !GITHUB_REPOSITORY || !GITEE_TOKEN || !GITEE_REPOSITORY) {
-  console.error('usage: node gitee-release.mjs <tag>, with GITHUB_TOKEN, GITHUB_REPOSITORY, GITEE_TOKEN and GITEE_REPOSITORY set');
+const releaseOnly = process.argv.includes('--release-only');
+const { GITHUB_TOKEN, GITEE_TOKEN } = process.env;
+const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'drhhhao/Zcode-biubiuAI';
+const GITEE_REPOSITORY = process.env.GITEE_REPOSITORY || 'drhhhao_0/Zcode-biubiuAI';
+if (!tag || !GITEE_TOKEN) {
+  console.error('usage: node gitee-release.mjs <tag> [--release-only], with GITEE_TOKEN set');
   process.exit(2);
 }
 const version = tag.replace(/^v/, '');
@@ -89,6 +97,14 @@ if (!mirrored || !mirrored.id) {
 // An installer already there stays if it is GitHub's; anything else of that name goes.
 const page = `https://gitee.com/${GITEE_REPOSITORY}/releases/download/${encodeURIComponent(tag)}/${name}`;
 const files = (await giteeApi('GET', `/releases/${mirrored.id}/attach_files?per_page=100`)) || [];
+if (releaseOnly) {
+  const note = files.some(f => f.name === name)
+    ? `${name} is already on Gitee`
+    : `${name} is not on Gitee yet: put it there from a computer in China with node build/companion-dev/gitee-release.mjs ${tag} (until then installed copies take it from GitHub)`;
+  console.log(files.some(f => f.name === name) ? note : `::warning::${note}`);
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${note}\n`);
+  process.exit(0);
+}
 let present = false;
 for (const file of files.filter(f => f.name === name)) {
   const there = await download(file.browser_download_url, `${name} on Gitee`);
@@ -96,8 +112,8 @@ for (const file of files.filter(f => f.name === name)) {
   await giteeApi('DELETE', `/releases/${mirrored.id}/attach_files/${file.id}`);
   console.log(`removed a ${name} on Gitee that was not GitHub's`);
 }
-// The upload goes through curl: from GitHub's machines in the US it can take minutes before Gitee answers, longer than
-// fetch waits for an answer's headers. When it fails, what reached Gitee is looked at before trying again.
+// The upload goes through curl, which waits as long as a slow line needs (fetch gives up when an answer's headers take
+// five minutes). When it fails, what reached Gitee is looked at before trying again.
 async function landed() {
   const now = (await giteeApi('GET', `/releases/${mirrored.id}/attach_files?per_page=100`)) || [];
   for (const file of now.filter(f => f.name === name)) {
