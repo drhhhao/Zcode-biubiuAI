@@ -5,7 +5,11 @@
 // The tag must already be on Gitee (the workflow pushes it first). Drafts and prereleases are never copied.
 // Usage: node gitee-release.mjs <tag>
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY (owner/name), GITEE_TOKEN, GITEE_REPOSITORY (owner/name).
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const tag = process.argv[2];
 const { GITHUB_TOKEN, GITHUB_REPOSITORY, GITEE_TOKEN, GITEE_REPOSITORY } = process.env;
@@ -92,11 +96,29 @@ for (const file of files.filter(f => f.name === name)) {
   await giteeApi('DELETE', `/releases/${mirrored.id}/attach_files/${file.id}`);
   console.log(`removed a ${name} on Gitee that was not GitHub's`);
 }
-if (!present) {
-  const form = new FormData();
-  form.set('file', new Blob([bytes]), name);
-  await giteeApi('POST', `/releases/${mirrored.id}/attach_files`, form);
-  console.log(`uploaded ${name} to Gitee`);
+// The upload goes through curl: from GitHub's machines in the US it can take minutes before Gitee answers, longer than
+// fetch waits for an answer's headers. When it fails, what reached Gitee is looked at before trying again.
+async function landed() {
+  const now = (await giteeApi('GET', `/releases/${mirrored.id}/attach_files?per_page=100`)) || [];
+  for (const file of now.filter(f => f.name === name)) {
+    const there = await download(file.browser_download_url, `${name} on Gitee`);
+    if (there.length === bytes.length && sha256(there) === want) return true;
+    await giteeApi('DELETE', `/releases/${mirrored.id}/attach_files/${file.id}`);
+  }
+  return false;
+}
+for (let attempt = 1; !present; attempt++) {
+  const local = path.join(os.tmpdir(), name);
+  fs.writeFileSync(local, bytes);
+  // The token reaches curl on standard input, never on its command line.
+  const curl = spawnSync('curl', ['--silent', '--show-error', '--fail-with-body', '--max-time', '1800', '--config', '-',
+    '--form', `file=@${local}`, `${gitee}/releases/${mirrored.id}/attach_files`],
+  { input: `form-string = "access_token=${GITEE_TOKEN}"\n`, encoding: 'utf8' });
+  fs.rmSync(local, { force: true });
+  if (curl.status === 0) { console.log(`uploaded ${name} to Gitee`); break; }
+  console.log(`uploading ${name} to Gitee failed (curl ${curl.status}: ${(curl.stderr || '').trim().slice(0, 200)})`);
+  if (await landed()) { console.log(`${name} reached Gitee all the same`); break; }
+  if (attempt === 3) fail(`could not upload ${name} to Gitee`);
 }
 
 // As a user downloads it: no token, through Gitee's redirect.
