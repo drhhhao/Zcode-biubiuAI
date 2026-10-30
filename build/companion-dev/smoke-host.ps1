@@ -236,7 +236,7 @@ function Check-Panel([string]$step, $fake, [int]$procId, [string]$side = '') {
   # The side is what the step set up for, which needs room for the panel (340 at least) beside ZCode. On a screen too narrow
   # for that (GitHub's machines are 1024 wide and cannot be changed) only the placement above, by the panel's rule, is judged.
   $rooms = "rooms: left $($f.L - $fake.WA[0]), right $($fake.WA[0] + $fake.WA[2] - $f.Rt)"
-  if ($side -eq 'right' -and ($fake.WA[0] + $fake.WA[2] - $f.Rt) -lt (Px 340 $s)) { Write-Output "SKIP  $step / dock side is $side: the screen is too narrow for the panel beside ZCode ($($fake.WA[2]) wide; $rooms)" }
+  if ($side -eq 'right' -and ($fake.WA[0] + $fake.WA[2] - $f.Rt) -lt (Px 340 $s)) { Write-Output "SKIP  $step / dock side is ${side}: the screen is too narrow for the panel beside ZCode ($($fake.WA[2]) wide; $rooms)" }
   elseif ($side) { Check "$step / dock side is $side" ($e.Side -eq $side) $rooms }
   Check "$step / panel directly above ZCode in z-order" ([W]::Above($panel, $fake.H)) ''
   return $panel
