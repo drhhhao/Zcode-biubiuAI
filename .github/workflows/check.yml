@@ -45,7 +45,9 @@ jobs:
         run: npm run app:site-check
       # 静默安装到临时目录，对装好的副本跑完整的冒烟测试（窗口跟随、Key 隐藏、修改与删除服务），
       # 原地升级、一键更新（替身 Release，含哈希不符时拒绝）、卸载，再像用户一样在窗口里点一遍安装
+      # 用 Windows PowerShell 启动：从默认的 PowerShell 7 启动时它会带上 pwsh 的模块路径，加载不了核对签名的命令
       - name: 安装程序端到端
+        shell: powershell
         run: npm run app:installer-check
       - name: 留下截图
         if: always()

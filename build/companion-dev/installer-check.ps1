@@ -8,6 +8,11 @@
 # adds the start at sign-in or a desktop shortcut, never touches the companion's real data folder, and never starts the
 # companion beside the real ZCode.
 $ErrorActionPreference = 'Stop'
+# Started from PowerShell 7 (npm or a GitHub step under pwsh), Windows PowerShell inherits pwsh's PSModulePath and
+# cannot load its own Microsoft.PowerShell.Security (Get-AuthenticodeSignature): keep only Windows PowerShell's folders.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+  $env:PSModulePath = (@($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -notmatch '\\PowerShell\\(7|Modules)' -and $_ -notmatch '\\Documents\\PowerShell\\' }) + (Join-Path $PSHOME 'Modules') | Select-Object -Unique) -join ';'
+}
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $version = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $setup = Join-Path $root "dist\biubiuAI-Setup-$version.exe"

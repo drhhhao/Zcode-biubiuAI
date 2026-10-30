@@ -7,6 +7,11 @@
 # The package and the license are checked against pinned SHA-256s; the bootstrapper changes over time, so its Microsoft
 # signature is checked instead. app/build.mjs and app/installer/package.mjs check the signatures again.
 $ErrorActionPreference = 'Stop'
+# Started from PowerShell 7 (npm or a GitHub step under pwsh), Windows PowerShell inherits pwsh's PSModulePath and
+# cannot load its own Microsoft.PowerShell.Security (Get-AuthenticodeSignature): keep only Windows PowerShell's folders.
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+  $env:PSModulePath = (@($env:PSModulePath -split ';' | Where-Object { $_ -and $_ -notmatch '\\PowerShell\\(7|Modules)' -and $_ -notmatch '\\Documents\\PowerShell\\' }) + (Join-Path $PSHOME 'Modules') | Select-Object -Unique) -join ';'
+}
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
