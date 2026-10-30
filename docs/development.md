@@ -71,7 +71,19 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 - **校验**：安装程序下载到 `%TEMP%\biubiu-ai-update\`（每次先清空，之后的自动检查也会清掉留下的文件），大小和 SHA-256 必须与 GitHub 为这个附件记录的 `size`、`digest`（`sha256:…`）一致才运行，否则删除并提示，什么也不装。安装程序没有代码签名，所以校验以 GitHub 的记录为准：能修改本仓库 Release 的人就能发布更新，请保护好 GitHub 账号（建议开启两步验证）。
 - **安装**：以 `--silent --update --launch --dir <当前安装目录>` 运行安装程序。它让外挂退出、原地覆盖，保持桌面快捷方式和开机待命原样，装完再启动外挂；新版本第一次运行时提示一次「已更新到 x.y.z」（`companion.ini` 的 `version` 记着上次运行的版本）。安装程序在动手前就失败时（例如没有写入权限）外挂不会退出，并提示查看 `%TEMP%\biubiu-ai-setup.log`。
 - **手动检查**：托盘菜单「检查更新」或 `ModelHarbor.exe --check-update`：有新版本时直接询问是否更新，没有时提示已是最新版本。
-- **发布时注意**：Release 一旦正式发布（非草稿、非预发布），所有装了 0.8.9 及以上版本的用户都会收到提醒，所以先建草稿核对标签、附件名和说明，再正式发布。0.8.8 没有更新检查，装了 0.8.8 的用户需要手动安装一次新版本。
+- **发布时注意**：Release 一旦正式发布（非草稿、非预发布），所有装了 0.8.9 及以上版本的用户都会收到提醒，所以先建草稿核对标签、附件名和说明，再正式发布（发版流程只建草稿，见下一节）。0.8.8 没有更新检查，装了 0.8.8 的用户需要手动安装一次新版本。
+
+## 发版（GitHub Actions）
+
+发新版 = 升版本号（只升最后一位；`package.json`、`app/lib/tools.mjs`、`app/lib/panel.html`、`app/host/app.manifest`、`app/host/ModelHarbor.cs` 几处一起改）+ 在 `CHANGELOG.md` 最上面写「## 版本号」这一段（写给用户看，`npm test` 检查当前版本有这一段）+ 推送到 `main`。之后 `.github/workflows/release.yml` 自动完成：
+
+1. **看版本号是不是新的**：`v<版本>` 已经正式发布过就什么都不做（只改文档、教程的推送不会发版）；只有草稿、或者还没有，就往下走。没有 CHANGELOG 这一段就报错，不发。
+2. **测试、编译、打安装程序**（`windows-latest`）：`build/companion-dev/release-deps.ps1` 取仓库里没有的三样第三方文件：WebView2 SDK（nuget.org，核对固定的 SHA-256）、所带 Node.js 的许可证（它在 github.com/nodejs/node 上的标签，核对固定的 SHA-256）、WebView2 运行时引导安装程序（微软官方地址，核对微软签名）；然后 `npm test`、`npm run app:installer`。Node.js 版本在工作流里固定（现在是 24.19.0），安装程序带的就是它；换版本时同时改脚本里许可证的哈希。
+3. **建 Release 草稿**：说明由 `build/companion-dev/release-notes.mjs` 按以往的格式生成：下载与安装、「这个版本」（取 CHANGELOG 里这一版，以及上一个正式版本之后没发出去的版本）、升级方法、系统要求、SHA-256。附件上传后核对 GitHub 记录的大小和 SHA-256 与刚打好的一致（已装的 biubiu AI 只装一致的安装程序）。同一版本号的旧草稿会先删掉重做，所以草稿没发布前，修了问题再推送一次即可。
+
+草稿建好后，在 Actions 这次运行的摘要里有草稿链接。核对说明和附件后，在草稿页点 **Edit → Publish release**，这一步才会推送给用户。发布后在本机重拍 `docs/images/github-release.png`（`node build/companion-dev/docs-shots.mjs --release`）。
+
+界面检查（`npm run app:smoke`、`app:site-check`、`app:installer-check`）要操作窗口、截图，只在本机跑：升版本号前先在本机跑通。也可以在本机预览说明：`node build/companion-dev/release-notes.mjs <版本> --setup dist/biubiuAI-Setup-<版本>.exe --since v<上一版>`。
 - **测试**：`npm run app:site-check` 离线检查 JSON 解析、Release 的读取（草稿、预发布、不是版本号的标签、别处的下载地址、别的版本的附件、缺 SHA-256 都不能一键更新）、版本比较和下载校验；`npm run app:installer-check` 用 `build/companion-dev/release-stand-in.mjs`（127.0.0.1 上的替身 latest Release，下载和 GitHub 一样经一次重定向）让装好的副本走完整个流程，并检查哈希不符时拒绝安装。`MODEL_HARBOR_UPDATE_URL` 指向替身地址（替身的下载地址只能是 `http://127.0.0.1:`，首次检查提前到启动后 3 秒），或设为 `off` 不检查（冒烟测试和教程截图脚本这样设置）。
 
 ## 运行要求

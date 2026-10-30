@@ -7,6 +7,7 @@ import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { VERSION } from '../lib/tools.mjs';
 import { APP_DIR, BIN_FILES, crc32, payloadEntries, releaseSource, serviceFiles, setupName, zip } from './package.mjs';
+import { CHANGELOG, changes, notes } from '../../build/companion-dev/release-notes.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = file => fs.readFile(path.join(APP_DIR, file), 'utf8');
@@ -111,4 +112,18 @@ test('the installer installs for the current user only, stays out of ZCode, and 
   // A folder with other files gets a biubiu AI folder of its own, so the uninstaller's clean-up never meets them.
   assert.ok(setup.includes('if (Directory.Exists(full) && !Holds(full) && !Empty(full)) return Path.Combine(full, Product.Name);'));
   for (const line of setup.split('\n').filter(l => l.includes('SetupLog.Write('))) assert.ok(!/[Kk]ey\b|token|password/.test(line.replace(/"[^"]*"/g, '""')), line.trim());
+});
+// The release workflow publishes nothing without the version's changes in CHANGELOG.md, so a version bump needs them.
+test('CHANGELOG.md has the changes of this version, and the release notes carry them with the installer SHA-256', async () => {
+  const changelog = await fs.readFile(CHANGELOG, 'utf8');
+  assert.match(changes(changelog, VERSION), /^- /);
+  const text = ['# 更新记录', '', '## 1.0.2', '', '- 二', '', '## 1.0.1', '', '- 一', '', '## 1.0.0', '', '- 零', '', '## 0.9', '', ''].join(String.fromCharCode(10));
+  assert.equal(changes(text, '1.0.2'), '- 二');
+  assert.equal(changes(text, '1.0.2', 'v1.0.0'), ['#### 1.0.2', '', '- 二', '', '#### 1.0.1', '', '- 一'].join(String.fromCharCode(10)), 'versions that never went out come along');
+  assert.throws(() => changes(text, '1.0.3'), /no section "## 1.0.3"/);
+  assert.throws(() => changes(text, '0.9'), /nothing under "## 0.9"/);
+  const sha256 = 'ab'.repeat(32), tick = String.fromCharCode(96);
+  const body = notes({ version: VERSION, changelog, setupName: setupName(VERSION), size: 38005248, sha256 });
+  for (const part of [`**${tick}${setupName(VERSION)}${tick}**（约 36 MB）`, changes(changelog, VERSION), `「更新到 ${VERSION}…」`, `SHA-256：${tick}${sha256}${tick}`]) assert.ok(body.includes(part), part);
+  assert.ok(!body.includes(String.fromCharCode(92) + 'n'), 'no literal backslash-n in the notes');
 });

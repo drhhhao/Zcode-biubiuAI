@@ -1,0 +1,136 @@
+# 发版：推送到 main 以后，如果 package.json 的版本号还没有正式发布过，就在 GitHub 的 Windows 机器上
+# 取第三方文件、跑测试、编译、打安装程序，建一个 Release 草稿（附 biubiuAI-Setup-<版本>.exe 和 SHA-256）。
+# 发新版 = 改版本号（AGENTS.md 列的几处）+ 在 CHANGELOG.md 写「## 版本号」这一段 + 推送。
+#
+# 只建草稿、不正式发布：正式发布后，所有 0.8.9 以上装好的 biubiu AI 都会把它当作新版本提醒用户，
+# 所以要人在 Releases 页面核对草稿（说明、附件、SHA-256）以后再点「Publish release」。
+# 草稿还没发出去，同一个版本号再推送会删掉旧草稿、重新做一个；已经正式发布的版本号不会再动。
+# 也可以在仓库网页的 Actions → 发版 → Run workflow 手动跑一遍。
+name: 发版
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 同时推了好几次就排队，一个一个来
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: 看版本号是不是新的
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      build: ${{ steps.v.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          # 草稿也要算上（只有有写权限的令牌看得到草稿）
+          state=$(gh api "repos/$GH_REPO/releases?per_page=100" --paginate --jq ".[] | select(.tag_name == \"$tag\") | if .draft then \"draft\" else \"published\" end" | sort -u | tr '\n' ' ')
+          case "$state" in
+            *published*) build=false; echo "$tag 已经正式发布过，这次什么都不做" ;;
+            *draft*) build=true; echo "$tag 有草稿还没发布，重新做一个" ;;
+            *) build=true; echo "$tag 是新版本" ;;
+          esac
+          # 每个新版本都要在 CHANGELOG.md 里写这一版改了什么，没写就不发
+          if [ "$build" = true ]; then node build/companion-dev/release-notes.mjs --check "$version"; fi
+          { echo "version=$version"; echo "tag=$tag"; echo "build=$build"; } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: 测试、编译、打安装程序
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: windows-latest
+    steps:
+      # 文件原样取出来（仓库里都是 LF），和本机打包用的一模一样
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      # 安装程序带的就是运行打包脚本的这个 Node.js，版本固定；
+      # 换版本时同时改 build/companion-dev/release-deps.ps1 里它的许可证哈希
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.19.0
+      # WebView2 SDK（核对 SHA-256）、Node.js 许可证（核对 SHA-256）、WebView2 运行时引导安装程序（核对微软签名）
+      - name: 取第三方文件
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build/companion-dev/release-deps.ps1
+      - name: 测试
+        run: npm test
+      - name: 编译并打安装程序
+        run: npm run app:installer
+      - name: 核对安装程序
+        shell: bash
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          file="dist/biubiuAI-Setup-$VERSION.exe"
+          if [ ! -f "$file" ]; then echo "::error::没生成 $file"; ls -l dist; exit 1; fi
+          cat "$file.sha256"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: setup
+          path: dist/biubiuAI-Setup-*.exe
+          if-no-files-found: error
+
+  draft:
+    name: 建 Release 草稿
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: setup
+          path: dist
+      - name: 建草稿
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.check.outputs.version }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          file="biubiuAI-Setup-$VERSION.exe"
+          sha=$(sha256sum "dist/$file" | cut -d' ' -f1)
+          size=$(stat -c %s "dist/$file")
+          # 上一个正式版本：CHANGELOG.md 里它之后、还没发布过的版本一起写进说明
+          prev=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2>/dev/null || true)
+          node build/companion-dev/release-notes.mjs "$VERSION" --setup "dist/$file" --since "$prev" --repo "$GH_REPO" --out notes.md
+          # 同一个版本号的旧草稿还没发出去，删掉重做
+          for id in $(gh api "repos/$GH_REPO/releases?per_page=100" --paginate --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .id"); do
+            echo "删掉旧草稿 $id"; gh api -X DELETE "repos/$GH_REPO/releases/$id"
+          done
+          gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "biubiu AI $VERSION" --notes-file notes.md "dist/$file"
+          # 已装好的 biubiu AI 只装大小和 SHA-256 都与 GitHub 记录一致的安装程序，这里先核对一遍
+          for try in 1 2 3 4 5; do
+            read -r got_size got_digest < <(gh api "repos/$GH_REPO/releases?per_page=100" --paginate --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .assets[] | select(.name == \"$file\") | \"\(.size) \(.digest)\"" | head -1) || true
+            if [ "$got_digest" = "sha256:$sha" ] || [ "$try" = 5 ]; then break; fi
+            sleep 5
+          done
+          if [ "$got_size" != "$size" ] || [ "$got_digest" != "sha256:$sha" ]; then
+            echo "::error::GitHub 记录的附件（$got_size 字节，$got_digest）和刚打好的（$size 字节，sha256:$sha）对不上"; exit 1
+          fi
+          page=$(gh api "repos/$GH_REPO/releases?per_page=100" --paginate --jq ".[] | select(.tag_name == \"$TAG\" and .draft) | .html_url" | head -1)
+          {
+            echo "## biubiu AI $VERSION 的草稿建好了"
+            echo
+            echo "- 草稿：$page"
+            echo "- 附件：\`$file\`（$size 字节）"
+            echo "- SHA-256：\`$sha\`（与 GitHub 的记录一致）"
+            echo
+            echo "核对说明和附件后，在草稿页点 **Edit** → **Publish release**。发布后所有 0.8.9 以上的 biubiu AI 都会提醒用户更新。"
+          } >> "$GITHUB_STEP_SUMMARY"
