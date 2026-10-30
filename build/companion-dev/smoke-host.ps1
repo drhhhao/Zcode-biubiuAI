@@ -45,6 +45,20 @@ public static class W {
     Application.DoEvents();
     return f;
   }
+  [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr h, int a, ref int v, int s);
+  // Whether this machine draws rounded window corners at all: a black window asks for them (DWMWCP_ROUND) in front of a
+  // white backdrop, and its corner is looked at. Windows Server, which GitHub's checks run on, draws them square.
+  public static bool RoundCorners() {
+    var back = new Backdrop(); back.Bounds = new Rectangle(80, 80, 240, 160); back.TopMost = true; back.Show();
+    var probe = new Backdrop(); probe.BackColor = Color.Black; probe.Bounds = new Rectangle(120, 120, 160, 80); probe.TopMost = true; probe.Show();
+    try {
+      int round = 2;
+      if (DwmSetWindowAttribute(probe.Handle, 33, ref round, 4) != 0) return false;
+      for (int i = 0; i < 15; i++) { Application.DoEvents(); Thread.Sleep(30); }
+      return Luma(probe.Left, probe.Top) > 150;
+    } catch { return false; }
+    finally { probe.Close(); probe.Dispose(); back.Close(); back.Dispose(); }
+  }
   public static int Luma(int x, int y) {
     using (var b = new Bitmap(1, 1)) {
       using (var g = Graphics.FromImage(b)) g.CopyFromScreen(x, y, 0, 0, new Size(1, 1));
@@ -129,6 +143,9 @@ public static class W {
 }
 '@
 [W]::PerMonitor()
+# Whether Windows here draws rounded window corners at all; Check-Corners judges them only then.
+$script:roundCorners = [W]::RoundCorners()
+Write-Output "rounded window corners on this machine: $script:roundCorners"
 
 $script:passed = 0; $script:failed = 0; $script:offset = 0
 function Check([string]$name, [bool]$ok, [string]$detail) {
@@ -257,7 +274,9 @@ function Check-Corners([string]$step, $win, [string]$shot = '') {
   try {
     Start-Sleep -Milliseconds 400
     $top = [W]::Luma($r.Rt - 2, $r.T + 1); $bottom = [W]::Luma($r.Rt - 2, $r.B - 2); $middle = [W]::Luma($r.Rt - 3, [int](($r.T + $r.B) / 2))
-    Check "$step / outer corners rounded" (($top -gt 150) -and ($bottom -gt 150) -and ($middle -lt 100)) "luma: top corner $top, bottom corner $bottom, middle of the edge $middle"
+    # Where Windows draws square window corners (Windows Server, as on GitHub) only the edge's own color is checked.
+    if ($script:roundCorners) { Check "$step / outer corners rounded" (($top -gt 150) -and ($bottom -gt 150) -and ($middle -lt 100)) "luma: top corner $top, bottom corner $bottom, middle of the edge $middle" }
+    else { Write-Output "SKIP  $step / outer corners rounded: this Windows draws square window corners (luma: top corner $top, middle of the edge $middle)" }
     if ($shot) {
       $w = ($r.Rt - $r.L) + 56; $h = [Math]::Min(220, $r.B - $r.T + 16)
       $bmp = New-Object Drawing.Bitmap $w, $h

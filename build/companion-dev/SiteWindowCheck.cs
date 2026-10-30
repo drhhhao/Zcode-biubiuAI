@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -118,6 +119,7 @@ static class SiteWindowCheck
         Rectangle work = Screen.PrimaryScreen.WorkingArea;
         Color backdrop = Color.FromArgb(0x3D, 0x7E, 0xC9);
         var shots = new List<Bitmap>();
+        bool roundCorners = DrawsRoundCorners(work, backdrop);
         foreach (bool dark in new[] { false, true })
         {
             string theme = dark ? "dark" : "light";
@@ -167,7 +169,9 @@ static class SiteWindowCheck
                     for (int i = 1; i < rows.Count; i++) stacked &= rows[i].Bounds.Top == rows[i - 1].Bounds.Bottom;
                     foreach (var row in new ToolStripItem[] { toggle, reload, right, left, startup, logs, updates }) stacked &= row.Height == menu.Px(TrayMenu.RowHeight);
                     Report(theme, "rows", stacked, string.Join(" ", rows.ConvertAll(r => r.Bounds.Top + "+" + r.Height)) + " in " + menu.Height);
-                    Report(theme, "rounded", !menu.Rounded || (Near(pixel(0, 0), backdrop, 60) && Near(pixel(menu.Width / 2, menu.Px(3)), paper, 3)),
+                    // Judged only where Windows draws rounded corners at all; elsewhere it says so instead of ok.
+                    if (menu.Rounded && !roundCorners) Console.WriteLine("menu " + theme + " rounded square-system");
+                    else Report(theme, "rounded", !menu.Rounded || (Near(pixel(0, 0), backdrop, 60) && Near(pixel(menu.Width / 2, menu.Px(3)), paper, 3)),
                         pixel(0, 0) + " at the corner, " + pixel(menu.Width / 2, menu.Px(3)) + " on the edge");
                     Report(theme, "paper", Near(pixel(far, middle(reload)), paper, 3), pixel(far, middle(reload)).ToString());
                     Report(theme, "no-column", Near(pixel(menu.Px(10), middle(reload)), paper, 3), pixel(menu.Px(10), middle(reload)).ToString());
@@ -285,6 +289,30 @@ static class SiteWindowCheck
         // Only a copy the installer put in place looks for updates; a development build never does.
         say("only-installed-copies", !Updates.Enabled, Updates.InstallDir);
         return 0;
+    }
+
+    [DllImport("dwmapi.dll")] static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    // Whether this machine draws rounded window corners at all: a white window of our own asks for them (Windows 11's
+    // DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND), as the menu does, in front of the backdrop, and its corner is looked
+    // at. Windows Server, which GitHub's checks run on, takes the request and still draws the corners square.
+    static bool DrawsRoundCorners(Rectangle work, Color backdrop)
+    {
+        var area = new Rectangle(work.Left + 60, work.Top + 60, 240, 160);
+        using (var back = new Backdrop(backdrop, area) { TopMost = true })
+        using (var probe = new Backdrop(Color.White, new Rectangle(area.Left + 40, area.Top + 40, 160, 80)) { TopMost = true })
+        {
+            back.Show();
+            probe.Show();
+            int round = 2;
+            try { if (DwmSetWindowAttribute(probe.Handle, 33, ref round, sizeof(int)) != 0) return false; } catch { return false; }
+            for (int i = 0; i < 15; i++) { Application.DoEvents(); Thread.Sleep(30); }
+            using (var shot = new Bitmap(1, 1))
+            {
+                using (var g = Graphics.FromImage(shot)) g.CopyFromScreen(probe.Left, probe.Top, 0, 0, new Size(1, 1));
+                return Near(shot.GetPixel(0, 0), backdrop, 60);
+            }
+        }
     }
 
     static bool Near(Color a, Color b, int tolerance)

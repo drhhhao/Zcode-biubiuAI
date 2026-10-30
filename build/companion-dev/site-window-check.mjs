@@ -182,7 +182,9 @@ try {
     const ok = (...names) => saw(...names).every(result => result === 'ok');
     check(`${theme} tray menu: stays where the tray placed it`, ok('placed'), saw('placed').join());
     check(`${theme} tray menu: rows stacked evenly`, ok('rows'), saw('rows').join());
-    check(`${theme} tray menu: rounded corners`, ok('rounded'), saw('rounded').join());
+    // A machine whose Windows draws square window corners (Windows Server, as on GitHub) cannot show rounded ones.
+    if (seen[`${theme} rounded`] === 'square-system') console.log(`SKIP  ${theme} tray menu: rounded corners  this Windows draws square window corners`);
+    else check(`${theme} tray menu: rounded corners`, ok('rounded'), saw('rounded').join());
     check(`${theme} tray menu: on the panel's paper, no gray column`, ok('paper', 'no-column'), saw('paper', 'no-column').join(' / '));
     check(`${theme} tray menu: only the row under the pointer is washed`, ok('wash'), saw('wash').join());
     check(`${theme} tray menu: the title row shows the mark`, ok('mark'), saw('mark').join());
