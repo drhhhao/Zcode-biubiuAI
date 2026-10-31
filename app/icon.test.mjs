@@ -69,7 +69,7 @@ test('the paths are plain absolute M, L, C and Z', () => {
 });
 
 test('the host and the panel carry the same mark as logo.mjs', async () => {
-  const cs = await read('app/host/ModelHarbor.cs');
+  const cs = await read('app/host/BiubiuAI.cs');
   const logo = cs.slice(cs.indexOf('static class Logo'), cs.indexOf('static class Locate'));
   assert.ok(logo.includes(`public const string Hand = "${LOGO.hand}";`), 'host hand path');
   assert.ok(logo.includes(`public const float HandWidth = ${LOGO.handWidth}f;`));
@@ -90,7 +90,7 @@ test('the host and the panel carry the same mark as logo.mjs', async () => {
   assert.ok(footer.includes(`viewBox="${LOGO.markBox.join(' ')}"`), 'panel mark box');
   assert.ok(footer.includes(`d="${LOGO.hand}" fill="none" stroke="currentColor" stroke-width="${LOGO.handWidth}"`), 'panel hand, in the text colour');
   for (const d of LOGO.sparkles) assert.ok(footer.includes(`d="${d}" fill="${LOGO.colors.accent}"`), 'panel sparkle');
-  assert.match(footer, /<span>biubiu AI v\d+\.\d+\.\d+<\/span><button class="link update" id="updateLink" type="button" hidden><\/button>$/);
+  assert.match(footer, /<span>biubiu AI v\d+\.\d+\.\d+<\/span><button class="link tourlink" id="tourLink" type="button" hidden>使用教程<\/button><button class="link update" id="updateLink" type="button" hidden><\/button>$/);
 });
 
 test('the build embeds the icon and writes it beside the exe', async () => {
@@ -102,15 +102,37 @@ test('the build embeds the icon and writes it beside the exe', async () => {
 });
 
 test('the old name appears nowhere the user or a developer reads', async () => {
-  const files = ['README.md', 'AGENTS.md', 'package.json', 'app/build.mjs', 'app/icon.mjs', 'app/preview.mjs', 'app/server.mjs', 'app/server.test.mjs', 'app/host/ModelHarbor.cs', 'app/host/app.manifest',
+  const files = ['README.md', 'AGENTS.md', 'package.json', 'app/build.mjs', 'app/icon.mjs', 'app/preview.mjs', 'app/server.mjs', 'app/server.test.mjs', 'app/host/BiubiuAI.cs', 'app/host/app.manifest',
     'build/companion-dev/smoke-host.ps1', 'build/companion-dev/verify.mjs', 'build/companion-dev/live-zcode.ps1', 'build/companion-dev/site-window-check.mjs', 'build/companion-dev/SiteWindowCheck.cs', 'build/companion-dev/logo-design.mjs',
     'app/installer/Setup.cs', 'app/installer/setup.manifest', 'app/installer/package.mjs', 'app/installer/package.test.mjs', 'build/companion-dev/installer-check.ps1',
     'app/demo.mjs', 'docs/tutorial.md', 'docs/development.md', 'build/companion-dev/docs-shots.mjs', 'build/companion-dev/docs-installer.ps1', 'build/companion-dev/window-helpers.ps1'];
   for (const name of await fs.readdir(path.join(appDir, 'lib'))) files.push(`app/lib/${name}`);
-  const old = ['\u6a21\u578b\u6e2f', 'Model Harbor'];
+  const old = ['\u6a21\u578b\u6e2f', ['Model', 'Harbor'].join(' ')];
   for (const file of files) {
     let text;
     try { text = await read(file); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
     for (const word of old) assert.ok(!text.includes(word), `${file} still says ${word}`);
   }
+});
+
+// Inside, biubiu AI took the names BiubiuAI, biubiu-ai and BIUBIU_AI_ in 0.8.13. The project's old working name is left
+// only where an install from 0.8.12 or earlier is carried over (the Legacy classes and LEGACY_ constants), in the tests of
+// that, and where the docs name the uninstalled plugin's folder in ZCode's own cache, which ZCode keeps under that name.
+test('the old working name is left only where an earlier install is carried over', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const old = new RegExp(['model', '[-_ ]?', 'biubiu'].join(''), 'i');
+  const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(f => f && !/\.(png|jpe?g|exe|ico|dll|zip)$/i.test(f));
+  const legacyBlock = text => { const at = text.indexOf('static class Legacy'); return at < 0 ? '' : text.slice(at, text.indexOf('\n    }\n', at)); };
+  const allowed = (file, line, text) => (/\.cs$/.test(file) && legacyBlock(text).includes(line))
+    || /^\s*(const LEGACY_(AAD|BACKUP_FOLDER) = |if \(.*\) this\.legacyDir = )/.test(line)
+    || (/\.(test\.mjs|ps1)$/.test(file) && /legacy|Legacy/.test(line))
+    || /dev-huaweiyun-excel-a7abdff0|huaweiyun_excel\/_incoming\/|已卸载的插件缓存目录/.test(line);
+  const left = [];
+  for (const file of files) {
+    let text;
+    try { text = await read(file); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+    if (/\.(cs|mjs|ps1|md|json|html|manifest|config|yml)$/i.test(file) === false && !old.test(text)) continue;
+    text.split('\n').forEach((line, i) => { if (old.test(line) && !allowed(file, line, text)) left.push(`${file}:${i + 1}: ${line.trim().slice(0, 120)}`); });
+  }
+  assert.deepEqual(left, []);
 });

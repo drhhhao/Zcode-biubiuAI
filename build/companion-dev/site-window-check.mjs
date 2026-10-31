@@ -1,5 +1,5 @@
 // Checks the companion's site window (SiteForm) in a real WebView2 against a stand-in site, without the real site or any
-// account: compiles SiteWindowCheck.cs against the built ModelHarbor.exe into a temporary folder, serves a stand-in site
+// account: compiles SiteWindowCheck.cs against the built BiubiuAI.exe into a temporary folder, serves a stand-in site
 // on 127.0.0.1, lets the window open it, and judges what the stand-in's page and server saw:
 //   - the page starts with the placeholder sign-in: no access token, the window's marker for the refresh token;
 //   - a renewal with the marker is answered by the window: twice with a token (and the marker again), then 401 when
@@ -14,7 +14,7 @@
 // harness's own, it must stay where it was placed, stack its rows evenly, round its corners (Windows 11), lie on the
 // panel's paper without a gray column, wash only the row under the pointer, and show the mark, the chosen side and the
 // startup box; both captures are saved as build/companion-dev/tray-menu.png.
-// Usage: node build/companion-dev/site-window-check.mjs   (MODEL_HARBOR_EXE picks another build than app/bin)
+// Usage: node build/companion-dev/site-window-check.mjs   (BIUBIU_AI_EXE picks another build than app/bin)
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
@@ -25,14 +25,14 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..', '..');
-const exe = process.env.MODEL_HARBOR_EXE || path.join(root, 'app', 'bin', 'ModelHarbor.exe');
+const exe = process.env.BIUBIU_AI_EXE || path.join(root, 'app', 'bin', 'BiubiuAI.exe');
 const sdk = path.join(root, 'build', 'webview2-sdk', 'pkg-1.0.4314.35');
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => { if (ok) passed++; else failed++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`); };
 
 // As app/build.mjs finds it.
 function findCsc() {
-  if (process.env.MODEL_HARBOR_CSC) return process.env.MODEL_HARBOR_CSC;
+  if (process.env.BIUBIU_AI_CSC) return process.env.BIUBIU_AI_CSC;
   for (const base of [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].filter(Boolean)) {
     const vs = path.join(base, 'Microsoft Visual Studio');
     if (!existsSync(vs)) continue;
@@ -43,7 +43,7 @@ function findCsc() {
         if (existsSync(csc)) return csc;
       }
   }
-  throw new Error('Roslyn csc.exe not found; set MODEL_HARBOR_CSC');
+  throw new Error('Roslyn csc.exe not found; set BIUBIU_AI_CSC');
 }
 
 const page = `<!doctype html><meta charset="utf-8"><title>Stand-in site</title><body>stand-in site
@@ -97,20 +97,20 @@ try {
   // Compile the harness against the built host, beside copies of it and the WebView2 libraries.
   const bin = path.join(tmp, 'bin');
   await fs.mkdir(bin);
-  for (const [from, name] of [[exe, 'ModelHarbor.exe'], [path.join(sdk, 'lib', 'net462', 'Microsoft.Web.WebView2.Core.dll')], [path.join(sdk, 'lib', 'net462', 'Microsoft.Web.WebView2.WinForms.dll')], [path.join(sdk, 'runtimes', 'win-x64', 'native', 'WebView2Loader.dll')]])
+  for (const [from, name] of [[exe, 'BiubiuAI.exe'], [path.join(sdk, 'lib', 'net462', 'Microsoft.Web.WebView2.Core.dll')], [path.join(sdk, 'lib', 'net462', 'Microsoft.Web.WebView2.WinForms.dll')], [path.join(sdk, 'runtimes', 'win-x64', 'native', 'WebView2Loader.dll')]])
     await fs.copyFile(from, path.join(bin, name || path.basename(from)));
   const framework = path.join(process.env.WINDIR || 'C:\\Windows', 'Microsoft.NET', 'Framework64', 'v4.0.30319');
   // With the host's manifest and settings, so the harness is DPI-aware like the companion and draws at its scale.
-  await fs.copyFile(path.join(root, 'app', 'host', 'ModelHarbor.exe.config'), path.join(bin, 'SiteWindowCheck.exe.config'));
+  await fs.copyFile(path.join(root, 'app', 'host', 'BiubiuAI.exe.config'), path.join(bin, 'SiteWindowCheck.exe.config'));
   const compiled = spawnSync(findCsc(), ['/nologo', '/target:winexe', '/platform:x64', '/langversion:7.3', '/codepage:65001', `/out:${path.join(bin, 'SiteWindowCheck.exe')}`, `/lib:${framework}`, `/win32manifest:${path.join(root, 'app', 'host', 'app.manifest')}`,
-    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', `/r:${path.join(bin, 'ModelHarbor.exe')}`, `/r:${path.join(bin, 'Microsoft.Web.WebView2.Core.dll')}`, `/r:${path.join(bin, 'Microsoft.Web.WebView2.WinForms.dll')}`,
+    '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Windows.Forms.dll', `/r:${path.join(bin, 'BiubiuAI.exe')}`, `/r:${path.join(bin, 'Microsoft.Web.WebView2.Core.dll')}`, `/r:${path.join(bin, 'Microsoft.Web.WebView2.WinForms.dll')}`,
     path.join(here, 'SiteWindowCheck.cs')], { encoding: 'utf8' });
   check('harness compiles against the built host', compiled.status === 0, compiled.status === 0 ? '' : compiled.stdout + compiled.stderr);
   if (compiled.status !== 0) throw new Error('compile failed');
 
   // The host's log goes to the temporary data folder, never the real one.
   const data = path.join(tmp, 'data');
-  child = spawn(path.join(bin, 'SiteWindowCheck.exe'), [origin, path.join(tmp, 'webview')], { env: { ...process.env, MODEL_HARBOR_DATA_DIR: data }, stdio: ['pipe', 'pipe', 'pipe'] });
+  child = spawn(path.join(bin, 'SiteWindowCheck.exe'), [origin, path.join(tmp, 'webview')], { env: { ...process.env, BIUBIU_AI_DATA_DIR: data }, stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.on('data', b => { out += b; });
   child.stderr.on('data', b => { out += b; });
   const deadline = Date.now() + 45000;
@@ -122,7 +122,7 @@ try {
   const marker = first?.session?.refreshToken || '';
   check('the window opened the stand-in site', Boolean(first), out.trim().split('\n').slice(-3).join(' | '));
   if (first) {
-    check('the page starts with the placeholder sign-in', first.session?.sessionId === 'model-harbor' && first.session?.version === 1 && first.session?.accessToken === null && /^model-harbor-[0-9a-f]{48}$/.test(marker), JSON.stringify({ ...first.session, refreshToken: marker ? '(marker)' : marker }));
+    check('the page starts with the placeholder sign-in', first.session?.sessionId === 'biubiu-ai' && first.session?.version === 1 && first.session?.accessToken === null && /^biubiu-ai-[0-9a-f]{48}$/.test(marker), JSON.stringify({ ...first.session, refreshToken: marker ? '(marker)' : marker }));
     check('older stored tokens are cleared', first.legacy[0] === null && first.legacy[1] === null);
     check('the page cannot message the host', first.webview !== 'sent' || !out.includes('host got a message'), `page ${first.webview}, host ${out.includes('host got a message') ? 'got it' : 'got nothing'}`);
     check('a marked renewal gets a token and the marker again', first.r1.status === 200 && first.r1.body?.accessToken === 'harness-token-1' && first.r1.body?.refreshToken === marker, `status ${first.r1.status}`);
@@ -145,7 +145,7 @@ try {
 
   // The real pipe: how the host reads Node's answers, then the real app/server.mjs over its stdin, signed out in a
   // temporary data folder (no saved sign-in, a temporary config), so nothing reaches any site.
-  const piped = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--pipe'], { encoding: 'utf8', timeout: 60000, env: { ...process.env, MODEL_HARBOR_DATA_DIR: path.join(tmp, 'pipe-data'), MODEL_HARBOR_APP_SERVER: path.join(root, 'app', 'server.mjs'), MODEL_HARBOR_CONFIG_PATH: path.join(tmp, 'provider_config.json'), MODEL_HARBOR_REFRESH_CATALOG: '0' } });
+  const piped = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--pipe'], { encoding: 'utf8', timeout: 60000, env: { ...process.env, BIUBIU_AI_DATA_DIR: path.join(tmp, 'pipe-data'), BIUBIU_AI_APP_SERVER: path.join(root, 'app', 'server.mjs'), BIUBIU_AI_CONFIG_PATH: path.join(tmp, 'provider_config.json'), BIUBIU_AI_REFRESH_CATALOG: '0' } });
   const said = Object.fromEntries((piped.stdout || '').split(/\r?\n/).filter(Boolean).map(line => { const [kind, name, ...rest] = line.split(' '); return [`${kind} ${name}`, rest.join(' ')]; }));
   check('the host reads a token answer', said['parse token'] === '3 token (same)', said['parse token']);
   check('the host reads a signed-out answer', said['parse signed-out'] === '4 signed-out', said['parse signed-out']);
@@ -158,8 +158,8 @@ try {
   check('after the server stops, asking fails at once', said['ask after-stop'] === 'failed', said['ask after-stop']);
 
   // The update check, offline, as a development build (no stand-in release address).
-  const { MODEL_HARBOR_UPDATE_URL: _, ...plain } = process.env;
-  const updates = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--updates'], { encoding: 'utf8', timeout: 60000, env: { ...plain, MODEL_HARBOR_DATA_DIR: path.join(tmp, 'update-data') } });
+  const { BIUBIU_AI_UPDATE_URL: _, ...plain } = process.env;
+  const updates = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--updates'], { encoding: 'utf8', timeout: 60000, env: { ...plain, BIUBIU_AI_DATA_DIR: path.join(tmp, 'update-data') } });
   const told = Object.fromEntries((updates.stdout || '').split(/\r?\n/).filter(line => line.startsWith('update ')).map(line => { const [, name, ...rest] = line.split(' '); return [name, rest.join(' ')]; }));
   const cases = {
     'json-values': 'JSON values, escapes and numbers are read', 'json-refuses': 'text that is not JSON is refused',
@@ -174,7 +174,7 @@ try {
 
   // The tray icon's menu, light and dark.
   const shot = path.join(here, 'tray-menu.png');
-  const menu = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--menu', shot], { encoding: 'utf8', timeout: 60000, env: { ...process.env, MODEL_HARBOR_DATA_DIR: path.join(tmp, 'menu-data') } });
+  const menu = spawnSync(path.join(bin, 'SiteWindowCheck.exe'), ['--menu', shot], { encoding: 'utf8', timeout: 60000, env: { ...process.env, BIUBIU_AI_DATA_DIR: path.join(tmp, 'menu-data') } });
   const seen = Object.fromEntries((menu.stdout || '').split(/\r?\n/).filter(line => line.startsWith('menu ')).map(line => { const [, theme, name, ...rest] = line.split(' '); return [`${theme} ${name}`, rest.join(' ')]; }));
   check('the tray menu opened in both themes', menu.status === 0 && Object.keys(seen).length === 18, menu.status === 0 ? `${Object.keys(seen).length} results` : (menu.stdout || '') + (menu.stderr || '') + (menu.error ? menu.error.message : ''));
   for (const theme of ['light', 'dark']) {

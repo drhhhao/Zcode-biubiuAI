@@ -71,14 +71,18 @@ test('the zip holds each file whole under its UTF-8 name, and the same files mak
 });
 
 test('the installer and the companion agree on the companion\'s names, and the host runs the Node.js beside bin', async () => {
-  const setup = await read('installer/Setup.cs'), host = await read('host/ModelHarbor.cs');
+  const setup = await read('installer/Setup.cs'), host = await read('host/BiubiuAI.cs');
   const value = (source, pattern) => { const m = source.match(pattern); assert.ok(m, String(pattern)); return m[1]; };
   assert.equal(value(setup, /QuitEvent = @"([^"]+)"/), value(host, /QuitEventName = @"([^"]+)"/));
   assert.equal(value(setup, /Mutex = @"([^"]+)"/), value(host, /MutexName = @"([^"]+)"/));
   assert.equal(value(setup, /RunValue = "([^"]+)"/), value(host, /const string ValueName = "([^"]+)"/));
   assert.equal(value(setup, /RunKey = @"([^"]+)"/), value(host, /const string RunKey = @"([^"]+)"/));
-  assert.ok(setup.includes('Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelHarbor")') && host.includes('Environment.SpecialFolder.LocalApplicationData), "ModelHarbor")'), 'the same data folder');
-  assert.ok(setup.includes('public const string Exe = "ModelHarbor.exe";') && setup.includes('return Path.Combine(dir, "bin", Exe);'));
+  assert.ok(setup.includes('Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "biubiu AI")') && host.includes('public const string DataFolder = "biubiu AI";'), 'the same data folder');
+  // Up to 0.8.12 the names were the project's old working name: both sides know the same old ones, to carry an install over.
+  const legacy = [['data folder', /LocalApplicationData\), "(ModelHarbor)"\)/], ['quit event', /QuitEvent(?:Name)? = @"(Local\\ModelHarbor\.Companion\.Quit)"/], ['startup entry', /RunValue = "(ModelHarbor Companion)"/]];
+  for (const [name, pattern] of legacy)
+    assert.equal(value(setup.slice(setup.indexOf('static class Legacy')), pattern), value(host.slice(host.indexOf('static class Legacy')), pattern), name);
+  assert.ok(setup.includes('public const string Exe = "BiubiuAI.exe";') && setup.includes('return Path.Combine(dir, "bin", Exe);'));
   // bin beside the service, and node beside bin: where Locate looks before PATH.
   assert.ok(host.includes('string bundled = Path.GetFullPath(Path.Combine(Paths.AppDir, "..", "node", "node.exe"));'));
   assert.ok(host.indexOf('string bundled =') < host.indexOf('Environment.GetEnvironmentVariable("PATH")'), 'the bundled runtime comes before PATH');
@@ -107,8 +111,18 @@ test('the installer installs for the current user only, stays out of ZCode, and 
   assert.ok(setup.includes('if (desktop == true) Shortcut.Create(Product.DesktopLink, exe);') && setup.includes('else if (desktop == false && Shortcut.PointsInto(Product.DesktopLink, dir)) TryDelete(Product.DesktopLink);'));
   // Paths from the zip or the list never leave the install folder, and the data folder goes only when asked.
   assert.ok(setup.includes('if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException('));
-  assert.match(setup, /if \(removeData\)\s*\{[^}]*Directory\.Delete\(Product\.DataDir, true\)/);
-  assert.equal(setup.split('Directory.Delete(Product.DataDir').length, 2, 'one place deletes the data folder');
+  assert.match(setup, /if \(removeData\)\s*\{[^}]*foreach \(var data in new\[\] \{ Product\.DataDir, Legacy\.DataDir \}\)[^}]*\{[^}]*Directory\.Delete\(data, true\)/, 'the data folder, under the new name or the old one, only when asked');
+  assert.deepEqual([...setup.matchAll(/Directory\.Delete\((\w+), true\)/g)].map(m => m[1]).sort(), ['data', 'temp'], 'one place deletes the data folder, the other its own temp folder');
+  // An update from an old-named install leaves one entry in Settings > Apps, a desktop shortcut and a startup entry that
+  // start the renamed program, and quits the old program by its old names.
+  assert.ok(setup.includes('else if (desktop == null && Shortcut.PointsInto(Product.DesktopLink, dir)) Shortcut.Create(Product.DesktopLink, exe);'));
+  assert.ok(setup.includes('else if (startup == null && StartupPointsInto(dir, Legacy.RunValue, Legacy.ExeIn(dir))) RunQuiet(exe, "--migrate-startup");'));
+  assert.ok(setup.includes('DropLegacyEntry(dir);') && setup.includes('Registry.CurrentUser.DeleteSubKeyTree(Legacy.UninstallKey, false);'));
+  assert.ok(setup.includes('foreach (var name in new[] { Product.QuitEvent, Legacy.QuitEvent })') && setup.includes('return Held(Product.Mutex) || Held(Legacy.Mutex);'));
+  assert.ok(setup.includes('return From(Product.UninstallKey) ?? From(Legacy.UninstallKey);'));
+  // After the companion quits, files are replaced or deleted only once nothing runs from the install folder any more.
+  assert.equal(setup.split('Running.Settle(dir, 10000);').length, 3, 'installing and uninstalling both wait');
+  for (const at of ['再重新安装。");\n            Running.Settle(dir, 10000);', '再卸载。");\n            Running.Settle(dir, 10000);']) assert.ok(setup.includes(at), at);
   // A folder with other files gets a biubiu AI folder of its own, so the uninstaller's clean-up never meets them.
   assert.ok(setup.includes('if (Directory.Exists(full) && !Holds(full) && !Empty(full)) return Path.Combine(full, Product.Name);'));
   for (const line of setup.split('\n').filter(l => l.includes('SetupLog.Write('))) assert.ok(!/[Kk]ey\b|token|password/.test(line.replace(/"[^"]*"/g, '""')), line.trim());

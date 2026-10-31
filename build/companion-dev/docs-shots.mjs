@@ -4,7 +4,8 @@
 // the real ZCode configuration or the network. The overview is a schematic: a plain frame for ZCode beside a real panel shot.
 // --release photographs the latest GitHub release instead, through the system proxy Edge uses, or through HTTPS_PROXY
 // when that is set (for a system proxy that is switched off).
-// Usage: node build/companion-dev/docs-shots.mjs [--release]
+// --tour photographs only 使用教程, the guide a new user meets (the panel shots include it too).
+// Usage: node build/companion-dev/docs-shots.mjs [--release | --tour]
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -13,17 +14,19 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createAppServer } from '../../app/server.mjs';
-import { Harbor } from '../../app/lib/core.mjs';
+import { BiubiuAI } from '../../app/lib/core.mjs';
 import { MetadataCatalog } from '../../app/lib/metadata.mjs';
 import { Site } from '../../app/lib/site.mjs';
 import { DEMO, DEMO_SERVICE, demoBackend } from '../../app/demo.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const out = path.join(root, 'docs', 'images');
-const EDGE = process.env.MODEL_HARBOR_EDGE || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+const EDGE = process.env.BIUBIU_AI_EDGE || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const REPO = 'https://github.com/drhhhao/Zcode-biubiuAI';
 // The web view inside a 420-pixel panel, beside its 6-pixel grip and 12-pixel collapse bar.
 const WIDTH = 402, HEIGHT = 900;
+// The guide's shots show the panel as a window of about this height.
+const TOUR_HEIGHT = 720;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function freePort() {
@@ -60,6 +63,13 @@ class Page {
     const band = await this.run(`(() => { const top = ${from ? `${edge(from, 'top')} - ${margin}` : '0'}; return { y: Math.max(0, top), bottom: ${edge(to, 'bottom')} + ${margin} }; })()`);
     const clip = { x: 0, y: band.y, width, height: band.bottom - band.y, scale: 1 };
     const { data } = await this.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip });
+    await fs.writeFile(path.join(out, file), Buffer.from(data, 'base64'));
+    console.log(`  ${file}`);
+  }
+  // What the panel shows now, as it is on screen: for the guide, whose dimming and card stay put while the page scrolls.
+  async screen(file) {
+    await sleep(450);
+    const { data } = await this.send('Page.captureScreenshot', { format: 'png' });
     await fs.writeFile(path.join(out, file), Buffer.from(data, 'base64'));
     console.log(`  ${file}`);
   }
@@ -106,109 +116,150 @@ async function withEdge(work, { proxy = '' } = {}) {
   }
 }
 
-async function panelShots() {
+// The real panel served from a temporary folder with the demo backend, handed to work with its address and server state.
+async function withPanel(work) {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-docs-'));
   const configPath = path.join(tmp, 'provider_config.json');
   await fs.writeFile(configPath, JSON.stringify({ schemaVersion: 1, config: { providerOrder: [], providerConfigRules: { providerRules: [] }, modelConfigRules: { providerModelRules: [], manualProviderModelRules: [] } } }));
   const demo = demoBackend(), offline = () => Promise.reject(new Error('the tutorial shots stay offline'));
   const site = new Site({ fetchImpl: (url, options) => demo.isDemo(options) ? demo.siteFetch(url, options) : offline() });
-  const harbor = new Harbor({ configPath, site, fetchImpl: (url, options) => demo.serviceFetch(url, options) || offline(), metadataCatalog: new MetadataCatalog({ dataDir: path.join(tmp, 'cache'), zcodeDir: tmp, refresh: false }) });
+  const biubiu = new BiubiuAI({ configPath, site, fetchImpl: (url, options) => demo.serviceFetch(url, options) || offline(), metadataCatalog: new MetadataCatalog({ dataDir: path.join(tmp, 'cache'), zcodeDir: tmp, refresh: false }) });
   const token = crypto.randomBytes(24).toString('hex');
-  const { server, state } = createAppServer({ harbor, token });
+  const { server, state } = createAppServer({ biubiu, token });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}/?k=${token}`;
-  try {
-    await withEdge(async page => {
-      await page.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HELPERS });
-      await page.view(WIDTH, HEIGHT);
-      await page.go(url);
-      await page.until('__docs.shown("#siteLogin")', 'the sign-in form');
-      await page.shot('panel-site-login.png', { to: '.ver', margin: 24 });
-
-      // Signed in to the demo account: balance, groups, keys.
-      await page.run(`__docs.fill('#siteEmail', ${JSON.stringify(DEMO.email)}) && __docs.fill('#sitePassword', ${JSON.stringify(DEMO.password)}) && __docs.click(document.querySelector('#siteLoginBtn'))`);
-      await page.until('__docs.shown("#siteAccount") && document.querySelectorAll("#siteGroups .grow").length > 0 && document.querySelectorAll("#siteKeys .svc").length > 0', 'the account');
-      await page.run('scrollTo(0, 0), true');
-      await page.shot('panel-site-account.png', { to: '#siteGroupsPart', margin: 16 });
-      await page.shot('panel-site-keys.png', { from: ':has(> #siteKeyCount)', to: '.ver', margin: 16 });
-
-      // 添加分组 on a group without a key: the panel asks before making one, then adds every model of the group.
-      const row = `[...document.querySelectorAll('#siteGroups .grow')].find(r => r.querySelector('.gname')?.textContent === 'Claude Pro')`;
-      await page.run(`__docs.click(${row}.querySelector('.gact button'))`);
-      await page.until(`Boolean(${row}?.querySelector('.gask'))`, 'the question under the group');
-      await page.shot('panel-group-ask.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
-      await page.run(`__docs.click(__docs.byText('button', '新建 Key 并选择模型', ${row}))`);
-      // The group's models open under its row; only the ticked ones go to ZCode.
-      await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
-      await page.run(`__docs.tick('#keyPick', 2)`);
-      await page.run('scrollTo(0, 0), true');
-      await page.shot('panel-group-pick.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
-      await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
-      await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the group to be added');
-      await page.until(`!document.querySelector('#siteGroups button:disabled:not(#keyPickAdd)')`, 'the panel to be ready');
-      await page.run('scrollTo(0, 0), true');
-      await page.shot('panel-group-added.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
-
-      // A site key's models, opened under it and ticked.
-      const key = `[...document.querySelectorAll('#siteKeys .svc')].find(k => k.querySelector('.svcname')?.textContent === 'Codex')`;
-      await page.run(`__docs.click(__docs.byText('button', '添加到 ZCode', ${key}))`);
-      await page.until(`document.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the key\'s models');
-      await page.run(`__docs.tick('#keyPick', 2)`);
-      await page.shot('panel-key-models.png', { from: '#siteKeys .svc:has(#keyPick)', to: '#siteKeys .svc:has(#keyPick)', margin: 8 });
-      await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
-      await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the key\'s models to be added');
-      await page.until(`![...document.querySelectorAll('#siteKeys button:not(#keyPickAdd)')].some(b => b.disabled)`, 'the panel to be ready');
-
-      // 选择模型 on a group in ZCode after the site changed it: a model it added waits unticked, one it dropped is marked.
-      demo.models.anthropic.splice(0, demo.models.anthropic.length, 'claude-opus-5-5', 'claude-opus-5-5-fast', 'claude-sonnet-5-5');
-      await page.run(`__docs.click(__docs.byText('button', '选择模型', ${row}))`);
-      await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
-      await page.run(`__docs.click(${row}.querySelector('#keyPick input[data-id="claude-opus-5-5-fast"]'))`);
-      await page.run('scrollTo(0, 0), true');
-      await page.shot('panel-group-models.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
-      await page.run(`__docs.click(__docs.byText('button', '收起', ${row}))`);
-      await page.until(`!document.querySelector('#keyPick')`, 'the group\'s models to close');
-
-      // 连接服务: an address and a key, the models found, a few ticked.
-      await page.run(`__docs.click(document.querySelector('#connectTab'))`);
-      await page.until('__docs.shown("#connectPage")', 'the connect page');
-      await page.run(`__docs.fill('#baseUrl', ${JSON.stringify(DEMO_SERVICE.baseUrl)}) && __docs.fill('#apiKey', ${JSON.stringify(DEMO_SERVICE.apiKey)}) && __docs.click(document.querySelector('#fetchBtn'))`);
-      await page.until(`document.querySelectorAll('#list input[type=checkbox]').length >= 8`, 'the models');
-      await page.run(`__docs.tick('#list', 3)`);
-      await page.run('scrollTo(0, 0), true');
-      await page.shot('panel-connect.png', { to: '#pickCard', margin: 16 });
-
-      // Added to ZCode: the services list with its keys behind dots, then one opened for 修改.
-      await page.run(`__docs.click(document.querySelector('#importBtn'))`);
-      await page.until(`document.querySelector('#status')?.textContent.startsWith('已把')`, 'the import');
-      await page.until(`document.querySelectorAll('#savedList .svc').length >= 3`, 'the services list');
-      await page.shot('panel-saved.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
-      const service = `[...document.querySelectorAll('#savedList .svc')].find(s => s.textContent.includes('api.example.com'))`;
-      await page.run(`__docs.click(__docs.byText('button', '修改', ${service}))`);
-      await page.until(`Boolean(${service}?.querySelector('input'))`, 'the edit fields');
-      await page.shot('panel-saved-edit.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
-
-      // The footer once the host has found a newer version (an example number).
-      await page.run(`__docs.hostSays({ type: 'update', version: '0.9.0', state: 'available', percent: 0 })`);
-      await page.until(`__docs.shown('#updateLink')`, 'the footer\'s update link');
-      await page.shot('panel-update.png', { from: '.ver', to: '.ver', margin: 18 });
-
-      // The same account in the dark theme, which follows ZCode's.
-      state.theme = 'dark';
-      await page.go(url);
-      await page.until('__docs.shown("#siteAccount") && document.querySelectorAll("#siteKeys .svc").length > 0', 'the account in the dark theme');
-      await page.shot('panel-dark.png', { to: '#siteGroupsPart', margin: 16 });
-
-      // The overview: a plain frame standing for ZCode, beside the real panel (light).
-      const panel = (await fs.readFile(path.join(out, 'panel-site-account.png'))).toString('base64');
-      await page.view(980, 700, 1.5);
-      await page.go('data:text/html;charset=utf-8,' + encodeURIComponent(overviewHtml(panel)));
-      await page.shot('overview.png', { from: '#stage', to: '#stage', width: 980 });
-    });
-  } finally {
+  try { await withEdge(page => work(page, { url, state, demo })); }
+  finally {
     server.close();
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+// 使用教程 as a new user meets it, step by step on a fresh demo account: the welcome, signing in, the balance, a group
+// without a key (the panel asks before making one), its models ticked, and where they are in ZCode.
+async function tourShots() {
+  await withPanel(async (page, { url }) => {
+    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HELPERS });
+    await page.view(WIDTH, TOUR_HEIGHT);
+    await page.go(url);
+    await page.until('__docs.shown("#siteLogin") && !document.querySelector("#tourLink").hidden', 'the sign-in form');
+    await page.run(`__docs.hostSays({ type: 'tour' })`);
+    await page.until(`Boolean(document.querySelector('.tourcard.welcome'))`, 'the welcome');
+    await page.screen('tour-0-welcome.png');
+    const card = title => `document.querySelector('.tourcard .tourtitle')?.textContent === ${JSON.stringify(title)}`;
+    await page.run(`__docs.byText('.tourcard button', '开始').click(), true`);
+    await page.until(card('登录账户'), 'the sign-in step');
+    await page.run(`__docs.fill('#siteEmail', ${JSON.stringify(DEMO.email)})`);
+    await page.screen('tour-1-login.png');
+    await page.run(`__docs.fill('#sitePassword', ${JSON.stringify(DEMO.password)}) && (document.querySelector('#siteLoginBtn').click(), true)`);
+    await page.until(card('你的余额'), 'the balance step');
+    await page.until('document.querySelectorAll("#siteGroups .grow").length > 0', 'the groups');
+    await page.run(`__docs.byText('.tourcard button', '下一步').click(), true`);
+    await page.until(card('选一个分组'), 'the group step');
+    await page.screen('tour-3-group.png');
+    const row = `[...document.querySelectorAll('#siteGroups .grow')].find(r => r.querySelector('.gname')?.textContent === 'Claude Pro')`;
+    await page.run(`${row}.querySelector('.gact button').click(), true`);
+    await page.until(card('先建一个 Key'), 'the new key step');
+    await page.run(`__docs.byText('button', '新建 Key 并选择模型', ${row}).click(), true`);
+    await page.until(`${card('勾选要用的模型')} && document.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the models step');
+    await page.run(`__docs.tick('#keyPick', 2)`);
+    await page.screen('tour-4-models.png');
+    await page.run(`document.querySelector('#keyPickAdd').click(), true`);
+    await page.until(card('去 ZCode 里选用'), 'the last step', 20000);
+    await page.screen('tour-5-zcode.png');
+    await page.run(`__docs.byText('.tourcard button', '完成').click(), true`);
+    await page.until(`!document.querySelector('.tour')`, 'the guide to close');
+  });
+}
+
+async function panelShots() {
+  await withPanel(async (page, { url, state, demo }) => {
+    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: PAGE_HELPERS });
+    await page.view(WIDTH, HEIGHT);
+    await page.go(url);
+    await page.until('__docs.shown("#siteLogin")', 'the sign-in form');
+    await page.shot('panel-site-login.png', { to: '.ver', margin: 24 });
+
+    // Signed in to the demo account: balance, groups, keys.
+    await page.run(`__docs.fill('#siteEmail', ${JSON.stringify(DEMO.email)}) && __docs.fill('#sitePassword', ${JSON.stringify(DEMO.password)}) && __docs.click(document.querySelector('#siteLoginBtn'))`);
+    await page.until('__docs.shown("#siteAccount") && document.querySelectorAll("#siteGroups .grow").length > 0 && document.querySelectorAll("#siteKeys .svc").length > 0', 'the account');
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-site-account.png', { to: '#siteGroupsPart', margin: 16 });
+    await page.shot('panel-site-keys.png', { from: ':has(> #siteKeyCount)', to: '.ver', margin: 16 });
+
+    // 添加分组 on a group without a key: the panel asks before making one, then adds every model of the group.
+    const row = `[...document.querySelectorAll('#siteGroups .grow')].find(r => r.querySelector('.gname')?.textContent === 'Claude Pro')`;
+    await page.run(`__docs.click(${row}.querySelector('.gact button'))`);
+    await page.until(`Boolean(${row}?.querySelector('.gask'))`, 'the question under the group');
+    await page.shot('panel-group-ask.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.run(`__docs.click(__docs.byText('button', '新建 Key 并选择模型', ${row}))`);
+    // The group's models open under its row; only the ticked ones go to ZCode.
+    await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
+    await page.run(`__docs.tick('#keyPick', 2)`);
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-group-pick.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
+    await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the group to be added');
+    await page.until(`!document.querySelector('#siteGroups button:disabled:not(#keyPickAdd)')`, 'the panel to be ready');
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-group-added.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+
+    // A site key's models, opened under it and ticked.
+    const key = `[...document.querySelectorAll('#siteKeys .svc')].find(k => k.querySelector('.svcname')?.textContent === 'Codex')`;
+    await page.run(`__docs.click(__docs.byText('button', '添加到 ZCode', ${key}))`);
+    await page.until(`document.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the key\'s models');
+    await page.run(`__docs.tick('#keyPick', 2)`);
+    await page.shot('panel-key-models.png', { from: '#siteKeys .svc:has(#keyPick)', to: '#siteKeys .svc:has(#keyPick)', margin: 8 });
+    await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
+    await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the key\'s models to be added');
+    await page.until(`![...document.querySelectorAll('#siteKeys button:not(#keyPickAdd)')].some(b => b.disabled)`, 'the panel to be ready');
+
+    // 选择模型 on a group in ZCode after the site changed it: a model it added waits unticked, one it dropped is marked.
+    demo.models.anthropic.splice(0, demo.models.anthropic.length, 'claude-opus-5-5', 'claude-opus-5-5-fast', 'claude-sonnet-5-5');
+    await page.run(`__docs.click(__docs.byText('button', '选择模型', ${row}))`);
+    await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
+    await page.run(`__docs.click(${row}.querySelector('#keyPick input[data-id="claude-opus-5-5-fast"]'))`);
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-group-models.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.run(`__docs.click(__docs.byText('button', '收起', ${row}))`);
+    await page.until(`!document.querySelector('#keyPick')`, 'the group\'s models to close');
+
+    // 连接服务: an address and a key, the models found, a few ticked.
+    await page.run(`__docs.click(document.querySelector('#connectTab'))`);
+    await page.until('__docs.shown("#connectPage")', 'the connect page');
+    await page.run(`__docs.fill('#baseUrl', ${JSON.stringify(DEMO_SERVICE.baseUrl)}) && __docs.fill('#apiKey', ${JSON.stringify(DEMO_SERVICE.apiKey)}) && __docs.click(document.querySelector('#fetchBtn'))`);
+    await page.until(`document.querySelectorAll('#list input[type=checkbox]').length >= 8`, 'the models');
+    await page.run(`__docs.tick('#list', 3)`);
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-connect.png', { to: '#pickCard', margin: 16 });
+
+    // Added to ZCode: the services list with its keys behind dots, then one opened for 修改.
+    await page.run(`__docs.click(document.querySelector('#importBtn'))`);
+    await page.until(`document.querySelector('#status')?.textContent.startsWith('已把')`, 'the import');
+    await page.until(`document.querySelectorAll('#savedList .svc').length >= 3`, 'the services list');
+    await page.shot('panel-saved.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
+    const service = `[...document.querySelectorAll('#savedList .svc')].find(s => s.textContent.includes('api.example.com'))`;
+    await page.run(`__docs.click(__docs.byText('button', '修改', ${service}))`);
+    await page.until(`Boolean(${service}?.querySelector('input'))`, 'the edit fields');
+    await page.shot('panel-saved-edit.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
+
+    // The footer once the host has found a newer version (an example number).
+    await page.run(`__docs.hostSays({ type: 'update', version: '0.9.0', state: 'available', percent: 0 })`);
+    await page.until(`__docs.shown('#updateLink')`, 'the footer\'s update link');
+    await page.shot('panel-update.png', { from: '.ver', to: '.ver', margin: 18 });
+
+    // The same account in the dark theme, which follows ZCode's.
+    state.theme = 'dark';
+    await page.go(url);
+    await page.until('__docs.shown("#siteAccount") && document.querySelectorAll("#siteKeys .svc").length > 0', 'the account in the dark theme');
+    await page.shot('panel-dark.png', { to: '#siteGroupsPart', margin: 16 });
+
+    // The overview: a plain frame standing for ZCode, beside the real panel (light).
+    const panel = (await fs.readFile(path.join(out, 'panel-site-account.png'))).toString('base64');
+    await page.view(980, 700, 1.5);
+    await page.go('data:text/html;charset=utf-8,' + encodeURIComponent(overviewHtml(panel)));
+    await page.shot('overview.png', { from: '#stage', to: '#stage', width: 980 });
+  });
 }
 
 // A schematic, not a picture of ZCode: an empty dark frame named ZCode, the panel docked on its right edge.
@@ -249,4 +300,6 @@ async function releaseShot() {
 }
 
 await fs.mkdir(out, { recursive: true });
-if (process.argv.includes('--release')) await releaseShot(); else await panelShots();
+if (process.argv.includes('--release')) await releaseShot();
+else if (process.argv.includes('--tour')) await tourShots();
+else { await panelShots(); await tourShots(); }

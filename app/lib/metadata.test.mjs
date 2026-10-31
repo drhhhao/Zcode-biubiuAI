@@ -5,20 +5,20 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { apiMetadata, MetadataCatalog, applyPlan, planFor, zcodeValues, zcodeRules, DEFAULTS } from './metadata.mjs';
-import { Harbor } from './core.mjs';
+import { BiubiuAI } from './core.mjs';
 import { callTool } from './tools.mjs';
 
 async function setup(t, entries, fetchImpl) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-meta-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-meta-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const configPath = path.join(dir, 'provider_config.json');
   const doc = { schemaVersion: 1, config: { providerOrder: ['p'], providerConfigRules: { providerRules: [{ providerId: 'p', providerName: 'Provider', config: { group: 'standard-personal', access: { type: 'api-key', apiKey: 'private-key' }, api: { type: 'anthropic-messages', baseUrl: 'https://proxy.test' }, personalModelIds: [], modelOrder: [] } }] }, modelConfigRules: { providerModelRules: [], manualProviderModelRules: [] } } };
   await fs.writeFile(configPath, JSON.stringify(doc));
   const metadataCatalog = new MetadataCatalog({ dataDir: path.join(dir, 'cache'), refresh: false });
-  const harbor = new Harbor({ configPath, metadataCatalog, fetchImpl: fetchImpl || (async () => Response.json({ data: entries })) });
-  return { harbor, configPath, doc, metadataCatalog, dir };
+  const biubiu = new BiubiuAI({ configPath, metadataCatalog, fetchImpl: fetchImpl || (async () => Response.json({ data: entries })) });
+  return { biubiu, configPath, doc, metadataCatalog, dir };
 }
 const rulesOf = async configPath => Object.fromEntries(JSON.parse(await fs.readFile(configPath, 'utf8')).config.modelConfigRules.providerModelRules.map(r => [r.modelId, r.config]));
-const fetchAll = (harbor, protocol = 'anthropic-messages') => harbor.fetchModels({ baseUrl: 'https://proxy.test', apiKey: 'private-key', protocol });
+const fetchAll = (biubiu, protocol = 'anthropic-messages') => biubiu.fetchModels({ baseUrl: 'https://proxy.test', apiKey: 'private-key', protocol });
 
 test('API metadata covers declared sizes, modalities and supported effort values', () => {
   const m = apiMetadata({ context_window: 1048576, max_output_tokens: 393216, input_modalities: ['text', 'image'], effort: { supported_levels: ['low', 'high', 'max', 'unknown'], default_level: 'high' } });
@@ -60,9 +60,9 @@ test('ZCode\'s values come from its rules as ZCode applies them, without its cat
 });
 
 test('a model ZCode has no rule for gets 256K, 128K and low, high and max, written only into the new model\'s rule', async t => {
-  const { harbor, configPath } = await setup(t, [{ id: 'hark' }, { id: 'Opus5.5' }]); const r = await fetchAll(harbor);
+  const { biubiu, configPath } = await setup(t, [{ id: 'hark' }, { id: 'Opus5.5' }]); const r = await fetchAll(biubiu);
   for (const m of r.models) { assert.deepEqual(m.metadata, { contextWindow: 256000, maxOutputTokens: 128000, reasoningLevels: ['low', 'high', 'max'] }); assert.deepEqual(m.sources, { contextWindow: 'default', maxOutputTokens: 'default', reasoningLevels: 'default' }); }
-  const imported = await harbor.importModels({ sessionId: r.sessionId, modelIds: ['hark', 'Opus5.5'], providerName: 'Provider', modelSettings: { hark: { contextWindow: 999 } } });
+  const imported = await biubiu.importModels({ sessionId: r.sessionId, modelIds: ['hark', 'Opus5.5'], providerName: 'Provider', modelSettings: { hark: { contextWindow: 999 } } });
   assert.deepEqual([imported.added, imported.updatedParameters], [2, undefined]);
   const rules = await rulesOf(configPath);
   assert.deepEqual(rules.hark, { enabled: true, properties: { contextWindow: 256000 }, optionSpecs: { maxOutputTokens: { max: 128000 }, reasoningLevel: { values: ['low', 'high', 'max'] } } }, 'panel settings are no longer taken');
@@ -70,8 +70,8 @@ test('a model ZCode has no rule for gets 256K, 128K and low, high and max, writt
 });
 
 test('a model ZCode knows keeps ZCode\'s values; what ZCode leaves open gets the defaults, and a smaller stated limit wins', async t => {
-  const { harbor, configPath } = await setup(t, [{ id: 'gpt-5.6-sol' }, { id: 'claude-opus-5-5', context_window: 250000, max_output_tokens: 32000, effort: { supported_levels: ['low', 'high'] } }, { id: 'claude-sonnet-5-5' }, { id: 'deepseek-v4-pro' }]);
-  const r = await fetchAll(harbor, 'openai-responses'), model = id => r.models.find(m => m.id === id);
+  const { biubiu, configPath } = await setup(t, [{ id: 'gpt-5.6-sol' }, { id: 'claude-opus-5-5', context_window: 250000, max_output_tokens: 32000, effort: { supported_levels: ['low', 'high'] } }, { id: 'claude-sonnet-5-5' }, { id: 'deepseek-v4-pro' }]);
+  const r = await fetchAll(biubiu, 'openai-responses'), model = id => r.models.find(m => m.id === id);
   // ZCode's rule for gpt-5.6 gives the context and the levels; the output it leaves open is the default.
   assert.deepEqual(model('gpt-5.6-sol').metadata, { contextWindow: 1050000, maxOutputTokens: 128000, reasoningLevels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] });
   assert.deepEqual(model('gpt-5.6-sol').plan, { maxOutputTokens: 128000 });
@@ -79,24 +79,24 @@ test('a model ZCode knows keeps ZCode\'s values; what ZCode leaves open gets the
   assert.deepEqual([model('claude-opus-5-5').metadata, model('claude-opus-5-5').sources], [{ contextWindow: 250000, maxOutputTokens: 32000, reasoningLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, { contextWindow: 'api', maxOutputTokens: 'api', reasoningLevels: 'zcode' }]);
   assert.deepEqual(model('claude-sonnet-5-5').plan, { contextWindow: 256000, maxOutputTokens: 128000 }, 'the catalog\'s 1M does not raise the default');
   // ZCode knows DeepSeek V4's 384K output but no context: the 256K default would leave no room, so ZCode's own 1M holds.
-  const deepseek = (await harbor.fetchModels({ baseUrl: 'https://proxy.test', apiKey: 'private-key', protocol: 'anthropic-messages' })).models.find(m => m.id === 'deepseek-v4-pro');
+  const deepseek = (await biubiu.fetchModels({ baseUrl: 'https://proxy.test', apiKey: 'private-key', protocol: 'anthropic-messages' })).models.find(m => m.id === 'deepseek-v4-pro');
   assert.deepEqual([deepseek.plan, deepseek.metadata, deepseek.sources.contextWindow], [{}, { contextWindow: 1000000, maxOutputTokens: 384000, reasoningLevels: ['disabled', 'low', 'high', 'max'] }, 'zcode-fallback']);
-  await harbor.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id), providerName: 'Provider' });
+  await biubiu.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id), providerName: 'Provider' });
   const rules = await rulesOf(configPath);
   assert.deepEqual(rules['gpt-5.6-sol'], { enabled: true, optionSpecs: { maxOutputTokens: { max: 128000 } } }, 'ZCode\'s own values are not written, so they follow ZCode');
   assert.deepEqual(rules['claude-opus-5-5'], { enabled: true, properties: { contextWindow: 250000 }, optionSpecs: { maxOutputTokens: { max: 32000 } } });
 });
 
 test('the public catalog lowers the defaults for a model it knows: smaller limits, fewer levels, no thinking', async t => {
-  const { harbor } = await setup(t, [{ id: 'gpt-5' }, { id: 'claude-opus-4-5' }, { id: 'gpt-4.1' }]);
-  const r = await fetchAll(harbor, 'openai-chat-completions'), model = id => r.models.find(m => m.id === id).metadata;
+  const { biubiu } = await setup(t, [{ id: 'gpt-5' }, { id: 'claude-opus-4-5' }, { id: 'gpt-4.1' }]);
+  const r = await fetchAll(biubiu, 'openai-chat-completions'), model = id => r.models.find(m => m.id === id).metadata;
   assert.deepEqual(model('gpt-5'), { contextWindow: 256000, maxOutputTokens: 128000, reasoningLevels: ['low', 'high'] }, 'its input limit of 272K is above the default; max is not offered');
   assert.deepEqual(model('claude-opus-4-5'), { contextWindow: 200000, maxOutputTokens: 64000, reasoningLevels: ['low', 'high'] });
   assert.deepEqual(model('gpt-4.1'), { contextWindow: 256000, maxOutputTokens: 32768, reasoningLevels: ['disabled'] });
 });
 
 test('a refreshed public catalog keeps only what an import reads, and a fetch finds the service\'s own host in it once', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-catalog-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-catalog-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
   t.mock.method(Date, 'now', () => Date.parse('2100-01-01T00:00:00Z'));
   const asked = [], listing = { relay: { id: 'relay', name: 'Relay', api: 'https://relay.test/v1', models: {
     'hark-1': { id: 'hark-1', canonical_model_id: 'hark', limit: { context: 64000, output: 16000 }, reasoning: false, modalities: { input: ['text', 'image'] }, tool_call: true, cost: { input: 1 } },
@@ -116,15 +116,15 @@ test('a refreshed public catalog keeps only what an import reads, and a fetch fi
 });
 
 test('a model the service already has keeps its rule as it is; a new model fills only the fields its rule leaves empty', async t => {
-  const { harbor, doc, configPath } = await setup(t, [{ id: 'claude-opus-5-5' }, { id: 'hark' }]);
+  const { biubiu, doc, configPath } = await setup(t, [{ id: 'claude-opus-5-5' }, { id: 'hark' }]);
   const kept = { enabled: true, properties: { contextWindow: 500000, inputFormat: { supportsImage: true } }, optionSpecs: { reasoningLevel: { values: ['high'], map: '{"effort": reasoningLevel}' } } };
   doc.config.providerConfigRules.providerRules[0].config.personalModelIds = ['hark'];
   doc.config.modelConfigRules.providerModelRules.push({ providerId: 'p', modelId: 'claude-opus-5-5', config: kept }, { providerId: 'p', modelId: 'hark', config: { enabled: false } });
   await fs.writeFile(configPath, JSON.stringify(doc));
-  const r = await harbor.fetchModels({ baseUrl: 'https://proxy.test', existingProviderId: 'p', protocol: 'anthropic-messages' });
+  const r = await biubiu.fetchModels({ baseUrl: 'https://proxy.test', existingProviderId: 'p', protocol: 'anthropic-messages' });
   const opus = r.models.find(m => m.id === 'claude-opus-5-5');
   assert.deepEqual([opus.metadata.contextWindow, opus.sources.contextWindow, opus.metadata.reasoningLevels], [500000, 'saved', ['high']], 'what the service holds is shown');
-  await harbor.importModels({ sessionId: r.sessionId, modelIds: ['claude-opus-5-5', 'hark'], providerName: 'Provider' });
+  await biubiu.importModels({ sessionId: r.sessionId, modelIds: ['claude-opus-5-5', 'hark'], providerName: 'Provider' });
   const rules = await rulesOf(configPath);
   assert.deepEqual(rules['claude-opus-5-5'], { ...kept, optionSpecs: { ...kept.optionSpecs, maxOutputTokens: { max: 128000 } } }, 'new to the service: only the empty output is filled');
   assert.deepEqual(rules.hark, { enabled: false }, 'already in the service: left as it is');
@@ -138,7 +138,7 @@ test('an import writes no thinking program, and no value over one the rule holds
 });
 
 test('ZCode\'s rules come from the copy ZCode keeps for its newest version, or the file named for them', async t => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'harbor-zcode-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-zcode-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const copy = async (release, contextWindow) => {
     const at = path.join(dir, 'runtime', 'provider', 'windows-x86_64', release, 'endpoint-1');
     await fs.mkdir(at, { recursive: true });
@@ -152,26 +152,26 @@ test('ZCode\'s rules come from the copy ZCode keeps for its newest version, or t
   assert.equal(await known({ file: named, zcodeDir: dir }), 32000, 'the file named for them first');
   const bundled = await zcodeRules({ zcodeDir: path.join(dir, 'missing') });
   assert.equal(bundled.modelConfigRules.modelRules[0].modelMatch, '.*', 'else the copy bundled with biubiu AI');
-  const harbor = new Harbor({ configPath: path.join(dir, 'provider_config.json'), refreshCatalog: false });
-  assert.equal(harbor.metadataCatalog.zcodeDir, dir, 'the companion reads them beside ZCode\'s own config');
+  const biubiu = new BiubiuAI({ configPath: path.join(dir, 'provider_config.json'), refreshCatalog: false });
+  assert.equal(biubiu.metadataCatalog.zcodeDir, dir, 'the companion reads them beside ZCode\'s own config');
 });
 
 test('测试连接 sends one short request without thinking settings and catches quota messages returned as HTTP 200', async t => {
   let mode = 'ok', body;
-  const { harbor } = await setup(t, [], async (url, opts) => {
+  const { biubiu } = await setup(t, [], async (url, opts) => {
     if (!opts.method) return Response.json({ data: [{ id: 'hark', effort: { supported_levels: ['low', 'high'] } }] });
     body = JSON.parse(opts.body); return Response.json({ content: [{ type: 'text', text: mode === 'ok' ? 'OK' : 'Your token quota is exhausted' }] });
   });
-  const r = await fetchAll(harbor);
-  const good = await harbor.testModel({ sessionId: r.sessionId, modelId: 'hark', reasoningLevel: 'high' });
+  const r = await fetchAll(biubiu);
+  const good = await biubiu.testModel({ sessionId: r.sessionId, modelId: 'hark', reasoningLevel: 'high' });
   assert.equal(good.ok, true); assert.equal(body.max_tokens, 2048); assert.equal(body.thinking, undefined); assert.equal(body.output_config, undefined);
-  mode = 'quota'; assert.equal((await harbor.testModel({ sessionId: r.sessionId, modelId: 'hark' })).ok, false);
-  await assert.rejects(harbor.testModel({ sessionId: r.sessionId, modelId: 'other' }), /只能测试本次拉取的模型/); assert.ok(!JSON.stringify(good).includes('private-key'));
+  mode = 'quota'; assert.equal((await biubiu.testModel({ sessionId: r.sessionId, modelId: 'hark' })).ok, false);
+  await assert.rejects(biubiu.testModel({ sessionId: r.sessionId, modelId: 'other' }), /只能测试本次拉取的模型/); assert.ok(!JSON.stringify(good).includes('private-key'));
 });
 test('large model lists are paginated under the UI tool result size limit', async t => {
-  const { harbor } = await setup(t, Array.from({ length: 80 }, (_, i) => ({ id: 'model-' + i, context_window: 100000, max_output_tokens: 16000, effort: { supported_levels: ['low', 'high'] } })));
-  const r = await callTool(harbor, 'fetch_models', { baseUrl: 'https://proxy.test', apiKey: 'private-key' }); assert.equal(r.structuredContent.models.length, 25); assert.ok(Buffer.byteLength(JSON.stringify(r.structuredContent)) < 64000);
-  const next = await callTool(harbor, 'get_models', { sessionId: r.structuredContent.sessionId, offset: 25 }); assert.equal(next.structuredContent.models.length, 25); assert.equal(next.structuredContent.nextOffset, 50);
+  const { biubiu } = await setup(t, Array.from({ length: 80 }, (_, i) => ({ id: 'model-' + i, context_window: 100000, max_output_tokens: 16000, effort: { supported_levels: ['low', 'high'] } })));
+  const r = await callTool(biubiu, 'fetch_models', { baseUrl: 'https://proxy.test', apiKey: 'private-key' }); assert.equal(r.structuredContent.models.length, 25); assert.ok(Buffer.byteLength(JSON.stringify(r.structuredContent)) < 64000);
+  const next = await callTool(biubiu, 'get_models', { sessionId: r.structuredContent.sessionId, offset: 25 }); assert.equal(next.structuredContent.models.length, 25); assert.equal(next.structuredContent.nextOffset, 50);
 });
 test('self-contained panel scripts parse as JavaScript', async () => {
   const html = await fs.readFile(new URL('./panel.html', import.meta.url), 'utf8'); const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]); assert.equal(scripts.length, 1); for (const script of scripts) new vm.Script(script);

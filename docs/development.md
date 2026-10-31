@@ -8,7 +8,7 @@ biubiu AI 是随 ZCode 显示的 Windows 桌面外挂：一个无边框的 WebVi
 
 自 0.6.0 起只保留桌面外挂形态，ZCode 插件形态已卸载并从源码中移除。外挂不修改 ZCode 安装文件，不注入 ZCode 进程，只读取 ZCode 窗口的位置、状态和像素（用于取主题色）。
 
-源码仓库：<https://github.com/drhhhao/Zcode-biubiuAI>，安装程序发布在仓库的 Releases；国内镜像 <https://gitee.com/drhhhao_0/Zcode-biubiuAI>（代码和正式发布的 Release 由 GitHub Actions 自动同步，见「发版」）。程序文件、命名空间、数据目录、环境变量和登录启动项沿用开发代号 ModelHarbor（`ModelHarbor.exe`、`%LOCALAPPDATA%\ModelHarbor`、`MODEL_HARBOR_*`），这样升级后设置、站点登录和启动项都照常可用；界面上看到的名称只有 biubiu AI。
+源码仓库：<https://github.com/drhhhao/Zcode-biubiuAI>，安装程序发布在仓库的 Releases；国内镜像 <https://gitee.com/drhhhao_0/Zcode-biubiuAI>（代码和正式发布的 Release 由 GitHub Actions 自动同步，见「发版」）。程序文件、命名空间、数据目录、环境变量和登录启动项沿用开发代号 BiubiuAI（`BiubiuAI.exe`、`%LOCALAPPDATA%\BiubiuAI`、`BIUBIU_AI_*`），这样升级后设置、站点登录和启动项都照常可用；界面上看到的名称只有 biubiu AI。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -16,7 +16,7 @@ biubiu AI 是随 ZCode 显示的 Windows 桌面外挂：一个无边框的 WebVi
 | `app/server.mjs` | 外挂使用的本地服务 |
 | `app/preview.mjs` | 浏览器预览服务，只写临时配置 |
 | `app/demo.mjs` | 预览与教程截图共用的演示账户和演示服务（假数据，不联网） |
-| `app/host/` | C# WebView2 宿主（`ModelHarbor.cs`、`app.manifest`） |
+| `app/host/` | C# WebView2 宿主（`BiubiuAI.cs`、`app.manifest`） |
 | `app/build.mjs` | 宿主构建脚本 |
 | `app/installer/` | 给用户的安装程序：安装与卸载界面（`Setup.cs`、`setup.manifest`）、打包脚本（`package.mjs`）及其测试 |
 | `dist/` | 打好的安装程序 `biubiuAI-Setup-<版本>.exe` 与它的 SHA-256（构建产物，不入库） |
@@ -55,9 +55,9 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 用户只需要一个文件：`dist\biubiuAI-Setup-<版本>.exe`（约 36 MB）。双击后只有一页：确认或更改安装位置（默认 `%LOCALAPPDATA%\Programs\biubiu AI`，装在当前用户名下，不需要管理员权限），两个默认勾选的选项（桌面快捷方式；登录 Windows 后在后台待命，打开 ZCode 时自动出现），点 **安装**，完成页可以直接启动 biubiu AI。
 
 - **运行环境一起装好**：安装目录里自带 Node.js 运行时（`node\node.exe`，由构建机上的 Node.js 打包，保留 OpenJS Foundation 签名，附许可证），用户不用另装 Node.js，也不改 PATH。Windows 11 自带 WebView2 运行时；没有它的 Windows 10 上，安装程序运行随附的微软引导安装程序（需要联网）在线装好，装不上时说明原因，联网后再运行一次安装程序即可。.NET Framework 4.8 是 Windows 10 2019 年 5 月更新及以后、Windows 11 自带的，缺少时安装程序说明去哪里装。需要 64 位 Windows 10 或 11。
-- **装了什么**：`bin\`（外挂程序与 WebView2 库）、`server.mjs` 与 `lib\`（本地服务和它读取的文件，不含测试与开发工具）、`node\`、`Uninstall.exe` 和清单 `uninstall.list`；开始菜单（和桌面）快捷方式「biubiu AI」；「设置 → 应用」里的 biubiu AI 条目（`HKCU\...\Uninstall\ModelHarbor`）；勾选后台待命时由外挂自己写入登录启动项。所选文件夹里已有其他文件时，自动装进其中的「biubiu AI」子文件夹。
-- **升级**：0.8.9 起，装好的 biubiu AI 发现新版本会提醒一次，用户同意后自己下载、核对并安装（见下一节）。也可以运行新版本的安装程序：默认装回原来的位置，先让正在运行的 biubiu AI 退出，新版本没有的旧文件会删除；设置和网站登录状态（`%LOCALAPPDATA%\ModelHarbor`）保留。
-- **卸载**：在「设置 → 应用」里卸载，或运行安装目录里的 `Uninstall.exe`。只删除清单列出的文件、指向这里的快捷方式、登录启动项和「应用」条目；勾选「同时删除 biubiu AI 的设置、日志和网站登录状态」才删除 `%LOCALAPPDATA%\ModelHarbor`。ZCode 和它的模型配置不受影响。卸载程序从临时文件夹里的副本运行（Windows 不能删除正在运行的程序），副本在下次安装或卸载时清掉。
+- **装了什么**：`bin\`（外挂程序与 WebView2 库）、`server.mjs` 与 `lib\`（本地服务和它读取的文件，不含测试与开发工具）、`node\`、`Uninstall.exe` 和清单 `uninstall.list`；开始菜单（和桌面）快捷方式「biubiu AI」；「设置 → 应用」里的 biubiu AI 条目（`HKCU\...\Uninstall\BiubiuAI`）；勾选后台待命时由外挂自己写入登录启动项。所选文件夹里已有其他文件时，自动装进其中的「biubiu AI」子文件夹。
+- **升级**：0.8.9 起，装好的 biubiu AI 发现新版本会提醒一次，用户同意后自己下载、核对并安装（见下一节）。也可以运行新版本的安装程序：默认装回原来的位置，先让正在运行的 biubiu AI 退出，新版本没有的旧文件会删除；设置和网站登录状态（`%LOCALAPPDATA%\biubiu AI`）保留。从 0.8.12 及以前的版本升级时，外挂第一次启动会把旧名的数据目录、登录状态、开机启动项和配置备份接到新名下，安装程序换掉旧的「应用」条目，并把桌面快捷方式改指新程序 `BiubiuAI.exe`，用户无需重新登录或设置。
+- **卸载**：在「设置 → 应用」里卸载，或运行安装目录里的 `Uninstall.exe`。只删除清单列出的文件、指向这里的快捷方式、登录启动项和「应用」条目；勾选「同时删除 biubiu AI 的设置、日志和网站登录状态」才删除 `%LOCALAPPDATA%\biubiu AI`（以及没来得及搬走的旧名数据目录）。ZCode 和它的模型配置不受影响。卸载程序从临时文件夹里的副本运行（Windows 不能删除正在运行的程序），副本在下次安装或卸载时清掉。
 - **命令行**：`--silent` 不显示窗口，`--dir <文件夹>` 指定位置，`--no-desktop`、`--no-startup` 去掉对应选项，`--launch` 静默安装后启动，`--update`（外挂的一键更新用）保持桌面快捷方式和开机待命原样、不新建也不删除；`Uninstall.exe --silent [--remove-data]` 静默卸载。安装与卸载的日志在 `%TEMP%\biubiu-ai-setup.log`。
 - **注意**：安装程序没有代码签名，从网上下载后第一次运行，Windows SmartScreen 会提示“Windows 已保护你的电脑”，需要点“更多信息 → 仍要运行”。要去掉这个提示，需要用代码签名证书给安装程序签名。
 - **启动**：完成页的「现在启动」和 `--launch` 只在安装程序经 UAC 提权运行时（拆分令牌的提权一半）才经 Explorer 启动外挂，让它以普通权限运行；内置 Administrator 或关闭 UAC 时 Explorer 也是同样的权限，就直接启动，保留安装程序收到的环境变量（一键更新的检查依赖这一点）。
@@ -71,12 +71,12 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 - **用户决定**：不论从哪里点，宿主都先弹窗（标题「biubiu AI 更新」）说明要做什么，选「是」才下载，选「否」什么也不做。GitHub 没有给这个附件记录 SHA-256 时不能一键更新，改为询问是否打开 Release 页面。
 - **校验**：安装程序下载到 `%TEMP%\biubiu-ai-update\`（每次先清空，之后的自动检查也会清掉留下的文件），大小和 SHA-256 必须与 GitHub 为这个附件记录的 `size`、`digest`（`sha256:…`）一致才运行，否则删除并提示，什么也不装。安装程序没有代码签名，所以校验以 GitHub 的记录为准：能修改本仓库 Release 的人就能发布更新，请保护好 GitHub 账号（建议开启两步验证）。
 - **安装**：以 `--silent --update --launch --dir <当前安装目录>` 运行安装程序。它让外挂退出、原地覆盖，保持桌面快捷方式和开机待命原样，装完再启动外挂；新版本第一次运行时提示一次「已更新到 x.y.z」（`companion.ini` 的 `version` 记着上次运行的版本）。安装程序在动手前就失败时（例如没有写入权限）外挂不会退出，并提示查看 `%TEMP%\biubiu-ai-setup.log`。
-- **手动检查**：托盘菜单「检查更新」或 `ModelHarbor.exe --check-update`：有新版本时直接询问是否更新，没有时提示已是最新版本。
+- **手动检查**：托盘菜单「检查更新」或 `BiubiuAI.exe --check-update`：有新版本时直接询问是否更新，没有时提示已是最新版本。
 - **发布时注意**：Release 一旦正式发布（非草稿、非预发布），所有装了 0.8.9 及以上版本的用户都会收到提醒，所以先建草稿核对标签、附件名和说明，再正式发布（发版流程只建草稿，见下一节）。0.8.8 没有更新检查，装了 0.8.8 的用户需要手动安装一次新版本。
 
 ## 发版（GitHub Actions）
 
-发新版 = 升版本号（只升最后一位；`package.json`、`app/lib/tools.mjs`、`app/lib/panel.html`、`app/host/app.manifest`、`app/host/ModelHarbor.cs` 几处一起改）+ 在 `CHANGELOG.md` 最上面写「## 版本号」这一段（写给用户看，`npm test` 检查当前版本有这一段）+ 推送到 `main`。之后 `.github/workflows/release.yml` 自动完成：
+发新版 = 升版本号（只升最后一位；`package.json`、`app/lib/tools.mjs`、`app/lib/panel.html`、`app/host/app.manifest`、`app/host/BiubiuAI.cs` 几处一起改）+ 在 `CHANGELOG.md` 最上面写「## 版本号」这一段（写给用户看，`npm test` 检查当前版本有这一段）+ 推送到 `main`。之后 `.github/workflows/release.yml` 自动完成：
 
 1. **看版本号是不是新的**：`v<版本>` 已经正式发布过就什么都不做（只改文档、教程的推送不会发版）；只有草稿、或者还没有，就往下走。没有 CHANGELOG 这一段就报错，不发。
 2. **检查**（`windows-latest`，即 `.github/workflows/check.yml`；每次推送到 `main` 都跑，不论版本号是不是新的，推送到其他分支时也由它单独跑）：`build/companion-dev/release-deps.ps1` 取仓库里没有的三样第三方文件：WebView2 SDK（nuget.org，核对固定的 SHA-256）、所带 Node.js 的许可证（它在 github.com/nodejs/node 上的标签，核对固定的 SHA-256）、WebView2 运行时引导安装程序（微软官方地址，核对微软签名）；然后 `npm test`、`npm run app:installer`、`app:site-check`、`app:installer-check`（其中对装好的副本跑完整的 `app:smoke`）。截图作为这次运行的附件留下。Node.js 版本在工作流里固定（现在是 24.19.0），安装程序带的就是它；换版本时同时改脚本里许可证的哈希。
@@ -86,14 +86,14 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 草稿建好后，在 Actions 这次运行的摘要里有草稿链接。核对说明和附件后，在草稿页点 **Edit → Publish release**，这一步才会推送给用户，并触发同步到 Gitee 推标签；之后在本机按上面第 4 步建 Gitee 的 Release、传安装程序（在那之前已装的外挂从 Gitee 下载不到，会直接从 GitHub 下载）。发布后在本机重拍 `docs/images/github-release.png`（`node build/companion-dev/docs-shots.mjs --release`）。
 
 升版本号前在本机跑通 `npm run verify`；安装程序的端到端检查交给上面第 2 步，不用在本机装、卸。也可以在本机预览说明：`node build/companion-dev/release-notes.mjs <版本> --setup dist/biubiuAI-Setup-<版本>.exe --since v<上一版>`。
-- **测试**：`npm run app:site-check` 离线检查 JSON 解析、Release 的读取（草稿、预发布、不是版本号的标签、别处的下载地址、别的版本的附件、缺 SHA-256 都不能一键更新）、版本比较和下载校验；`npm run app:installer-check` 用 `build/companion-dev/release-stand-in.mjs`（127.0.0.1 上的替身 latest Release，下载和 GitHub 一样经一次重定向；`/mirror/` 下是替身的 Gitee 镜像）让装好的副本走完整个流程：从替身镜像下载并安装，哈希不符时先弃用镜像的文件、再拒绝 GitHub 的文件。`MODEL_HARBOR_UPDATE_URL` 指向替身地址（替身的下载地址只能是 `http://127.0.0.1:`，首次检查提前到启动后 3 秒），或设为 `off` 不检查（冒烟测试和教程截图脚本这样设置）。
+- **测试**：`npm run app:site-check` 离线检查 JSON 解析、Release 的读取（草稿、预发布、不是版本号的标签、别处的下载地址、别的版本的附件、缺 SHA-256 都不能一键更新）、版本比较和下载校验；`npm run app:installer-check` 用 `build/companion-dev/release-stand-in.mjs`（127.0.0.1 上的替身 latest Release，下载和 GitHub 一样经一次重定向；`/mirror/` 下是替身的 Gitee 镜像）让装好的副本走完整个流程：从替身镜像下载并安装，哈希不符时先弃用镜像的文件、再拒绝 GitHub 的文件。`BIUBIU_AI_UPDATE_URL` 指向替身地址（替身的下载地址只能是 `http://127.0.0.1:`，首次检查提前到启动后 3 秒），或设为 `off` 不检查（冒烟测试和教程截图脚本这样设置）。
 
 ## 运行要求
 
 - 安装版：见上一节，只需要 64 位 Windows 10 / 11。
-- 开发目录里运行：Windows 10 / 11 x64、.NET Framework 4.8、Microsoft Edge WebView2 Runtime，以及 Node.js 22 或更新（宿主依次找 `MODEL_HARBOR_NODE`、`bin` 旁边的 `node\node.exe`、PATH 和常见安装位置）。
-- 构建另需 Visual Studio Build Tools 的 Roslyn `csc.exe`（或 `MODEL_HARBOR_CSC`），以及 Microsoft.Web.WebView2 1.0.4314.35 NuGet 包，解压到 `build/webview2-sdk/pkg-1.0.4314.35`（或 `MODEL_HARBOR_WEBVIEW2_SDK`）。构建脚本只校验包版本和三个 DLL 的微软 Authenticode 签名，不会联网下载。
-- 打包安装程序另需 `build/installer-deps/` 里的两个文件：微软的 WebView2 运行时引导安装程序 `MicrosoftEdgeWebview2Setup.exe`（<https://go.microsoft.com/fwlink/p/?LinkId=2124703>）和 Node.js 许可证 `node-LICENSE.txt`（Node.js 源码仓库对应版本的 `LICENSE`）。打包脚本随附运行它的那个 Node.js（或 `MODEL_HARBOR_BUNDLE_NODE` 指定的，需 22 或更新），检查 Node.js 的 OpenJS Foundation 签名、引导安装程序与 WebView2 库的微软签名，以及 `app/bin` 里的外挂是当前版本；同样不联网下载。安装程序的版本取自 `app/lib/tools.mjs`，不另外同步。
+- 开发目录里运行：Windows 10 / 11 x64、.NET Framework 4.8、Microsoft Edge WebView2 Runtime，以及 Node.js 22 或更新（宿主依次找 `BIUBIU_AI_NODE`、`bin` 旁边的 `node\node.exe`、PATH 和常见安装位置）。
+- 构建另需 Visual Studio Build Tools 的 Roslyn `csc.exe`（或 `BIUBIU_AI_CSC`），以及 Microsoft.Web.WebView2 1.0.4314.35 NuGet 包，解压到 `build/webview2-sdk/pkg-1.0.4314.35`（或 `BIUBIU_AI_WEBVIEW2_SDK`）。构建脚本只校验包版本和三个 DLL 的微软 Authenticode 签名，不会联网下载。
+- 打包安装程序另需 `build/installer-deps/` 里的两个文件：微软的 WebView2 运行时引导安装程序 `MicrosoftEdgeWebview2Setup.exe`（<https://go.microsoft.com/fwlink/p/?LinkId=2124703>）和 Node.js 许可证 `node-LICENSE.txt`（Node.js 源码仓库对应版本的 `LICENSE`）。打包脚本随附运行它的那个 Node.js（或 `BIUBIU_AI_BUNDLE_NODE` 指定的，需 22 或更新），检查 Node.js 的 OpenJS Foundation 签名、引导安装程序与 WebView2 库的微软签名，以及 `app/bin` 里的外挂是当前版本；同样不联网下载。安装程序的版本取自 `app/lib/tools.mjs`，不另外同步。
 
 ## 面板
 
@@ -126,17 +126,17 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 
 一只用手比划的小手枪（就是 biubiu 那一下），整只手是一笔连下来的线：从手腕起笔，经过竖起的拇指、伸直的食指、两个弯起的指节，再回到手腕；指尖前方射出两颗一大一小的四角星光，这是常用来表示 AI 的符号，两颗正好是「biu biu」两声。手用墨色 #1B1B1C，星光用橙色 #EA580C（与网站暖色主题的强调色一致），放在暖白色 #F6F4F0 的圆角底板上，和 Windows 11 的应用图标一样四周留白。
 
-- **程序图标**：构建时由 `app/icon.mjs` 按 `app/lib/logo.mjs` 画出 16、20、24、32、40、48、64、96、128、256 各尺寸，写成 `app/bin/biubiu.ico` 并嵌入 `ModelHarbor.exe`，资源管理器、任务管理器、开始菜单和网站窗口的任务栏按钮都用它（任务管理器里的名称是 biubiu AI）。
+- **程序图标**：构建时由 `app/icon.mjs` 按 `app/lib/logo.mjs` 画出 16、20、24、32、40、48、64、96、128、256 各尺寸，写成 `app/bin/biubiu.ico` 并嵌入 `BiubiuAI.exe`，资源管理器、任务管理器、开始菜单和网站窗口的任务栏按钮都用它（任务管理器里的名称是 biubiu AI）。
 - **托盘图标**：宿主按任务栏要的尺寸现画，底板铺满整个图标，小尺寸下手势更清楚。
 - **收起标签**：只画手势和星光，手随面板主题用墨色或纸色，鼠标移上去时与底色对调，星光不变。
-- **面板页脚**：版本号前的小图标，手用页面文字颜色。
+- **面板页脚**：版本号前的小图标，手用页面文字颜色；版本号后是「使用教程」。
 - **托盘菜单**：顶部一行的小图标，手随菜单主题用墨色或纸色。
 
-`build/companion-dev/biubiu-icon.png`（1024 像素）和 `biubiu-icon.svg`（矢量，可直接用在网页上）是图标的成品文件，由 `node app/icon.mjs <文件> [尺寸]` 生成。改图标时修改 `build/companion-dev/logo-design.mjs` 里的设计参数并运行它，把输出同步到 `app/lib/logo.mjs`、`ModelHarbor.cs` 的 `Logo` 类和 `panel.html` 页脚（`npm test` 检查三处一致），再用 `node app/icon.mjs build/companion-dev/biubiu-icon.png 1024` 更新预览图。
+`build/companion-dev/biubiu-icon.png`（1024 像素）和 `biubiu-icon.svg`（矢量，可直接用在网页上）是图标的成品文件，由 `node app/icon.mjs <文件> [尺寸]` 生成。改图标时修改 `build/companion-dev/logo-design.mjs` 里的设计参数并运行它，把输出同步到 `app/lib/logo.mjs`、`BiubiuAI.cs` 的 `Logo` 类和 `panel.html` 页脚（`npm test` 检查三处一致），再用 `node app/icon.mjs build/companion-dev/biubiu-icon.png 1024` 更新预览图。
 
 ## 随 ZCode 出现
 
-勾选托盘菜单 **登录 Windows 时在后台待命**（或运行 `app\bin\ModelHarbor.exe --install-startup`）后，会在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 写入 `ModelHarbor Companion`，登录时以 `--background` 启动。它在后台等待，ZCode 窗口一出现就贴在其边上，和上次退出时一样展开成面板或收成标签（默认展开）。取消勾选或运行 `--uninstall-startup` 即移除。在任务管理器“启动”页禁用后，托盘里的勾选会显示为未勾选；从托盘重新勾选会同时解除任务管理器的禁用标记（`HKCU\...\Explorer\StartupApproved\Run`），取消勾选会一并删除两处记录。
+勾选托盘菜单 **登录 Windows 时在后台待命**（或运行 `app\bin\BiubiuAI.exe --install-startup`）后，会在 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 写入 `biubiu AI`，登录时以 `--background` 启动。它在后台等待，ZCode 窗口一出现就贴在其边上，和上次退出时一样展开成面板或收成标签（默认展开）。取消勾选或运行 `--uninstall-startup` 即移除。在任务管理器“启动”页禁用后，托盘里的勾选会显示为未勾选；从托盘重新勾选会同时解除任务管理器的禁用标记（`HKCU\...\Explorer\StartupApproved\Run`），取消勾选会一并删除两处记录。
 
 命令行参数：
 
@@ -152,19 +152,19 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 
 ## 数据与安全
 
-- 数据目录 `%LOCALAPPDATA%\ModelHarbor`（可用绝对路径的 `MODEL_HARBOR_DATA_DIR` 覆盖）：`companion.ini` 保存 `panelWidth`、`topOffset`、`expanded`、`dock`（`right` / `left`）、`zcodeExe` 、最近一次的 ZCode 主题 `theme`（`dark` / `light`）、已经提醒过的新版本 `updateSeen` 和上次运行的版本 `version`；`companion.log` 超过 1 MB 轮转为 `.old`，不记录令牌、Key 或请求内容；`WebView2\` 为浏览器数据；`site-session.key` 是按当前 Windows 用户用 DPAPI 保护的随机密钥，`site-session.json` 是用它 AES-256-GCM 加密的站点登录令牌（不含密码），退出登录或令牌失效时删除，换了用户或密钥无法解开时也直接删除。
+- 数据目录 `%LOCALAPPDATA%\biubiu AI`（可用绝对路径的 `BIUBIU_AI_DATA_DIR` 覆盖）：`companion.ini` 保存 `panelWidth`、`topOffset`、`expanded`、`dock`（`right` / `left`）、`zcodeExe` 、最近一次的 ZCode 主题 `theme`（`dark` / `light`）、已经提醒过的新版本 `updateSeen`、上次运行的版本 `version`，以及新安装还没看过使用教程时的 `tour=pending`；`companion.log` 超过 1 MB 轮转为 `.old`，不记录令牌、Key 或请求内容；`WebView2\` 为浏览器数据；`site-session.key` 是按当前 Windows 用户用 DPAPI 保护的随机密钥，`site-session.json` 是用它 AES-256-GCM 加密的站点登录令牌（不含密码），退出登录或令牌失效时删除，换了用户或密钥无法解开时也直接删除。
 - 本地服务只监听 `127.0.0.1` 的随机端口，每次启动生成新的访问令牌，令牌不出现在任何进程命令行中。页面使用 nonce CSP，接口检查 Host、Origin、Sec-Fetch-Site 和令牌。
 - 面板只能调用 `delete_provider`、`fetch_models`、`get_models`、`import_models`、`list_providers`、`reveal_key`、`site_account`、`site_add_group`、`site_delete_key`、`site_login`、`site_logout`、`site_remove_group`、`test_model`、`update_provider` 十四个工具。除 `reveal_key` 外，工具结果不返回 Key（`update_provider` 接收新 Key，结果只说明改了地址还是 Key；`site_account` 只说明每个站内 Key 和分组是否有可用的 Key；`site_add_group` 只有带 `createKey`，即面板询问并得到同意后，才会在网站上新建 Key，结果只给出新 Key 的名称（面板带 `keyOnly`，只另给出 Key 的 ID，不导入模型）；`site_delete_key` 只在面板询问并确认后删除网站上的一个 Key，结果只给出 Key 名称和删除的服务名）；`reveal_key` 只在用户点击某个服务或某个站内 Key 的小眼睛时返回这一个 Key，面板不预取，响应不缓存（`Cache-Control: no-store`），本地服务不记录请求和响应内容。
-- 站点登录：密码只随这一次登录请求发往 `https://ro.biubiu007.com/api`，不保存、不记录；登录令牌只发往同一地址（不跟随重定向），在过期前 30 秒或被拒绝时续期，网站拒绝续期即视为退出。站内 Key（包括分组列表里带的完整 Key）只留在本地服务内存里；用站内 Key 获取模型时只接受 ro.biubiu007.com 的接口地址，且不能与输入的 Key 或已保存的服务混用。宿主通过环境变量 `MODEL_HARBOR_SESSION_DIR` / `MODEL_HARBOR_SESSION_KEY` 把保存位置和密钥交给 Node，Node 读到后立即从自己的环境中删除密钥；缺少两者时登录状态只保留到外挂退出。
-- 导入、修改和删除服务都保留自动备份与并发检查：写入前把原文件原样备份到配置旁的 `backups\model-harbor\`（默认 `%USERPROFILE%\.zcode\v2\backups\model-harbor\`），写入过程中 ZCode 改了配置则放弃本次写入；每次写入成功后只保留最近 10 份备份，更早的自动删除：只删外挂自己命名的 `provider_config-<UTC 时间>-<8 位随机>.json`（按文件名排先后，刚做的那份总算最新），文件夹里的其他文件不动。自动导入保留手动设置，显式编辑才覆盖对应字段；修改和删除只作用于“已导入的服务”列出的自定义服务。需要撤回时，关闭 ZCode 后用所需时间点的备份恢复 `provider_config.json`。
+- 站点登录：密码只随这一次登录请求发往 `https://ro.biubiu007.com/api`，不保存、不记录；登录令牌只发往同一地址（不跟随重定向），在过期前 30 秒或被拒绝时续期，网站拒绝续期即视为退出。站内 Key（包括分组列表里带的完整 Key）只留在本地服务内存里；用站内 Key 获取模型时只接受 ro.biubiu007.com 的接口地址，且不能与输入的 Key 或已保存的服务混用。宿主通过环境变量 `BIUBIU_AI_SESSION_DIR` / `BIUBIU_AI_SESSION_KEY` 把保存位置和密钥交给 Node，Node 读到后立即从自己的环境中删除密钥；缺少两者时登录状态只保留到外挂退出。
+- 导入、修改和删除服务都保留自动备份与并发检查：写入前把原文件原样备份到配置旁的 `backups\biubiu-ai\`（默认 `%USERPROFILE%\.zcode\v2\backups\biubiu-ai\`），写入过程中 ZCode 改了配置则放弃本次写入；每次写入成功后只保留最近 10 份备份，更早的自动删除：只删外挂自己命名的 `provider_config-<UTC 时间>-<8 位随机>.json`（按文件名排先后，刚做的那份总算最新），文件夹里的其他文件不动。自动导入保留手动设置，显式编辑才覆盖对应字段；修改和删除只作用于“已导入的服务”列出的自定义服务。需要撤回时，关闭 ZCode 后用所需时间点的备份恢复 `provider_config.json`。
 - 面板的 WebView2 只允许访问本地服务页面：禁止新窗口、子框架、下载和权限请求，默认关闭右键菜单、开发者工具和自动填充。
 - 网站窗口用同一个 WebView2 环境里单独的 InPrivate 配置（`site`），只加载 `https://ro.biubiu007.com`：其他网址交给默认浏览器（只限 http / https，每秒最多一个），拒绝所有权限请求，关闭密码保存和自动填充，网页无法给宿主发消息。它的登录状态从一个占位开始：没有访问令牌，续期令牌是宿主每次开窗时随机生成的标记；网站带着这个标记请求 `/api/auth/refresh` 时由宿主直接作答，其他请求原样发往网站。宿主经 Node 的标准输入问 Node 要访问令牌（`{"id","op":"site-token"}`），Node 续期一次（同一时间最多每 10 秒一次）后从标准输出回答；这条管道只有宿主持有，令牌不经过面板、端口、命令行或日志。
 - Node 子进程挂在宿主的作业对象上，宿主退出时一并结束；正常退出时会等待进行中的导入、修改或删除完成。
-- 调试用环境变量：`MODEL_HARBOR_ZCODE_EXE`（本次运行跟随其他进程名，不保存）、`MODEL_HARBOR_CONFIG_PATH`（改用其他配置文件）、`MODEL_HARBOR_REFRESH_CATALOG=0`（不刷新公开目录）、`MODEL_HARBOR_UPDATE_URL`（替身的 latest Release 地址，或 `off` 不检查更新）。
+- 调试用环境变量：`BIUBIU_AI_ZCODE_EXE`（本次运行跟随其他进程名，不保存）、`BIUBIU_AI_CONFIG_PATH`（改用其他配置文件）、`BIUBIU_AI_REFRESH_CATALOG=0`（不刷新公开目录）、`BIUBIU_AI_UPDATE_URL`（替身的 latest Release 地址，或 `off` 不检查更新）、`BIUBIU_AI_TOUR=off`（新数据目录也不自动打开使用教程；冒烟测试、安装程序检查和安装截图脚本这样设置）。
 
 ## 内存占用
 
-外挂由宿主 `ModelHarbor.exe`、本地服务 `node.exe` 和 WebView2 的一组进程（浏览器、GPU、渲染、网络、存储、崩溃报告）组成，任务管理器把它们归在 biubiu AI 下，“内存”一列是各进程的私有工作集。0.8.7 起：
+外挂由宿主 `BiubiuAI.exe`、本地服务 `node.exe` 和 WebView2 的一组进程（浏览器、GPU、渲染、网络、存储、崩溃报告）组成，任务管理器把它们归在 biubiu AI 下，“内存”一列是各进程的私有工作集。0.8.7 起：
 
 - **面板隐藏时让出内存**：面板收起成标签或随 ZCode 隐藏时，宿主把面板 WebView2 的 `MemoryUsageTargetLevel` 设为 Low，显示时恢复 Normal。约 30 秒内 WebView2 把页面以及浏览器、GPU 进程的内存换出；脚本照常运行，面板照样收到隐藏消息、重新隐藏 Key。再显示时按需取回：本机隐藏 40 秒后再显示，内容在 0.15 秒内到位，没有空白帧。WebView2 Runtime 不支持这项设置时保持原样，日志记一行。
 - **本地服务**：宿主启动 Node 时带 `--max-semi-space-size=2`（限制 V8 新生代），并固定 `UV_THREADPOOL_SIZE=2`：Windows 上 libuv 线程池每个线程预先提交 8 MB 栈，从设了 `UV_THREADPOOL_SIZE=16` 的终端启动时，光栈就提交 128 MB。公开模型目录（models.dev）的本地缓存只保留导入用到的字段（模型 ID、上限和思考档位），小约 40%；拉取模型时同一服务地址的目录匹配只做一次，3000 个模型的拉取从约 1.2 秒降到约 0.25 秒。
@@ -191,10 +191,10 @@ npm run app:server  # 只启动本地服务（开发用；此页面会修改真�
 `app:installer-check` 要往「设置 → 应用」里装再卸，机器上装着 biubiu AI 时拒绝运行，所以平时只在 GitHub 上跑：推送后在仓库的 Actions →「检查」看结果，失败时下载这次运行的 `screenshots` 附件看截图。`npm run verify -- --installer` 也能在没装 biubiu AI 的机器上本地跑它。下面是每项检查的内容。
 
 
-- `npm test`：共享逻辑、参数识别和本地服务测试，并检查各处版本号一致、插件形态已移除、每次写入配置后只留最近 10 份外挂自己的备份（文件夹里的其他文件不动），以及面板两页的结构与切换（标签、方向键、切换后从页面顶部开始、没有站点工具时只剩连接服务页）。站点账户用替身网站测试（`app/lib/site.test.mjs`）：登录与错误提示、并发请求只续期一次、续期被拒即退出并删除保存的登录、未同步时自动同步与分页、站内 Key 只按 ID 读取且只发往网站地址、两个站内 Key 导入为两个服务、登录状态加密保存与换密钥后丢弃，结果中不出现 Key、令牌或密码；分组：列表不带 Key，添加分组沿用可用 Key 并一次写入全部模型、重复添加不变，面板用的 `keyOnly` 只找出或新建 Key、返回 ID、不写入任何模型，没有可用 Key 时只在面板询问后新建且同时点两次也只新建一个，取模型失败时说明已新建的 Key 并在下次沿用，Gemini 分组、未知分组和未登录时不改任何东西，删除分组删除在网站地址上用其 Key 的服务（别处地址的同一 Key 不算）、每个服务一份备份、不删网站上的 Key，默认模型仍在使用时拒绝；删除站内 Key：先在一次写入里删掉 ZCode 里用这个 Key 的服务（不论地址，不备份）再按网站自己的方式删网站上的 Key，默认模型仍在使用其中任何一个时两边都不删，测试 Key、未知 Key 和未登录时不删，网站删不掉时说明 ZCode 里已删的服务、再删一次即完成，Key 按网站自己的编号（`localId`）与分组和删除对应；再次获取站内 Key 的模型时标出已在 ZCode 的模型，并列出 ZCode 里有而网关已不再列出的模型（`missing`）；`import_models` 带 `removeModelIds` 时一次写入地移除模型及其设置并备份，全部移除、默认模型仍在使用、不属于本次读取、同时加又删、服务不在 ZCode 时都拒绝且配置不变；站内 Key 带所属分组的倍率，已加入的分组带它在 ZCode 所用 Key 的 ID（`keyId`）；再添加已加入的分组时沿用它在 ZCode 的服务已有的 Key，缺的模型加进这个服务、不新建服务；网站 5xx 只给英文原因时换成中文说明，中文原因照常透传；模型参数（`app/lib/metadata.test.mjs`）：ZCode 不认识的模型写 256K / 128K / low·high·max，接口和公开目录只降不升，ZCode 认识的项不写（接口声明更小除外），ZCode 规则按 ZCode 的顺序、不分大小写匹配且兜底规则不算、取最新版本的副本，已有模型不动，测试只发一条不带思考设置的短请求；网站窗口的令牌交接：未登录时不联系网站，每次交接续期一次（10 秒内重复只给同一个令牌），结果只有访问令牌、不含续期令牌，交接后面板照常读取、重启后保存的登录仍可用，续期被拒即双双退出，暂时失败时报错并保留登录。本地服务测试还检查宿主经标准输入要令牌、只从标准输出拿到回答，工具接口拿不到令牌；面板测试检查站点页的顺序（账户与累计充值、余额、打开网站链接、分组、站内 Key），分组的结果显示在该行（行不在列表里且与上方错误不同时才显示在列表下方）、分组的添加和已加入分组的「选择模型」都在该行下方展开模型、不直接添加、网站读取失败时不说“还没有可用的分组”，站内 Key 的模型在站点页该 Key 下方展开、勾选即使用（已在 ZCode 的可取消、网站已不再提供的列在最后且不勾选、保存时一次加与删、不能一个不剩）且不切到连接服务页，删除先在行内询问，以及按钮、提示框等的圆角。图标测试（`app/icon.test.mjs`）检查图标文件里每个尺寸的格式、底板与手势和星光落在路径所说的位置、宿主 `Logo` 类和面板页脚与 `logo.mjs` 完全一致、构建把图标嵌入 exe，以及旧名不再出现在界面和文档里。
+- `npm test`：共享逻辑、参数识别和本地服务测试，并检查各处版本号一致、插件形态已移除、每次写入配置后只留最近 10 份外挂自己的备份（文件夹里的其他文件不动），以及面板两页的结构与切换（标签、方向键、切换后从页面顶部开始、没有站点工具时只剩连接服务页）。站点账户用替身网站测试（`app/lib/site.test.mjs`）：登录与错误提示、并发请求只续期一次、续期被拒即退出并删除保存的登录、未同步时自动同步与分页、站内 Key 只按 ID 读取且只发往网站地址、两个站内 Key 导入为两个服务、登录状态加密保存与换密钥后丢弃，结果中不出现 Key、令牌或密码；分组：列表不带 Key，添加分组沿用可用 Key 并一次写入全部模型、重复添加不变，面板用的 `keyOnly` 只找出或新建 Key、返回 ID、不写入任何模型，没有可用 Key 时只在面板询问后新建且同时点两次也只新建一个，取模型失败时说明已新建的 Key 并在下次沿用，Gemini 分组、未知分组和未登录时不改任何东西，删除分组删除在网站地址上用其 Key 的服务（别处地址的同一 Key 不算）、每个服务一份备份、不删网站上的 Key，默认模型仍在使用时拒绝；删除站内 Key：先在一次写入里删掉 ZCode 里用这个 Key 的服务（不论地址，不备份）再按网站自己的方式删网站上的 Key，默认模型仍在使用其中任何一个时两边都不删，测试 Key、未知 Key 和未登录时不删，网站删不掉时说明 ZCode 里已删的服务、再删一次即完成，Key 按网站自己的编号（`localId`）与分组和删除对应；再次获取站内 Key 的模型时标出已在 ZCode 的模型，并列出 ZCode 里有而网关已不再列出的模型（`missing`）；`import_models` 带 `removeModelIds` 时一次写入地移除模型及其设置并备份，全部移除、默认模型仍在使用、不属于本次读取、同时加又删、服务不在 ZCode 时都拒绝且配置不变；站内 Key 带所属分组的倍率，已加入的分组带它在 ZCode 所用 Key 的 ID（`keyId`）；再添加已加入的分组时沿用它在 ZCode 的服务已有的 Key，缺的模型加进这个服务、不新建服务；网站 5xx 只给英文原因时换成中文说明，中文原因照常透传；模型参数（`app/lib/metadata.test.mjs`）：ZCode 不认识的模型写 256K / 128K / low·high·max，接口和公开目录只降不升，ZCode 认识的项不写（接口声明更小除外），ZCode 规则按 ZCode 的顺序、不分大小写匹配且兜底规则不算、取最新版本的副本，已有模型不动，测试只发一条不带思考设置的短请求；网站窗口的令牌交接：未登录时不联系网站，每次交接续期一次（10 秒内重复只给同一个令牌），结果只有访问令牌、不含续期令牌，交接后面板照常读取、重启后保存的登录仍可用，续期被拒即双双退出，暂时失败时报错并保留登录。本地服务测试还检查宿主经标准输入要令牌、只从标准输出拿到回答，工具接口拿不到令牌；面板测试检查站点页的顺序（账户与累计充值、余额、打开网站链接、分组、站内 Key），分组的结果显示在该行（行不在列表里且与上方错误不同时才显示在列表下方）、分组的添加和已加入分组的「选择模型」都在该行下方展开模型、不直接添加、网站读取失败时不说“还没有可用的分组”，站内 Key 的模型在站点页该 Key 下方展开、勾选即使用（已在 ZCode 的可取消、网站已不再提供的列在最后且不勾选、保存时一次加与删、不能一个不剩）且不切到连接服务页，删除先在行内询问，使用教程的入口与步骤推进（登录后自动继续、没有 Key 时先问、勾选保存后才到最后一步、收起模型回到选分组、卡片说明不超过 12 字），以及按钮、提示框等的圆角。图标测试（`app/icon.test.mjs`）检查图标文件里每个尺寸的格式、底板与手势和星光落在路径所说的位置、宿主 `Logo` 类和面板页脚与 `logo.mjs` 完全一致、构建把图标嵌入 exe，以及旧名不再出现在界面和文档里。
 - `npm run app:smoke`：启动 `build/companion-dev/FakeZCode.exe` 替身窗口和临时数据目录，检查外侧贴靠、左侧回退、两侧都放不下时的内侧回退、移动跟随、最大化时只在内侧边缘显示标签（`--expand` 后面板在内侧展开，还原后回到外侧，再次最大化又只剩标签）、最小化隐藏与恢复、收起 / 展开、单击和双击托盘图标（向图标的隐藏窗口发 `WM_USER + 1024`，双击只切换一次）、ZCode 最小化时单击托盘图标或按 `Ctrl+Alt+M` 后恢复仍是面板（快捷键被别的程序占用时跳过）、手动启动时 ZCode 最小化会提示（日志 `startup notice`）而 ZCode 在屏幕上和 `--background` 时不提示、`--background` 按上次的展开或收起状态显示、明暗主题、ZCode 在白色或黑色背景前从任务栏恢复时面板不闪成另一种主题（含 ZCode 最小化时才启动外挂的情况）、单实例、只监听回环地址和退出清理；面板和收起标签在深色主题下放到一块白色替身底板前，检查远离 ZCode 那一侧的两个角透出底板（圆角）、同一条边的中间仍是面板自己的颜色，并把面板顶部两角存为 `build/companion-dev/panel-corners.png`；最后用临时配置里的假 Key 通过 UI 自动化切到「连接服务」页并检查：已保存 Key 默认以圆点隐藏、点小眼睛显示完整 Key、面板收起再展开以及 ZCode 最小化再恢复后重新隐藏；在面板里 **修改** 这个服务的地址和 Key 后，临时配置随之更新并留下一份备份，新 Key 同样默认隐藏、点小眼睛才显示；**删除** 要再点 **确认删除** 才生效，删除后配置和面板里都不再有这个服务，并再留下一份备份；日志里始终没有 Key。不触碰真实 ZCode。替身窗口和 Electron 无边框窗口一样保留标题栏样式，所以最小化与恢复时有系统动画；它的 `backdrop white|black|off` 命令在它正后方放一块同样大小的纯色窗口。替身源码改动后需用 Roslyn `csc.exe` 重新编译 `FakeZCode.exe`。
-- `npm run app:site-check`（`build/companion-dev/site-window-check.mjs`）：把 `SiteWindowCheck.cs` 编译到临时目录，引用构建好的 `ModelHarbor.exe`，让真正的网站窗口打开 127.0.0.1 上的替身网站（Node 一侧也用替身）。检查：网站一开始拿到的是占位登录；带标记的续期两次拿到令牌（并再拿到标记），之后面板已退出时得到 401、没有回答时得到 503，令牌能用于替身的 `/api/auth/me`；不带标记的续期原样到达网站，请求体不变；网页给宿主发的消息到不了宿主；站外的新窗口和跳转交给“默认浏览器”（只打印，不真的打开），页面留在网站上；第一次加载后刷新保留网站自己的登录状态；日志写在临时目录里，没有令牌和标记。再检查宿主与 Node 之间的管道：宿主能读出带令牌、已退出和出错的回答，其他行不当作回答；对真正的 `app/server.mjs`（临时数据目录里没有登录，所以不联系任何网站）经标准输入提问能得到回答，同时问两次各得一个回答，未知的问题、服务未就绪或已停止时立即失败。然后离线检查更新检查（`SiteWindowCheck.exe --updates`）：JSON 的各种值、转义和数字能读、不是 JSON 的文字被拒绝；GitHub 形状的 Release 给出版本、页面、安装程序地址、大小和 SHA-256，以及 Gitee 镜像上同名安装程序的地址，草稿、预发布、不是版本号的标签不算，别处的下载地址、别的版本的附件、缺少或不是 SHA-256 的摘要都不能一键更新；只有更新的版本才算；下载的文件大小或 SHA-256 不符时不运行；开发目录里的构建不检查更新。最后检查托盘菜单（含「检查更新」一行）：在自己的纯色底板前分别打开浅色和深色菜单（截图里只有底板和菜单），检查菜单停在放下的位置、各行等距排列、四角是圆角、底色是面板的纸色且没有灰色图标栏、只有鼠标所在的一行有底色、顶部一行有橙色星光、当前停靠侧的圆点和启动项勾选框画对了，两张截图并排存为 `build/companion-dev/tray-menu.png`。不访问真实网站，不用任何账号。
-- 安装程序：`npm test` 里的 `app/installer/package.test.mjs` 检查安装包只带本地服务实际读取的文件（从 `server.mjs` 顺着 import 找出，不含测试和开发工具）、压缩包按 UTF-8 文件名完整还原且同样的文件打出同样的包、安装程序与外挂对互斥体、退出事件、启动项和数据目录的名字一致、宿主先用 `bin` 旁边的 Node.js，以及只按当前用户安装、不碰 ZCode、只删清单里的文件。`npm run app:installer-check`（`build/companion-dev/installer-check.ps1`）做端到端检查：打开安装窗口截图后关闭（不安装）；静默安装到带空格和中文的临时路径，核对文件与清单、Node.js 签名、「应用」条目和开始菜单快捷方式，未勾选时不建桌面快捷方式、不写登录启动项；把 Node.js 从 PATH 拿掉后对装好的副本跑完整的 `app:smoke`（`MODEL_HARBOR_EXE` 指向它），并确认服务由随附的 Node.js 运行；原地升级会删掉新版本没有的旧文件；再用替身 Release（`release-stand-in.mjs`，名为 0.9.0、安装程序就是本次构建的）让装好的副本一键更新：提醒一次且不自己下载，`--check-update` 后先询问（截图存为 `update-ask.png`），点「是」后从替身镜像经重定向下载一次（不碰替身 GitHub 的下载）、核对 SHA-256、静默原地安装并在同样的环境里重新启动，桌面快捷方式、登录启动项和「应用」条目不变，重新启动后再检查也不再提醒，下载的文件清掉；替身改报不符的 SHA-256 后再更新，镜像的文件对不上、改从替身 GitHub 下载也对不上，拒绝安装、外挂不退出、文件删掉。全程盯着真实数据目录的日志，测试里启动的外挂一旦写到那里就立即让它退出并判为失败。打开卸载窗口截图后关闭（不卸载）；静默卸载后安装目录、「应用」条目和快捷方式都没了，外层文件夹、外挂数据目录和登录启动项不受影响；装进有其他文件的文件夹时进到「biubiu AI」子文件夹，卸载后其他文件还在；最后像用户一样在窗口里点「安装」、取消「现在启动」、点「完成」，确认装好且没有启动。截图存为 `build/companion-dev/installer.png`、`installer-done.png`、`uninstaller.png`。机器上已经装有 biubiu AI（「应用」里有条目或开始菜单已有快捷方式）时拒绝运行，以免替换它；外挂只跟随替身 ZCode、只用临时数据目录。
+- `npm run app:site-check`（`build/companion-dev/site-window-check.mjs`）：把 `SiteWindowCheck.cs` 编译到临时目录，引用构建好的 `BiubiuAI.exe`，让真正的网站窗口打开 127.0.0.1 上的替身网站（Node 一侧也用替身）。检查：网站一开始拿到的是占位登录；带标记的续期两次拿到令牌（并再拿到标记），之后面板已退出时得到 401、没有回答时得到 503，令牌能用于替身的 `/api/auth/me`；不带标记的续期原样到达网站，请求体不变；网页给宿主发的消息到不了宿主；站外的新窗口和跳转交给“默认浏览器”（只打印，不真的打开），页面留在网站上；第一次加载后刷新保留网站自己的登录状态；日志写在临时目录里，没有令牌和标记。再检查宿主与 Node 之间的管道：宿主能读出带令牌、已退出和出错的回答，其他行不当作回答；对真正的 `app/server.mjs`（临时数据目录里没有登录，所以不联系任何网站）经标准输入提问能得到回答，同时问两次各得一个回答，未知的问题、服务未就绪或已停止时立即失败。然后离线检查更新检查（`SiteWindowCheck.exe --updates`）：JSON 的各种值、转义和数字能读、不是 JSON 的文字被拒绝；GitHub 形状的 Release 给出版本、页面、安装程序地址、大小和 SHA-256，以及 Gitee 镜像上同名安装程序的地址，草稿、预发布、不是版本号的标签不算，别处的下载地址、别的版本的附件、缺少或不是 SHA-256 的摘要都不能一键更新；只有更新的版本才算；下载的文件大小或 SHA-256 不符时不运行；开发目录里的构建不检查更新。最后检查托盘菜单（含「检查更新」一行）：在自己的纯色底板前分别打开浅色和深色菜单（截图里只有底板和菜单），检查菜单停在放下的位置、各行等距排列、四角是圆角、底色是面板的纸色且没有灰色图标栏、只有鼠标所在的一行有底色、顶部一行有橙色星光、当前停靠侧的圆点和启动项勾选框画对了，两张截图并排存为 `build/companion-dev/tray-menu.png`。不访问真实网站，不用任何账号。
+- 安装程序：`npm test` 里的 `app/installer/package.test.mjs` 检查安装包只带本地服务实际读取的文件（从 `server.mjs` 顺着 import 找出，不含测试和开发工具）、压缩包按 UTF-8 文件名完整还原且同样的文件打出同样的包、安装程序与外挂对互斥体、退出事件、启动项和数据目录的名字一致、宿主先用 `bin` 旁边的 Node.js，以及只按当前用户安装、不碰 ZCode、只删清单里的文件。`npm run app:installer-check`（`build/companion-dev/installer-check.ps1`）做端到端检查：打开安装窗口截图后关闭（不安装）；静默安装到带空格和中文的临时路径，核对文件与清单、Node.js 签名、「应用」条目和开始菜单快捷方式，未勾选时不建桌面快捷方式、不写登录启动项；把 Node.js 从 PATH 拿掉后对装好的副本跑完整的 `app:smoke`（`BIUBIU_AI_EXE` 指向它），并确认服务由随附的 Node.js 运行；原地升级会删掉新版本没有的旧文件；再用替身 Release（`release-stand-in.mjs`，名为 0.9.0、安装程序就是本次构建的）让装好的副本一键更新：提醒一次且不自己下载，`--check-update` 后先询问（截图存为 `update-ask.png`），点「是」后从替身镜像经重定向下载一次（不碰替身 GitHub 的下载）、核对 SHA-256、静默原地安装并在同样的环境里重新启动，桌面快捷方式、登录启动项和「应用」条目不变，重新启动后再检查也不再提醒，下载的文件清掉；替身改报不符的 SHA-256 后再更新，镜像的文件对不上、改从替身 GitHub 下载也对不上，拒绝安装、外挂不退出、文件删掉。全程盯着真实数据目录的日志，测试里启动的外挂一旦写到那里就立即让它退出并判为失败。打开卸载窗口截图后关闭（不卸载）；静默卸载后安装目录、「应用」条目和快捷方式都没了，外层文件夹、外挂数据目录和登录启动项不受影响；装进有其他文件的文件夹时进到「biubiu AI」子文件夹，卸载后其他文件还在；最后像用户一样在窗口里点「安装」、取消「现在启动」、点「完成」，确认装好且没有启动。截图存为 `build/companion-dev/installer.png`、`installer-done.png`、`uninstaller.png`。机器上已经装有 biubiu AI（「应用」里有条目或开始菜单已有快捷方式）时拒绝运行，以免替换它；外挂只跟随替身 ZCode、只用临时数据目录。
 - `build/companion-dev/live-zcode.ps1`：对真实 ZCode 窗口做联动测试（移动、缩放、最大化、最小化，含两侧都放不下时的内侧回退），结束后恢复 ZCode 原始窗口状态。**只在用户明确同意后运行。**
 
 ## 插件形态的移除记录

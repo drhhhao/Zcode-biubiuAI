@@ -4,7 +4,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { MetadataCatalog, apiMetadata, applyPlan } from './metadata.mjs';
 
-export const CONFIG_PATH = process.env.MODEL_HARBOR_CONFIG_PATH || path.join(process.env.ZCODE_DATA_BASE_DIR || path.join(os.homedir(), '.zcode'), 'v2', 'provider_config.json');
+export const CONFIG_PATH = process.env.BIUBIU_AI_CONFIG_PATH || path.join(process.env.ZCODE_DATA_BASE_DIR || path.join(os.homedir(), '.zcode'), 'v2', 'provider_config.json');
 const PROTOCOLS = new Set(['openai-chat-completions', 'anthropic-messages', 'openai-responses']);
 // Fallback for the template used on this machine. Prefer the host's own catalog.
 const DEFAULT_TEMPLATES = [{ templateId: 'deepseek', config: { api: { type: 'anthropic-messages', baseUrl: 'https://api.deepseek.com/anthropic' }, builtinModelIds: ['deepseek-flash', 'deepseek-v4-pro'] } }];
@@ -35,6 +35,17 @@ async function readConfig(file) {
 // provider_config-<UTC time>-<random>.json, which sort by time; the backup just made counts as the newest even if the
 // clock went back. Best effort: the config is already saved, so a file that cannot be deleted waits for the next write.
 const BACKUPS_KEPT = 10, BACKUP_NAME = /^provider_config-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}Z-[0-9a-f]{8}\.json$/;
+// The backup folder's name up to 0.8.12 (the project's old working name). Backups made there join the new folder at the
+// next write, so the ten kept count across both; the old folder goes once it is empty, and any other file there stays.
+const LEGACY_BACKUP_FOLDER = 'model-harbor';
+async function adoptLegacyBackups(dir) {
+  const old = path.join(path.dirname(dir), LEGACY_BACKUP_FOLDER);
+  const names = (await fs.readdir(old).catch(() => [])).filter(name => BACKUP_NAME.test(name));
+  if (!names.length) return;
+  await fs.mkdir(dir, { recursive: true });
+  for (const name of names) await fs.rename(path.join(old, name), path.join(dir, name)).catch(() => {});
+  await fs.rmdir(old).catch(() => {});
+}
 async function pruneBackups(dir, made) {
   const names = (await fs.readdir(dir).catch(() => [])).filter(name => BACKUP_NAME.test(name) && name !== made).sort();
   if (made) names.push(made);
@@ -89,8 +100,8 @@ async function boundedJson(response) {
 // A site key gets a service of its own, so two keys of one site group never overwrite each other's key.
 const keyMatches = (p, s) => !s.siteKey || p.config?.access?.apiKey === s.apiKey;
 
-export class Harbor {
-  constructor({ configPath = CONFIG_PATH, fetchImpl = fetch, timeoutMs = 12000, builtinConfigPath = process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE || process.env.MODEL_HARBOR_BUILTIN_PATH, refreshCatalog = true, metadataCatalog, site = null } = {}) { this.configPath = configPath; this.site = site; this.fetchImpl = fetchImpl; this.timeoutMs = timeoutMs; this.sessions = new Map(); this.builtinConfigPath = builtinConfigPath; this.metadataCatalog = metadataCatalog || new MetadataCatalog({ builtinConfigPath, zcodeDir: path.dirname(configPath), refresh: refreshCatalog }); }
+export class BiubiuAI {
+  constructor({ configPath = CONFIG_PATH, fetchImpl = fetch, timeoutMs = 12000, builtinConfigPath = process.env.ZCODE_BUILTIN_PROVIDER_CONFIG_FILE || process.env.BIUBIU_AI_BUILTIN_PATH, refreshCatalog = true, metadataCatalog, site = null } = {}) { this.configPath = configPath; this.site = site; this.fetchImpl = fetchImpl; this.timeoutMs = timeoutMs; this.sessions = new Map(); this.builtinConfigPath = builtinConfigPath; this.metadataCatalog = metadataCatalog || new MetadataCatalog({ builtinConfigPath, zcodeDir: path.dirname(configPath), refresh: refreshCatalog }); }
   async resolvedProvider(p) {
     let templates = DEFAULT_TEMPLATES;
     if (this.builtinConfigPath) { try { templates = JSON.parse(await fs.readFile(this.builtinConfigPath, 'utf8')).config.providerConfigRules.templateRules; } catch {} }
@@ -344,7 +355,7 @@ export class Harbor {
       if (target && target.config?.group !== 'standard-personal') throw new PanelError('只支持导入自定义供应商。');
       if (created && removeModelIds.length) throw new PanelError('这个服务已不在 ZCode 里，没有可移除的模型。请重新读取模型。');
       if (!target) {
-        target = { providerId: `model-harbor-${crypto.randomUUID()}`, providerName, config: { group: 'standard-personal', access: { type: 'api-key', apiKey: s.apiKey }, api: { type: s.protocol, baseUrl: s.baseUrl, ...(s.savedHeaders ? { headers: s.savedHeaders } : {}) }, personalModelIds: [], modelOrder: [] } };
+        target = { providerId: `biubiu-ai-${crypto.randomUUID()}`, providerName, config: { group: 'standard-personal', access: { type: 'api-key', apiKey: s.apiKey }, api: { type: s.protocol, baseUrl: s.baseUrl, ...(s.savedHeaders ? { headers: s.savedHeaders } : {}) }, personalModelIds: [], modelOrder: [] } };
         rules.push(target);
         doc.config.providerOrder = [...(doc.config.providerOrder || rules.filter(p => p !== target).map(p => p.providerId)), target.providerId];
       }
@@ -422,16 +433,16 @@ export class Harbor {
   // meantime; after the write the ten newest backups stay. change edits the parsed config and returns the result; a
   // result marked unchanged writes nothing.
   async changeConfig(change, cancelled, { backup = true } = {}) {
-    const lockPath = `${this.configPath}.model-harbor.lock`;
+    const lockPath = `${this.configPath}.biubiu-ai.lock`;
     let lock;
-    try { lock = await fs.open(lockPath, 'wx', 0o600); } catch { throw new PanelError('配置正被同步，或上次写入未完成。请稍后重试；若一直出现，请检查配置旁的 model-harbor.lock 文件。'); }
+    try { lock = await fs.open(lockPath, 'wx', 0o600); } catch { throw new PanelError('配置正被同步，或上次写入未完成。请稍后重试；若一直出现，请检查配置旁的 biubiu-ai.lock 文件。'); }
     let temporary;
     try {
       const { doc, raw } = await readConfig(this.configPath);
       const result = await change(doc);
       validateConfig(doc);
       if (result.unchanged) return result;
-      const suffix = crypto.randomBytes(4).toString('hex'), backupDir = path.join(path.dirname(this.configPath), 'backups', 'model-harbor');
+      const suffix = crypto.randomBytes(4).toString('hex'), backupDir = path.join(path.dirname(this.configPath), 'backups', 'biubiu-ai');
       let backupPath;
       if (backup) {
         await fs.mkdir(backupDir, { recursive: true });
@@ -439,11 +450,12 @@ export class Harbor {
         backupPath = path.join(backupDir, `provider_config-${stamp}-${suffix}.json`);
         await fs.writeFile(backupPath, raw, { mode: 0o600, flag: 'wx' });
       }
-      temporary = `${this.configPath}.model-harbor-${suffix}.tmp`;
+      temporary = `${this.configPath}.biubiu-ai-${suffix}.tmp`;
       const handle = await fs.open(temporary, 'wx', 0o600);
       try { await handle.writeFile(JSON.stringify(doc, null, 2) + '\n'); await handle.sync(); } finally { await handle.close(); }
       if (await fs.readFile(this.configPath, 'utf8') !== raw) throw new PanelError(`ZCode 刚刚更新了配置，${cancelled}`);
       await fs.rename(temporary, this.configPath); temporary = null;
+      await adoptLegacyBackups(backupDir);
       await pruneBackups(backupDir, backupPath && path.basename(backupPath));
       return backupPath ? { ...result, backupPath } : result;
     } finally { if (temporary) await fs.unlink(temporary).catch(() => {}); await lock.close(); await fs.unlink(lockPath).catch(() => {}); }

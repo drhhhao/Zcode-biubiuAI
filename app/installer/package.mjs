@@ -21,7 +21,7 @@ const ROOT = path.dirname(APP_DIR);
 export const DEPS_DIR = path.join(ROOT, 'build', 'installer-deps');
 export const DIST_DIR = path.join(ROOT, 'dist');
 // What app/build.mjs puts in app/bin: the host, the WebView2 SDK libraries with their license files, and the icon.
-export const BIN_FILES = Object.freeze(['ModelHarbor.exe', 'ModelHarbor.exe.config', 'biubiu.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll', 'WebView2.LICENSE.txt', 'WebView2.NOTICE.txt']);
+export const BIN_FILES = Object.freeze(['BiubiuAI.exe', 'BiubiuAI.exe.config', 'biubiu.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll', 'WebView2.LICENSE.txt', 'WebView2.NOTICE.txt']);
 export const MICROSOFT = 'CN=Microsoft Corporation,';
 export const OPENJS = 'CN=OpenJS Foundation,';
 export const setupName = version => `biubiuAI-Setup-${version}.exe`;
@@ -100,7 +100,7 @@ export function releaseSource(title, version = VERSION) {
     `[assembly: System.Reflection.AssemblyVersion("${version}.0")]`,
     `[assembly: System.Reflection.AssemblyFileVersion("${version}.0")]`,
     `[assembly: System.Reflection.AssemblyInformationalVersion("${version}")]`,
-    `namespace ModelHarbor.Setup { static class Release { public const string Version = "${version}"; } }`,
+    `namespace BiubiuAI.Setup { static class Release { public const string Version = "${version}"; } }`,
     ''
   ].join('\n');
 }
@@ -108,8 +108,8 @@ export function releaseSource(title, version = VERSION) {
 function fail(message) { console.error(`installer build failed: ${message}`); process.exit(1); }
 
 function findCsc() {
-  const fromEnv = process.env.MODEL_HARBOR_CSC;
-  if (fromEnv) { if (fs.existsSync(fromEnv)) return fromEnv; fail(`MODEL_HARBOR_CSC does not exist: ${fromEnv}`); }
+  const fromEnv = process.env.BIUBIU_AI_CSC;
+  if (fromEnv) { if (fs.existsSync(fromEnv)) return fromEnv; fail(`BIUBIU_AI_CSC does not exist: ${fromEnv}`); }
   for (const base of [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].filter(Boolean)) {
     const vs = path.join(base, 'Microsoft Visual Studio');
     if (!fs.existsSync(vs)) continue;
@@ -122,7 +122,7 @@ function findCsc() {
       }
     }
   }
-  fail('Roslyn csc.exe not found. Install Visual Studio Build Tools with the C# compiler, or set MODEL_HARBOR_CSC.');
+  fail('Roslyn csc.exe not found. Install Visual Studio Build Tools with the C# compiler, or set BIUBIU_AI_CSC.');
 }
 
 // Started from PowerShell 7 (as GitHub Actions runs npm), Windows PowerShell would inherit PowerShell 7's module path
@@ -160,9 +160,9 @@ function main() {
   const csc = findCsc();
   const bin = path.join(APP_DIR, 'bin');
   for (const name of BIN_FILES) if (!fs.existsSync(path.join(bin, name))) fail(`app/bin/${name} is missing; run npm run app:build first`);
-  const built = powershell('(Get-Item -LiteralPath $env:MH_FILE).VersionInfo.FileVersion', { MH_FILE: path.join(bin, 'ModelHarbor.exe') });
-  if (built !== `${VERSION}.0`) fail(`app/bin/ModelHarbor.exe is ${built}, not ${VERSION}; run npm run app:build first`);
-  const node = process.env.MODEL_HARBOR_BUNDLE_NODE || process.execPath;
+  const built = powershell('(Get-Item -LiteralPath $env:MH_FILE).VersionInfo.FileVersion', { MH_FILE: path.join(bin, 'BiubiuAI.exe') });
+  if (built !== `${VERSION}.0`) fail(`app/bin/BiubiuAI.exe is ${built}, not ${VERSION}; run npm run app:build first`);
+  const node = process.env.BIUBIU_AI_BUNDLE_NODE || process.execPath;
   const nodeVersion = (spawnSync(node, ['--version'], { encoding: 'utf8' }).stdout || '').trim();
   if (Number((/^v(\d+)\./.exec(nodeVersion) || [])[1] || 0) < 22) fail(`${node} is ${nodeVersion || 'not Node.js'}; biubiu AI needs Node.js 22 or newer`);
   const nodeLicense = path.join(DEPS_DIR, 'node-LICENSE.txt'), bootstrapper = path.join(DEPS_DIR, 'MicrosoftEdgeWebview2Setup.exe');

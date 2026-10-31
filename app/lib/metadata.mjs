@@ -114,7 +114,11 @@ export function zcodeFallback(zcode, { protocol } = {}) {
 }
 
 export class MetadataCatalog {
-  constructor({ builtinConfigPath, zcodeDir, dataDir = process.env.MODEL_HARBOR_DATA_DIR || path.join(os.homedir(), '.zcode/v2/cache/model-harbor'), refresh = true, fetchImpl = fetch } = {}) { this.builtinConfigPath = builtinConfigPath; this.zcodeDir = zcodeDir; this.dataDir = dataDir; this.refresh = refresh; this.fetchImpl = fetchImpl; this.promise = null; }
+  constructor({ builtinConfigPath, zcodeDir, dataDir, refresh = true, fetchImpl = fetch } = {}) {
+    // The cache folder in ZCode's cache had the project's old working name up to 0.8.12; an installed copy's default one
+    // takes it over once (the host sets BIUBIU_AI_CARRY_OVER there), so tests and development runs never move it.
+    if (!dataDir && !process.env.BIUBIU_AI_DATA_DIR && process.env.BIUBIU_AI_CARRY_OVER === '1') this.legacyDir = path.join(os.homedir(), '.zcode/v2/cache/model-harbor');
+    dataDir ||= process.env.BIUBIU_AI_DATA_DIR || path.join(os.homedir(), '.zcode/v2/cache/biubiu-ai'); this.builtinConfigPath = builtinConfigPath; this.zcodeDir = zcodeDir; this.dataDir = dataDir; this.refresh = refresh; this.fetchImpl = fetchImpl; this.promise = null; }
   async load() {
     if (!this.promise) this.promise = this.#load().catch(() => ({ providers: {}, zcode: {}, fetchedAt: null }));
     return this.promise;
@@ -122,6 +126,7 @@ export class MetadataCatalog {
   async #load() {
     const bundled = JSON.parse(await fs.readFile(new URL('./model-catalog.json', import.meta.url), 'utf8'));
     let catalog = bundled;
+    if (this.legacyDir) await fs.rename(this.legacyDir, this.dataDir).catch(() => {});
     const cache = path.join(this.dataDir, 'model-catalog.json');
     try { const saved = JSON.parse(await fs.readFile(cache, 'utf8')); if (saved.providers && Date.parse(saved.fetchedAt) > Date.parse(catalog.fetchedAt)) catalog = saved; } catch {}
     if (this.refresh && Date.now() - Date.parse(catalog.fetchedAt) > 24 * 60 * 60 * 1000) {

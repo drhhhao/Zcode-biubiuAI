@@ -14,7 +14,10 @@ import { PanelError } from './core.mjs';
 
 export const SITE = Object.freeze({ origin: 'https://ro.biubiu007.com', name: 'biubiu AI' });
 export const SESSION_FILE = 'site-session.json';
-const AAD = Buffer.from('model-harbor site session v1');
+const AAD = Buffer.from('biubiu-ai site session v1');
+// The name the saved sign-in was bound to up to 0.8.12 (the project's old working name): such a file still opens, and is
+// saved under the new name the next time it changes.
+const LEGACY_AAD = Buffer.from('model-harbor site session v1');
 const PAGE_SIZE = 20, MAX_PAGES = 25, RENEW_BEFORE_MS = 30000, HANDOFF_EVERY_MS = 10000;
 const STATUS = { active: '正常', inactive: '停用', quota_exhausted: '额度用尽', expired: '已过期' };
 const PLATFORMS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini', antigravity: 'Antigravity', grok: 'Grok', 'new-api': 'New API' };
@@ -22,7 +25,7 @@ const PLATFORMS = { anthropic: 'Claude', openai: 'GPT', gemini: 'Gemini', antigr
 // ZCode has no protocol for; other platforms (grok, new-api) are tried as OpenAI-compatible.
 const ROUTES = { anthropic: ['anthropic-messages', ''], antigravity: ['anthropic-messages', '/antigravity'], openai: ['openai-responses', '/v1'] };
 const UNSUPPORTED = { gemini: 'ZCode 暂不支持 Gemini 接口，只能查看。' };
-const UNSUPPORTED_GROUP = { gemini: 'ZCode 暂不支持 Gemini 接口，不能添加。' };
+const UNSUPPORTED_GROUP = { gemini: 'ZCode 暂不支持' };
 // The keys the site makes to test its groups, named as its key page recognizes them; that page cannot delete them.
 const TEST_KEY = /^(?:hub-[pc]test-(?:i:[a-z0-9][a-z0-9-]{1,10}[a-z0-9]-)?g:\d+|【subApiHub测试】g\d+)$/u;
 
@@ -219,7 +222,7 @@ export class Site {
   // (no quota, no expiry). Without create nothing is made.
   async groupKey(id, { create = false, prefer = () => false } = {}) {
     const group = await this.group(id);
-    if (group.blocked) throw new PanelError(group.blocked);
+    if (group.blocked) throw new PanelError(`ZCode 暂不支持 ${group.platformName || '这个平台'} 的接口，不能添加这个分组。`);
     const { pid, accountId } = await this.place();
     if (group.keys.some(k => !this.keys.has(k.id))) this.keys = new Map((await this.listKeys(pid, accountId)).map(k => [k.id, k]));
     const usable = group.keys.filter(k => this.usable(k.id)), found = usable.find(k => prefer(this.keys.get(k.id).key)) || usable[0];
@@ -351,8 +354,11 @@ export class Site {
   decrypt(raw) {
     const box = JSON.parse(raw);
     if (box?.v !== 1) throw new Error('unknown session file');
-    const decipher = crypto.createDecipheriv('aes-256-gcm', this.secret, Buffer.from(box.iv, 'base64'), { authTagLength: 16 });
-    decipher.setAAD(AAD); decipher.setAuthTag(Buffer.from(box.tag, 'base64'));
-    return JSON.parse(Buffer.concat([decipher.update(Buffer.from(box.data, 'base64')), decipher.final()]).toString('utf8'));
+    const open = aad => {
+      const decipher = crypto.createDecipheriv('aes-256-gcm', this.secret, Buffer.from(box.iv, 'base64'), { authTagLength: 16 });
+      decipher.setAAD(aad); decipher.setAuthTag(Buffer.from(box.tag, 'base64'));
+      return JSON.parse(Buffer.concat([decipher.update(Buffer.from(box.data, 'base64')), decipher.final()]).toString('utf8'));
+    };
+    try { return open(AAD); } catch { return open(LEGACY_AAD); }
   }
 }

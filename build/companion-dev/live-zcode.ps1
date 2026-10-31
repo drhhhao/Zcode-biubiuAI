@@ -7,7 +7,7 @@
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$exe = Join-Path $root 'app\bin\ModelHarbor.exe'
+$exe = Join-Path $root 'app\bin\BiubiuAI.exe'
 $shot = Join-Path $PSScriptRoot 'live-zcode.png'
 $tmp = Join-Path $env:TEMP ('mh-live-' + [guid]::NewGuid().ToString('N'))
 $data = Join-Path $tmp 'data'
@@ -15,10 +15,10 @@ $log = Join-Path $data 'companion.log'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 $config = Join-Path $tmp 'provider_config.json'
 [IO.File]::WriteAllText($config, '{"schemaVersion":1,"config":{"providerOrder":[],"providerConfigRules":{"providerRules":[]},"modelConfigRules":{"providerModelRules":[],"manualProviderModelRules":[]}}}', (New-Object Text.UTF8Encoding $false))
-$env:MODEL_HARBOR_DATA_DIR = $data
-$env:MODEL_HARBOR_CONFIG_PATH = $config
-$env:MODEL_HARBOR_REFRESH_CATALOG = '0'
-Remove-Item Env:MODEL_HARBOR_ZCODE_EXE -ErrorAction SilentlyContinue
+$env:BIUBIU_AI_DATA_DIR = $data
+$env:BIUBIU_AI_CONFIG_PATH = $config
+$env:BIUBIU_AI_REFRESH_CATALOG = '0'
+Remove-Item Env:BIUBIU_AI_ZCODE_EXE -ErrorAction SilentlyContinue
 
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @'
@@ -122,7 +122,7 @@ function Width-Of($h) { $r = [L]::Rect($h); return $r.Rt - $r.L }
 function Get-Panel { return (Windows-Of) | Where-Object { (Width-Of $_) -gt 200 } | Select-Object -First 1 }
 function Get-Tab { return (Windows-Of) | Where-Object { (Width-Of $_) -le 200 } | Select-Object -First 1 }
 
-# Expected placements, mirroring PanelPlacement / TabPlacement in ModelHarbor.cs (default settings:
+# Expected placements, mirroring PanelPlacement / TabPlacement in BiubiuAI.cs (default settings:
 # width 420, minimum 340, right side preferred, top offset 44).
 function Expected-Outside($f, [bool]$right) {
   $top = [Math]::Max($f.T, $wa.T); $bottom = [Math]::Min($f.B, $wa.B)
@@ -164,7 +164,7 @@ function Check-Hidden([string]$step) {
 
 $zc = [IntPtr]::Zero; $original = $null; $script:companion = $null
 try {
-  if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null; Write-Output "stopped an earlier companion (exit $LASTEXITCODE)" }
+  if (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null; Write-Output "stopped an earlier companion (exit $LASTEXITCODE)" }
   $zc = [L]::FindMain('ZCode.exe')
   if ($zc -eq [IntPtr]::Zero) { throw 'ZCode main window not found; open ZCode first' }
   $original = [L]::GetPlacement($zc)
@@ -270,7 +270,7 @@ try {
 }
 catch { $script:failed++; Write-Output "FAIL  unexpected error: $($_.Exception.Message)" }
 finally {
-  if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null }
+  if (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null }
   if ($zc -ne [IntPtr]::Zero -and $null -ne $original) {
     [L]::ShowWindow($zc, 9) | Out-Null
     Start-Sleep -Milliseconds 300
@@ -282,7 +282,7 @@ finally {
   }
   $text = Read-Log
   if ($text) { Write-Output '--- companion log'; Write-Output $text }
-  Remove-Item Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_CONFIG_PATH, Env:MODEL_HARBOR_REFRESH_CATALOG -ErrorAction SilentlyContinue
+  Remove-Item Env:BIUBIU_AI_DATA_DIR, Env:BIUBIU_AI_CONFIG_PATH, Env:BIUBIU_AI_REFRESH_CATALOG -ErrorAction SilentlyContinue
   for ($i = 0; $i -lt 10 -and (Test-Path $tmp); $i++) { try { Remove-Item -LiteralPath $tmp -Recurse -Force } catch { Start-Sleep -Milliseconds 500 } }
   Write-Output "temp folder removed: $(-not (Test-Path $tmp))"
   Write-Output "SUMMARY passed=$($script:passed) failed=$($script:failed)"

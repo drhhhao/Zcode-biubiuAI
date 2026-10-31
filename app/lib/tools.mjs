@@ -9,7 +9,7 @@
 // site_account with balanceOnly reads the balance alone, which the panel does every 30 seconds while it is shown.
 import { PanelError } from './core.mjs';
 
-export const VERSION = '0.8.12';
+export const VERSION = '0.8.13';
 export const TOOL_NAMES = Object.freeze(['site_account', 'site_login', 'site_logout', 'site_add_group', 'site_remove_group', 'site_delete_key', 'list_providers', 'reveal_key', 'update_provider', 'delete_provider', 'fetch_models', 'get_models', 'test_model', 'import_models']);
 export const PAGE_SIZE = 25;
 
@@ -31,29 +31,29 @@ function summary(name, data) {
   }
 }
 
-export async function callTool(harbor, name, args = {}) {
+export async function callTool(biubiu, name, args = {}) {
   try {
     if (!TOOL_NAMES.includes(name)) throw new PanelError('未知工具。');
     const input = args && typeof args === 'object' && !Array.isArray(args) ? args : {};
     let data;
-    if (name === 'site_account') data = await harbor.siteAccount(input);
-    else if (name === 'site_login') data = await harbor.siteLogin(input);
-    else if (name === 'site_logout') data = await harbor.siteLogout();
-    else if (name === 'site_add_group') data = await harbor.siteAddGroup(input);
-    else if (name === 'site_remove_group') data = await harbor.siteRemoveGroup(input);
-    else if (name === 'site_delete_key') data = await harbor.siteDeleteKey(input);
-    else if (name === 'list_providers') data = await harbor.providers();
-    else if (name === 'reveal_key') data = await harbor.revealKey(input);
-    else if (name === 'update_provider') data = await harbor.updateProvider(input);
-    else if (name === 'delete_provider') data = await harbor.deleteProvider(input);
+    if (name === 'site_account') data = await biubiu.siteAccount(input);
+    else if (name === 'site_login') data = await biubiu.siteLogin(input);
+    else if (name === 'site_logout') data = await biubiu.siteLogout();
+    else if (name === 'site_add_group') data = await biubiu.siteAddGroup(input);
+    else if (name === 'site_remove_group') data = await biubiu.siteRemoveGroup(input);
+    else if (name === 'site_delete_key') data = await biubiu.siteDeleteKey(input);
+    else if (name === 'list_providers') data = await biubiu.providers();
+    else if (name === 'reveal_key') data = await biubiu.revealKey(input);
+    else if (name === 'update_provider') data = await biubiu.updateProvider(input);
+    else if (name === 'delete_provider') data = await biubiu.deleteProvider(input);
     else if (name === 'fetch_models') {
-      data = await harbor.fetchModels(input);
+      data = await biubiu.fetchModels(input);
       const all = data.models;
       data = { ...data, models: all.slice(0, PAGE_SIZE), nextOffset: all.length > PAGE_SIZE ? PAGE_SIZE : null };
     }
-    else if (name === 'get_models') data = harbor.getModels(input);
-    else if (name === 'test_model') data = await harbor.testModel(input);
-    else data = await harbor.importModels(input);
+    else if (name === 'get_models') data = biubiu.getModels(input);
+    else if (name === 'test_model') data = await biubiu.testModel(input);
+    else data = await biubiu.importModels(input);
     return { content: [{ type: 'text', text: summary(name, data) }], structuredContent: data };
   } catch (e) {
     return { isError: true, content: [{ type: 'text', text: e instanceof PanelError ? e.message : '操作未完成，请稍后重试并检查本地配置权限。' }] };

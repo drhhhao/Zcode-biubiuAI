@@ -9,12 +9,14 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $version = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $setup = Join-Path $root "dist\biubiuAI-Setup-$version.exe"
 $out = Join-Path $root 'docs\images'
-$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor'
+$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BiubiuAI'
 $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'biubiu AI.lnk'
 $dir = Join-Path $env:LOCALAPPDATA 'Programs\biubiu AI'
 
 if (-not (Test-Path -LiteralPath $setup)) { throw "missing $setup; run npm run app:installer first" }
-if ((Test-Path $uninstallKey) -or (Test-Path -LiteralPath $startMenu)) { throw 'biubiu AI is installed on this machine; uninstall it before taking the tutorial pictures' }
+# An install made by 0.8.12 or earlier is listed under the project's old working name.
+$legacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor'
+if ((Test-Path $uninstallKey) -or (Test-Path $legacyUninstallKey) -or (Test-Path -LiteralPath $startMenu)) { throw 'biubiu AI is installed on this machine; uninstall it before taking the tutorial pictures' }
 if ((Test-Path -LiteralPath $dir) -and @(Get-ChildItem -LiteralPath $dir -Force).Count) { throw "$dir holds files already; these pictures install there" }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
@@ -24,7 +26,7 @@ function Clear-Box([IntPtr]$box) { if ([Win]::Ticked($box)) { [void][Win]::Press
 
 $tmp = Join-Path $env:LOCALAPPDATA ('Temp\mh-docs-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-$env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = Join-Path $tmp 'data'; $env:MODEL_HARBOR_UPDATE_URL = 'off'
+$env:BIUBIU_AI_ZCODE_EXE = 'FakeZCode.exe'; $env:BIUBIU_AI_DATA_DIR = Join-Path $tmp 'data'; $env:BIUBIU_AI_UPDATE_URL = 'off'; $env:BIUBIU_AI_TOUR = 'off'
 $ui = $null
 try {
   # The installer's page, as it opens.
@@ -63,15 +65,15 @@ try {
   Write-Output 'install-1.png, install-2.png, install-3.png, uninstall-1.png, uninstall-2.png'
 } finally {
   if ($ui -and -not $ui.HasExited) { try { $ui.Kill() } catch { } }
-  $exe = Join-Path $dir 'bin\ModelHarbor.exe'
-  if ((Test-Path -LiteralPath $exe) -and (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue)) { & $exe --quit | Out-Null }
+  $exe = Join-Path $dir 'bin\BiubiuAI.exe'
+  if ((Test-Path -LiteralPath $exe) -and (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue)) { & $exe --quit | Out-Null }
   # Whatever an interrupted run left in the default folder goes the way the uninstaller would take it.
   if (Test-Path -LiteralPath (Join-Path $dir 'Uninstall.exe')) {
     Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '--silent' -Wait | Out-Null
     $deadline = (Get-Date).AddSeconds(30)
     while ((Test-Path -LiteralPath $dir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 300 }
   }
-  Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
+  Remove-Item Env:BIUBIU_AI_ZCODE_EXE, Env:BIUBIU_AI_DATA_DIR, Env:BIUBIU_AI_UPDATE_URL, Env:BIUBIU_AI_TOUR -ErrorAction SilentlyContinue
   Remove-Item -Recurse -Force -LiteralPath $tmp -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 1
   Get-ChildItem -LiteralPath $env:TEMP -Filter 'biubiu-ai-uninstall-*.exe' -ErrorAction SilentlyContinue | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }

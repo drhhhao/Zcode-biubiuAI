@@ -1,4 +1,4 @@
-// Development check for the companion's site window (SiteForm in app/host/ModelHarbor.cs), run by site-window-check.mjs.
+// Development check for the companion's site window (SiteForm in app/host/BiubiuAI.cs), run by site-window-check.mjs.
 // Window mode opens the real SiteForm against a stand-in site on 127.0.0.1 instead of ro.biubiu007.com, with a stand-in
 // for Node: the renewals it answers come from a fixed list (two tokens, then signed out, then no answer), and links that
 // would go to the default browser are only printed ("outside <url>"). Reads "quit" on stdin.
@@ -20,7 +20,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
-using ModelHarbor;
+using BiubiuAI;
 
 static class SiteWindowCheck
 {
@@ -128,6 +128,7 @@ static class SiteWindowCheck
                 // The companion's rows.
                 var toggle = menu.Add("收起面板", () => { });
                 var reload = menu.Add("重新加载面板", () => { });
+                var tour = menu.Add("使用教程", () => { });
                 menu.AddSeparator();
                 var right = menu.Add("优先贴在 ZCode 右侧", () => { }, TrayMenu.Mark.Option);
                 var left = menu.Add("优先贴在 ZCode 左侧", () => { }, TrayMenu.Mark.Option);
@@ -167,7 +168,7 @@ static class SiteWindowCheck
                     foreach (ToolStripItem item in menu.Items) if (item.Available) rows.Add(item);
                     bool stacked = rows[0].Bounds.Top == edge && rows[rows.Count - 1].Bounds.Bottom == menu.Height - edge;
                     for (int i = 1; i < rows.Count; i++) stacked &= rows[i].Bounds.Top == rows[i - 1].Bounds.Bottom;
-                    foreach (var row in new ToolStripItem[] { toggle, reload, right, left, startup, logs, updates }) stacked &= row.Height == menu.Px(TrayMenu.RowHeight);
+                    foreach (var row in new ToolStripItem[] { toggle, reload, tour, right, left, startup, logs, updates }) stacked &= row.Height == menu.Px(TrayMenu.RowHeight);
                     Report(theme, "rows", stacked, string.Join(" ", rows.ConvertAll(r => r.Bounds.Top + "+" + r.Height)) + " in " + menu.Height);
                     // Judged only where Windows draws rounded corners at all; elsewhere it says so instead of ok.
                     if (menu.Rounded && !roundCorners) Console.WriteLine("menu " + theme + " rounded square-system");

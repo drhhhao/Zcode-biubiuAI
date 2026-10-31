@@ -24,7 +24,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace ModelHarbor.Setup
+namespace BiubiuAI.Setup
 {
     static class Program
     {
@@ -91,23 +91,38 @@ namespace ModelHarbor.Setup
     static class Product
     {
         public const string Name = "biubiu AI";
-        public const string Exe = "ModelHarbor.exe";
+        public const string Exe = "BiubiuAI.exe";
         public const string Uninstaller = "Uninstall.exe";
         public const string ListFile = "uninstall.list";
         public const string Link = "biubiu AI.lnk";
         public const string Tagline = "随 ZCode 显示的模型与账户助手";
-        public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor";
-        // The companion's own names (app/host/ModelHarbor.cs): the event that asks it to quit, its single-instance mutex,
+        public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\BiubiuAI";
+        // The companion's own names (app/host/BiubiuAI.cs): the event that asks it to quit, its single-instance mutex,
         // its startup entry and its data folder.
-        public const string QuitEvent = @"Local\ModelHarbor.Companion.Quit";
-        public const string Mutex = @"Local\ModelHarbor.Companion.Instance";
+        public const string QuitEvent = @"Local\BiubiuAI.Companion.Quit";
+        public const string Mutex = @"Local\BiubiuAI.Companion.Instance";
         public const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        public const string RunValue = "ModelHarbor Companion";
-        public static string DataDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelHarbor"); } }
+        public const string RunValue = "biubiu AI";
+        public static string DataDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "biubiu AI"); } }
         public static string DefaultDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", Name); } }
         public static string ExeIn(string dir) { return Path.Combine(dir, "bin", Exe); }
         public static string StartMenuLink { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), Link); } }
         public static string DesktopLink { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), Link); } }
+    }
+
+    // The names biubiu AI used inside up to 0.8.12 (the project's old working name, in app/host/BiubiuAI.cs's Legacy
+    // too). Only updating such an install reads them: its program, its entry in Settings > Apps, its quit event and
+    // single-instance mutex, its startup entry and its data folder. The companion itself moves the data folder and the
+    // startup entry; the installer finds the old install, makes it quit, and leaves no old entry behind.
+    static class Legacy
+    {
+        public const string Exe = "ModelHarbor.exe";
+        public const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor";
+        public const string QuitEvent = @"Local\ModelHarbor.Companion.Quit";
+        public const string Mutex = @"Local\ModelHarbor.Companion.Instance";
+        public const string RunValue = "ModelHarbor Companion";
+        public static string DataDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelHarbor"); } }
+        public static string ExeIn(string dir) { return Path.Combine(dir, "bin", Exe); }
     }
 
     // %TEMP%\biubiu-ai-setup.log: what the installer and uninstaller did, for when something goes wrong. No keys,
@@ -194,12 +209,14 @@ namespace ModelHarbor.Setup
     {
         public string Dir, Version;
 
-        public static Installed Find()
+        public static Installed Find() { return From(Product.UninstallKey) ?? From(Legacy.UninstallKey); }
+
+        static Installed From(string path)
         {
-            using (var key = Registry.CurrentUser.OpenSubKey(Product.UninstallKey))
+            using (var key = Registry.CurrentUser.OpenSubKey(path))
             {
                 var dir = key == null ? null : key.GetValue("InstallLocation") as string;
-                if (string.IsNullOrEmpty(dir) || !File.Exists(Product.ExeIn(dir))) return null;
+                if (string.IsNullOrEmpty(dir) || !(File.Exists(Product.ExeIn(dir)) || File.Exists(Legacy.ExeIn(dir)))) return null;
                 return new Installed { Dir = dir, Version = key.GetValue("DisplayVersion") as string };
             }
         }
@@ -207,12 +224,17 @@ namespace ModelHarbor.Setup
 
     static class Running
     {
-        // Asks a running biubiu AI to quit, as ModelHarbor.exe --quit does, and waits until it has; true when none is left.
+        // Asks a running biubiu AI to quit, as BiubiuAI.exe --quit does, and waits until it has; true when none is left.
         public static bool Quit(int timeoutMs)
         {
-            try { using (var handle = EventWaitHandle.OpenExisting(Product.QuitEvent)) handle.Set(); }
-            catch (WaitHandleCannotBeOpenedException) { return !Exists(); }
-            catch (UnauthorizedAccessException) { }
+            bool asked = false;
+            foreach (var name in new[] { Product.QuitEvent, Legacy.QuitEvent })
+            {
+                try { using (var handle = EventWaitHandle.OpenExisting(name)) handle.Set(); asked = true; }
+                catch (WaitHandleCannotBeOpenedException) { }
+                catch (UnauthorizedAccessException) { asked = true; }
+            }
+            if (!asked) return !Exists();
             var clock = Stopwatch.StartNew();
             while (clock.ElapsedMilliseconds < timeoutMs)
             {
@@ -222,9 +244,45 @@ namespace ModelHarbor.Setup
             return !Exists();
         }
 
-        static bool Exists()
+        static bool Exists() { return Held(Product.Mutex) || Held(Legacy.Mutex); }
+
+        // Once the companion has quit, its local service (node\node.exe) and the program itself may take a moment more to
+        // end, holding files this is about to replace or delete. It waits for every program running from the install
+        // folder to end; only biubiu AI's own programs live there, so one still running after that is ended.
+        public static void Settle(string dir, int timeoutMs)
         {
-            try { using (System.Threading.Mutex.OpenExisting(Product.Mutex)) return true; }
+            var clock = Stopwatch.StartNew();
+            while (clock.ElapsedMilliseconds < timeoutMs)
+            {
+                if (From(dir).Count == 0) return;
+                Thread.Sleep(200);
+            }
+            foreach (var process in From(dir))
+            {
+                SetupLog.Write("ended " + process.ProcessName + ", still running from the install folder");
+                try { process.Kill(); process.WaitForExit(3000); } catch (Exception) { }
+            }
+        }
+
+        static List<Process> From(string dir)
+        {
+            string root = Path.GetFullPath(dir).TrimEnd('\\') + "\\", self = Path.GetFullPath(Application.ExecutablePath);
+            var found = new List<Process>();
+            foreach (var process in Process.GetProcesses())
+            {
+                try
+                {
+                    string file = process.MainModule.FileName;
+                    if (file.StartsWith(root, StringComparison.OrdinalIgnoreCase) && !file.Equals(self, StringComparison.OrdinalIgnoreCase)) found.Add(process);
+                }
+                catch (Exception) { }
+            }
+            return found;
+        }
+
+        static bool Held(string name)
+        {
+            try { using (System.Threading.Mutex.OpenExisting(name)) return true; }
             catch (WaitHandleCannotBeOpenedException) { return false; }
             catch (UnauthorizedAccessException) { return true; }
         }
@@ -263,7 +321,7 @@ namespace ModelHarbor.Setup
             return Path.Combine(full.Length <= 2 ? full + "\\" : full, Product.Name);
         }
 
-        public static bool Holds(string dir) { return File.Exists(Path.Combine(dir, Product.ListFile)) || File.Exists(Product.ExeIn(dir)); }
+        public static bool Holds(string dir) { return File.Exists(Path.Combine(dir, Product.ListFile)) || File.Exists(Product.ExeIn(dir)) || File.Exists(Legacy.ExeIn(dir)); }
 
         // Without a choice (null), the desktop shortcut and the start at sign-in stay as they are.
         public static Result Run(string dir, bool? desktop, bool? startup, Action<int, string> report)
@@ -274,6 +332,7 @@ namespace ModelHarbor.Setup
             EnsureWritable(dir);
             report(5, "正在关闭正在运行的 biubiu AI…");
             if (!Running.Quit(15000)) throw new SetupError("biubiu AI 正在运行，没能让它退出。请右键任务栏右下角的 biubiu AI 图标，选择「退出 biubiu AI」，再重新安装。");
+            Running.Settle(dir, 10000);
             var before = ReadList(dir);
             var installed = new List<string>();
             long bytes = 0;
@@ -305,10 +364,14 @@ namespace ModelHarbor.Setup
             Shortcut.Create(Product.StartMenuLink, exe);
             if (desktop == true) Shortcut.Create(Product.DesktopLink, exe);
             else if (desktop == false && Shortcut.PointsInto(Product.DesktopLink, dir)) TryDelete(Product.DesktopLink);
+            // An update keeps the desktop shortcut, which an old version pointed at its old program name.
+            else if (desktop == null && Shortcut.PointsInto(Product.DesktopLink, dir)) Shortcut.Create(Product.DesktopLink, exe);
             Register(dir, bytes);
             report(96, "正在设置开机后台待命…");
             if (startup == true) RunQuiet(exe, "--install-startup");
             else if (startup == false && StartupPointsInto(dir)) RunQuiet(exe, "--uninstall-startup");
+            // An update keeps the start at sign-in: an old version's entry, under its old name, becomes the companion's.
+            else if (startup == null && StartupPointsInto(dir, Legacy.RunValue, Legacy.ExeIn(dir))) RunQuiet(exe, "--migrate-startup");
             report(100, "安装完成");
             SetupLog.Write("installed" + (warning != null ? "; WebView2 Runtime still missing" : ""));
             return new Result { Dir = dir, Warning = warning };
@@ -451,6 +514,8 @@ namespace ModelHarbor.Setup
         static void Register(string dir, long bytes)
         {
             string uninstaller = Path.Combine(dir, Product.Uninstaller);
+            // An old version's entry in Settings > Apps gives way to this one, so the app is listed once.
+            DropLegacyEntry(dir);
             using (var key = Registry.CurrentUser.CreateSubKey(Product.UninstallKey))
             {
                 key.SetValue("DisplayName", Product.Name);
@@ -468,14 +533,32 @@ namespace ModelHarbor.Setup
             }
         }
 
-        // The companion's own startup entry (ModelHarbor.exe --install-startup writes it), so its tray switch shows it.
+        // The companion's own startup entry (BiubiuAI.exe --install-startup writes it), so its tray switch shows it; or
+        // the one an old version made under its old name.
         public static bool StartupPointsInto(string dir)
+        {
+            return StartupPointsInto(dir, Product.RunValue, Product.ExeIn(dir)) || StartupPointsInto(dir, Legacy.RunValue, Legacy.ExeIn(dir));
+        }
+
+        public static bool StartupPointsInto(string dir, string name, string exe)
         {
             using (var key = Registry.CurrentUser.OpenSubKey(Product.RunKey))
             {
-                var value = key == null ? null : key.GetValue(Product.RunValue) as string;
-                return value != null && value.IndexOf(Product.ExeIn(dir), StringComparison.OrdinalIgnoreCase) >= 0;
+                var value = key == null ? null : key.GetValue(name) as string;
+                return value != null && value.IndexOf(exe, StringComparison.OrdinalIgnoreCase) >= 0;
             }
+        }
+
+        // The old version's entry in Settings > Apps, when it is for this folder.
+        public static void DropLegacyEntry(string dir)
+        {
+            using (var key = Registry.CurrentUser.OpenSubKey(Legacy.UninstallKey))
+            {
+                var location = key == null ? null : key.GetValue("InstallLocation") as string;
+                if (location == null || !Path.GetFullPath(location).TrimEnd('\\').Equals(Path.GetFullPath(dir).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase)) return;
+            }
+            Registry.CurrentUser.DeleteSubKeyTree(Legacy.UninstallKey, false);
+            SetupLog.Write("removed the old version's entry in Settings > Apps");
         }
 
         public static void RunQuiet(string exe, string arguments)
@@ -532,9 +615,11 @@ namespace ModelHarbor.Setup
             SetupLog.Write("uninstall from " + dir + (removeData ? " with the data folder" : ""));
             report(5, "正在关闭 biubiu AI…");
             if (!Running.Quit(15000)) throw new SetupError("biubiu AI 正在运行，没能让它退出。请右键任务栏右下角的 biubiu AI 图标，选择「退出 biubiu AI」，再卸载。");
+            Running.Settle(dir, 10000);
             string exe = Product.ExeIn(dir);
             report(15, "正在移除开机后台待命…");
             if (File.Exists(exe) && Install.StartupPointsInto(dir)) Install.RunQuiet(exe, "--uninstall-startup");
+            else if (File.Exists(Legacy.ExeIn(dir)) && Install.StartupPointsInto(dir)) Install.RunQuiet(Legacy.ExeIn(dir), "--uninstall-startup");
             report(25, "正在删除快捷方式…");
             foreach (var link in new[] { Product.StartMenuLink, Product.DesktopLink })
                 if (Shortcut.PointsInto(link, dir)) Install.TryDelete(link);
@@ -550,6 +635,7 @@ namespace ModelHarbor.Setup
                 report(35 + 50 * ++done / Math.Max(1, listed.Count), "正在删除程序文件…");
             }
             RemoveEmptyFolders(dir, listed);
+            Install.DropLegacyEntry(dir);
             using (var key = Registry.CurrentUser.OpenSubKey(Product.UninstallKey))
             {
                 var location = key == null ? null : key.GetValue("InstallLocation") as string;
@@ -562,8 +648,12 @@ namespace ModelHarbor.Setup
             if (removeData)
             {
                 report(92, "正在删除设置与登录状态…");
-                try { if (Directory.Exists(Product.DataDir)) Directory.Delete(Product.DataDir, true); }
-                catch (Exception e) { SetupLog.Write("data folder kept: " + e.Message); }
+                // The data folder under the old name too, if it never moved (the companion moves it at its first start).
+                foreach (var data in new[] { Product.DataDir, Legacy.DataDir })
+                {
+                    try { if (Directory.Exists(data)) Directory.Delete(data, true); }
+                    catch (Exception e) { SetupLog.Write("data folder kept: " + e.Message); }
+                }
             }
             report(100, "已卸载");
             SetupLog.Write("uninstalled");

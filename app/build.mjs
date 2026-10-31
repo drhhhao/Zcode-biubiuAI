@@ -14,13 +14,13 @@ const appDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(appDir);
 const hostDir = path.join(appDir, 'host');
 const binDir = path.join(appDir, 'bin');
-const exe = path.join(binDir, 'ModelHarbor.exe');
+const exe = path.join(binDir, 'BiubiuAI.exe');
 
 function fail(message) { console.error(`build failed: ${message}`); process.exit(1); }
 
 function findCsc() {
-  const fromEnv = process.env.MODEL_HARBOR_CSC;
-  if (fromEnv) { if (fs.existsSync(fromEnv)) return fromEnv; fail(`MODEL_HARBOR_CSC does not exist: ${fromEnv}`); }
+  const fromEnv = process.env.BIUBIU_AI_CSC;
+  if (fromEnv) { if (fs.existsSync(fromEnv)) return fromEnv; fail(`BIUBIU_AI_CSC does not exist: ${fromEnv}`); }
   for (const base of [process.env['ProgramFiles(x86)'], process.env.ProgramFiles].filter(Boolean)) {
     const vs = path.join(base, 'Microsoft Visual Studio');
     if (!fs.existsSync(vs)) continue;
@@ -33,11 +33,11 @@ function findCsc() {
       }
     }
   }
-  fail('Roslyn csc.exe not found. Install Visual Studio Build Tools with the C# compiler, or set MODEL_HARBOR_CSC.');
+  fail('Roslyn csc.exe not found. Install Visual Studio Build Tools with the C# compiler, or set BIUBIU_AI_CSC.');
 }
 
 function findSdk() {
-  const dir = process.env.MODEL_HARBOR_WEBVIEW2_SDK || path.join(root, 'build', 'webview2-sdk', `pkg-${WEBVIEW2_VERSION}`);
+  const dir = process.env.BIUBIU_AI_WEBVIEW2_SDK || path.join(root, 'build', 'webview2-sdk', `pkg-${WEBVIEW2_VERSION}`);
   const files = {
     nuspec: path.join(dir, 'Microsoft.Web.WebView2.nuspec'),
     core: path.join(dir, 'lib', 'net462', 'Microsoft.Web.WebView2.Core.dll'),
@@ -46,7 +46,7 @@ function findSdk() {
     license: path.join(dir, 'LICENSE.txt'),
     notice: path.join(dir, 'NOTICE.txt')
   };
-  for (const [name, file] of Object.entries(files)) if (!fs.existsSync(file)) fail(`WebView2 SDK ${name} missing: ${file}. Extract Microsoft.Web.WebView2 ${WEBVIEW2_VERSION} from nuget.org there, or set MODEL_HARBOR_WEBVIEW2_SDK.`);
+  for (const [name, file] of Object.entries(files)) if (!fs.existsSync(file)) fail(`WebView2 SDK ${name} missing: ${file}. Extract Microsoft.Web.WebView2 ${WEBVIEW2_VERSION} from nuget.org there, or set BIUBIU_AI_WEBVIEW2_SDK.`);
   const version = fs.readFileSync(files.nuspec, 'utf8').match(/<version>([^<]+)<\/version>/)?.[1];
   if (version !== WEBVIEW2_VERSION) fail(`WebView2 SDK version is ${version}, expected ${WEBVIEW2_VERSION}`);
   return files;
@@ -96,7 +96,7 @@ const args = [
   `/out:${exe}`, `/win32manifest:${path.join(hostDir, 'app.manifest')}`, `/win32icon:${icon}`, `/lib:${framework}`,
   '/r:System.dll', '/r:System.Core.dll', '/r:System.Drawing.dll', '/r:System.Security.dll', '/r:System.Windows.Forms.dll',
   `/r:${sdk.core}`, `/r:${sdk.winforms}`,
-  path.join(hostDir, 'ModelHarbor.cs')
+  path.join(hostDir, 'BiubiuAI.cs')
 ];
 console.log(`compiling with ${csc}`);
 const compiled = spawnSync(csc, args, { stdio: 'inherit' });
@@ -107,7 +107,7 @@ copyVerified(sdk.winforms, 'Microsoft.Web.WebView2.WinForms.dll');
 copyVerified(sdk.loader, 'WebView2Loader.dll');
 copyVerified(sdk.license, 'WebView2.LICENSE.txt');
 copyVerified(sdk.notice, 'WebView2.NOTICE.txt');
-copyVerified(path.join(hostDir, 'ModelHarbor.exe.config'), 'ModelHarbor.exe.config');
+copyVerified(path.join(hostDir, 'BiubiuAI.exe.config'), 'BiubiuAI.exe.config');
 
 for (const name of fs.readdirSync(binDir).sort()) console.log(`  ${name}  ${fs.statSync(path.join(binDir, name)).size} bytes`);
 console.log(`built ${exe}`);

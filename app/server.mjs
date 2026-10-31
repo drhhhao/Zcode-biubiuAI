@@ -1,11 +1,11 @@
 // biubiu AI desktop companion server.
 // Serves lib/panel.html and its tools to the WebView2 host over 127.0.0.1 only.
-// Every API call needs the per-launch token the host passes in MODEL_HARBOR_APP_TOKEN.
+// Every API call needs the per-launch token the host passes in BIUBIU_AI_APP_TOKEN.
 // API keys never appear in logs, and reach a response only through reveal_key: tool results come
 // from lib/tools.mjs callTool, which returns a saved key or a site key only for that explicit request
 // from the panel's eye button, and this server logs no request or response bodies.
-// The site sign-in (lib/site.mjs) is saved encrypted in MODEL_HARBOR_SESSION_DIR with the key the host
-// passes in MODEL_HARBOR_SESSION_KEY; without both it stays in memory until the server exits.
+// The site sign-in (lib/site.mjs) is saved encrypted in BIUBIU_AI_SESSION_DIR with the key the host
+// passes in BIUBIU_AI_SESSION_KEY; without both it stays in memory until the server exits.
 // The host asks for an access token for its site window over stdin and reads the answer on stdout (answerHost):
 // that pipe belongs to the host alone, so the token never reaches the panel, a port or a log.
 import http from 'node:http';
@@ -14,7 +14,7 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import { Harbor } from './lib/core.mjs';
+import { BiubiuAI } from './lib/core.mjs';
 import { Site } from './lib/site.mjs';
 import { callTool, TOOL_NAMES, VERSION } from './lib/tools.mjs';
 
@@ -60,7 +60,7 @@ export function contentSecurityPolicy(nonce) {
 // Adds the launch token and a per-response nonce to lib/panel.html.
 export function renderPanel(html, { token, nonce }) {
   if (!html.includes('<script>') || !html.includes('<style>')) throw new Error('panel.html is missing its inline script or style');
-  const boot = `<script nonce="${nonce}">window.__HARBOR_APP__=Object.freeze(${JSON.stringify({ token, version: VERSION })});</script>`;
+  const boot = `<script nonce="${nonce}">window.__BIUBIU_APP__=Object.freeze(${JSON.stringify({ token, version: VERSION })});</script>`;
   return html
     .replaceAll('<style>', `<style nonce="${nonce}">`)
     .replaceAll('<script>', `<script nonce="${nonce}">`)
@@ -99,7 +99,7 @@ async function readJson(req) {
   return value;
 }
 
-export function createAppServer({ harbor, token, log = () => {} }) {
+export function createAppServer({ biubiu, token, log = () => {} }) {
   if (typeof token !== 'string' || !TOKEN_PATTERN.test(token)) throw new Error('A launch token of 32-256 URL-safe characters is required');
   const state = { mode: 'app', version: VERSION, theme: 'light', zcode: false };
   let inflight = 0;
@@ -114,7 +114,7 @@ export function createAppServer({ harbor, token, log = () => {} }) {
 
     if (url.pathname === '/healthz') {
       allow(req, res, ['GET']);
-      return send(res, 200, { ok: true, name: 'model-harbor-app', version: VERSION });
+      return send(res, 200, { ok: true, name: 'biubiu-ai-app', version: VERSION });
     }
 
     if (url.pathname === '/') {
@@ -132,7 +132,7 @@ export function createAppServer({ harbor, token, log = () => {} }) {
       if (req.headers.origin !== undefined && req.headers.origin !== origin) throw new HttpError(403, 'Forbidden');
       const site = req.headers['sec-fetch-site'];
       if (site !== undefined && site !== 'same-origin' && site !== 'none') throw new HttpError(403, 'Forbidden');
-      if (!sameSecret(req.headers['x-harbor-app'], token)) throw new HttpError(403, 'Forbidden');
+      if (!sameSecret(req.headers['x-biubiu-app'], token)) throw new HttpError(403, 'Forbidden');
 
       if (url.pathname === '/api/host') {
         allow(req, res, ['GET', 'POST']);
@@ -151,7 +151,7 @@ export function createAppServer({ harbor, token, log = () => {} }) {
       if (typeof body.name !== 'string' || !APP_TOOLS.has(body.name)) throw new HttpError(400, 'Unknown tool');
       if (body.args !== undefined && (body.args === null || typeof body.args !== 'object' || Array.isArray(body.args))) throw new HttpError(400, 'Invalid arguments');
       inflight++;
-      try { return send(res, 200, await callTool(harbor, body.name, body.args || {})); }
+      try { return send(res, 200, await callTool(biubiu, body.name, body.args || {})); }
       finally { inflight--; }
     }
 
@@ -188,16 +188,16 @@ export async function answerHost(line, site) {
 }
 
 export async function main({ env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
-  const fromHost = Boolean(env.MODEL_HARBOR_APP_TOKEN);
-  const token = env.MODEL_HARBOR_APP_TOKEN || crypto.randomBytes(32).toString('hex');
-  if (!TOKEN_PATTERN.test(token)) throw new Error('MODEL_HARBOR_APP_TOKEN must be 32-256 URL-safe characters');
-  const requestedPort = Number(env.MODEL_HARBOR_APP_PORT || 0);
-  if (!Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65535) throw new Error('MODEL_HARBOR_APP_PORT must be an integer between 0 and 65535');
+  const fromHost = Boolean(env.BIUBIU_AI_APP_TOKEN);
+  const token = env.BIUBIU_AI_APP_TOKEN || crypto.randomBytes(32).toString('hex');
+  if (!TOKEN_PATTERN.test(token)) throw new Error('BIUBIU_AI_APP_TOKEN must be 32-256 URL-safe characters');
+  const requestedPort = Number(env.BIUBIU_AI_APP_PORT || 0);
+  if (!Number.isInteger(requestedPort) || requestedPort < 0 || requestedPort > 65535) throw new Error('BIUBIU_AI_APP_PORT must be an integer between 0 and 65535');
 
-  const site = new Site({ dataDir: env.MODEL_HARBOR_SESSION_DIR || '', sessionKey: env.MODEL_HARBOR_SESSION_KEY || '' });
-  delete env.MODEL_HARBOR_SESSION_KEY;
-  const harbor = new Harbor({ refreshCatalog: env.MODEL_HARBOR_REFRESH_CATALOG !== '0', site });
-  const app = createAppServer({ harbor, token, log: message => stderr.write(`[model-harbor-app] ${message}\n`) });
+  const site = new Site({ dataDir: env.BIUBIU_AI_SESSION_DIR || '', sessionKey: env.BIUBIU_AI_SESSION_KEY || '' });
+  delete env.BIUBIU_AI_SESSION_KEY;
+  const biubiu = new BiubiuAI({ refreshCatalog: env.BIUBIU_AI_REFRESH_CATALOG !== '0', site });
+  const app = createAppServer({ biubiu, token, log: message => stderr.write(`[biubiu-ai-app] ${message}\n`) });
   const { server } = app;
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(requestedPort, '127.0.0.1', resolve); });
   const port = server.address().port;
@@ -217,7 +217,7 @@ export async function main({ env = process.env, stdout = process.stdout, stderr 
     process.exit(code);
   };
 
-  const hostPid = Number(env.MODEL_HARBOR_HOST_PID);
+  const hostPid = Number(env.BIUBIU_AI_HOST_PID);
   if (Number.isInteger(hostPid) && hostPid > 0) {
     readline.createInterface({ input: process.stdin, crlfDelay: Infinity }).on('line', line => {
       if (line.length > 4096) return;
@@ -236,5 +236,5 @@ export async function main({ env = process.env, stdout = process.stdout, stderr 
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  main().catch(error => { process.stderr.write(`[model-harbor-app] failed to start: ${error?.message || error}\n`); process.exit(1); });
+  main().catch(error => { process.stderr.write(`[biubiu-ai-app] failed to start: ${error?.message || error}\n`); process.exit(1); });
 }

@@ -3,8 +3,8 @@
 # settings, log and WebView2 data go to a temporary folder that is removed afterwards.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-# MODEL_HARBOR_EXE checks another build, such as an installed copy (build/companion-dev/installer-check.ps1).
-$exe = if ($env:MODEL_HARBOR_EXE) { $env:MODEL_HARBOR_EXE } else { Join-Path $root 'app\bin\ModelHarbor.exe' }
+# BIUBIU_AI_EXE checks another build, such as an installed copy (build/companion-dev/installer-check.ps1).
+$exe = if ($env:BIUBIU_AI_EXE) { $env:BIUBIU_AI_EXE } else { Join-Path $root 'app\bin\BiubiuAI.exe' }
 $fakeExe = Join-Path $root 'build\companion-dev\FakeZCode.exe'
 $shot = Join-Path $root 'build\companion-dev\panel.png'
 $tmp = Join-Path $env:TEMP ('mh-smoke-' + [guid]::NewGuid().ToString('N'))
@@ -13,12 +13,14 @@ $log = Join-Path $data 'companion.log'
 New-Item -ItemType Directory -Path $data -Force | Out-Null
 $config = Join-Path $tmp 'provider_config.json'
 [IO.File]::WriteAllText($config, '{"schemaVersion":1,"config":{"providerOrder":[],"providerConfigRules":{"providerRules":[]},"modelConfigRules":{"providerModelRules":[],"manualProviderModelRules":[]}}}', (New-Object Text.UTF8Encoding $false))
-$env:MODEL_HARBOR_DATA_DIR = $data
-$env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'
-$env:MODEL_HARBOR_CONFIG_PATH = $config
-$env:MODEL_HARBOR_REFRESH_CATALOG = '0'
+$env:BIUBIU_AI_DATA_DIR = $data
+$env:BIUBIU_AI_ZCODE_EXE = 'FakeZCode.exe'
+$env:BIUBIU_AI_CONFIG_PATH = $config
+$env:BIUBIU_AI_REFRESH_CATALOG = '0'
 # An installed copy would look for updates on GitHub; installer-check.ps1 checks updating with a stand-in instead.
-$env:MODEL_HARBOR_UPDATE_URL = 'off'
+$env:BIUBIU_AI_UPDATE_URL = 'off'
+# A new data folder would also start the panel's first-run guide over the page being checked.
+$env:BIUBIU_AI_TOUR = 'off'
 
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms, UIAutomationClient, UIAutomationTypes
 Add-Type -ReferencedAssemblies System.Drawing, System.Windows.Forms -TypeDefinition @'
@@ -185,7 +187,7 @@ function Get-Windows([int]$procId) { return ,@([W]::Of([uint32]$procId)) }
 function Width($h) { $r = [W]::Rect($h); return $r.Rt - $r.L }
 function Px([double]$dip, [double]$s) { return [int][Math]::Round($dip * $s) }
 function Work-Area($fake) { return @{ L = $fake.WA[0]; T = $fake.WA[1]; R = $fake.WA[0] + $fake.WA[2]; B = $fake.WA[1] + $fake.WA[3] } }
-# Mirrors PanelPlacement in ModelHarbor.cs with default settings (width 420, minimum 340, right side
+# Mirrors PanelPlacement in BiubiuAI.cs with default settings (width 420, minimum 340, right side
 # preferred, top offset 44): outside ZCode's right edge, else outside its left edge, else inside.
 function Expected-Panel($f, [double]$s, $wa) {
   $min = Px 340 $s; $want = Px 420 $s
@@ -425,11 +427,11 @@ function Wait-Config([scriptblock]$until) {
   do { try { $c = [IO.File]::ReadAllText($config) | ConvertFrom-Json; if (& $until $c) { return $c } } catch { }; Start-Sleep -Milliseconds 300 } while ((Get-Date) -lt $deadline)
   return $c
 }
-function Count-Backups { $dir = Join-Path $tmp 'backups\model-harbor'; if (Test-Path $dir) { return @(Get-ChildItem -LiteralPath $dir -File).Count } else { return 0 } }
+function Count-Backups { $dir = Join-Path $tmp 'backups\biubiu-ai'; if (Test-Path $dir) { return @(Get-ChildItem -LiteralPath $dir -File).Count } else { return 0 } }
 
 $fake = $null; $companion = $null
 try {
-  if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null; Write-Output "stopped an earlier companion (exit $LASTEXITCODE)" }
+  if (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null; Write-Output "stopped an earlier companion (exit $LASTEXITCODE)" }
 
   # Start: expanded panel on the right of ZCode, dark theme, no focus taken.
   $fake = Start-Fake
@@ -461,8 +463,8 @@ try {
   # A second --background launch must leave the single instance alone.
   $second = Start-Process -FilePath $exe -ArgumentList '--background' -PassThru -Wait
   Check 'second launch / exits at once' ($second.ExitCode -eq 0) "exit $($second.ExitCode)"
-  $count = @(Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue).Count
-  Check 'second launch / single instance' ($count -eq 1) "ModelHarbor processes: $count"
+  $count = @(Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue).Count
+  Check 'second launch / single instance' ($count -eq 1) "BiubiuAI processes: $count"
 
   # Move and resize ZCode.
   $wa = $fake.WA
@@ -732,9 +734,9 @@ try {
 catch { $script:failed++; Write-Output "FAIL  unexpected error: $($_.Exception.Message)" }
 finally {
   if ($fake -and -not $fake.P.HasExited) { try { Send-Fake $fake 'quit' } catch { }; if (-not $fake.P.WaitForExit(3000)) { $fake.P.Kill() } }
-  if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null }
+  if (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue) { & $exe --quit | Out-Null }
   if (Test-Path $log) { Write-Output '--- companion log (whole test run)'; Get-Content -LiteralPath $log -Encoding UTF8 }
-  Remove-Item Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_CONFIG_PATH, Env:MODEL_HARBOR_REFRESH_CATALOG, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
+  Remove-Item Env:BIUBIU_AI_DATA_DIR, Env:BIUBIU_AI_ZCODE_EXE, Env:BIUBIU_AI_CONFIG_PATH, Env:BIUBIU_AI_REFRESH_CATALOG, Env:BIUBIU_AI_UPDATE_URL, Env:BIUBIU_AI_TOUR -ErrorAction SilentlyContinue
   for ($i = 0; $i -lt 10 -and (Test-Path $tmp); $i++) { try { Remove-Item -LiteralPath $tmp -Recurse -Force } catch { Start-Sleep -Milliseconds 500 } }
   Write-Output "temp folder removed: $(-not (Test-Path $tmp))"
   Write-Output "SUMMARY passed=$($script:passed) failed=$($script:failed)"

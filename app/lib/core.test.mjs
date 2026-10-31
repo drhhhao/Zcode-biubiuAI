@@ -5,16 +5,16 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { Harbor, normalizeUrl, parseModels } from './core.mjs';
+import { BiubiuAI, normalizeUrl, parseModels } from './core.mjs';
 import { callTool, TOOL_NAMES, VERSION } from './tools.mjs';
 import { MetadataCatalog } from './metadata.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const seed = () => ({ schemaVersion: 1, config: { providerOrder: ['mine'], defaultModelSelection: { providerId: 'mine', modelId: 'old-model' }, providerConfigRules: { providerRules: [{ providerId: 'mine', providerName: '现有供应商', config: { group: 'standard-personal', access: { type: 'api-key', apiKey: 'stored-secret' }, api: { type: 'anthropic-messages', baseUrl: 'https://provider.test' }, personalModelIds: ['old-model'], modelOrder: ['old-model'] } }] }, modelConfigRules: { providerModelRules: [{ providerId: 'mine', modelId: 'old-model', config: { enabled: false, properties: { contextWindow: 500000, inputFormat: { supportsImage: true } } } }], manualProviderModelRules: [] } } });
 async function fixture(t, fetchImpl = async () => Response.json({ data: [{ id: 'new-model' }, { id: 'old-model' }] })) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'model-harbor-test-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-ai-test-')); t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const configPath = path.join(dir, 'provider_config.json'); await fs.writeFile(configPath, JSON.stringify(seed()));
-  return { dir, configPath, harbor: new Harbor({ configPath, fetchImpl, metadataCatalog: new MetadataCatalog({ dataDir: path.join(dir, 'cache'), refresh: false }) }) };
+  return { dir, configPath, biubiu: new BiubiuAI({ configPath, fetchImpl, metadataCatalog: new MetadataCatalog({ dataDir: path.join(dir, 'cache'), refresh: false }) }) };
 }
 // Files outside app/lib (the project package.json) are read relative to this folder; missing files read as null.
 async function readJson(rel) { try { return JSON.parse(await fs.readFile(path.join(root, rel), 'utf8')); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } }
@@ -25,125 +25,138 @@ test('accepts API endpoint URLs and rejects credentials/query injection', () => 
   assert.deepEqual(parseModels({ models: ['x'] }), [{ id: 'x' }]);
 });
 test('providers never expose stored keys', async t => {
-  const { harbor } = await fixture(t); const json = JSON.stringify(await harbor.providers()); assert.ok(!json.includes('stored-secret')); assert.ok(json.includes('现有供应商'));
+  const { biubiu } = await fixture(t); const json = JSON.stringify(await biubiu.providers()); assert.ok(!json.includes('stored-secret')); assert.ok(json.includes('现有供应商'));
 });
 test('list_providers names each service\'s models in ZCode\'s order and counts the same names', async t => {
-  const { harbor, configPath } = await fixture(t);
+  const { biubiu, configPath } = await fixture(t);
   const doc = seed(), p = doc.config.providerConfigRules.providerRules[0];
   p.config.personalModelIds = ['b-model', 'old-model', 7, 'c-model', 'b-model']; p.config.modelOrder = ['c-model', 'removed-model', 'old-model'];
   await fs.writeFile(configPath, JSON.stringify(doc));
-  const listed = (await callTool(harbor, 'list_providers')).structuredContent.providers[0];
+  const listed = (await callTool(biubiu, 'list_providers')).structuredContent.providers[0];
   assert.deepEqual(listed.models, ['c-model', 'old-model', 'b-model']); assert.equal(listed.modelCount, 3);
   assert.ok(!/secret/.test(JSON.stringify(listed)));
 });
 test('fetch falls back to /v1/models and keeps secrets out of results', async t => {
-  const urls = []; const { harbor } = await fixture(t, async (url, opts) => { urls.push(url); assert.equal(opts.redirect, 'error'); assert.equal(opts.headers.Authorization, 'Bearer secret-key'); return url.endsWith('/v1/models') ? Response.json({ data: [{ id: 'new-model' }] }) : new Response('', { status: 404 }); });
-  const r = await harbor.fetchModels({ baseUrl: 'https://new.test', apiKey: 'secret-key' }); assert.equal(r.count, 1); assert.equal(urls.length, 2); assert.ok(!JSON.stringify(r).includes('secret-key'));
+  const urls = []; const { biubiu } = await fixture(t, async (url, opts) => { urls.push(url); assert.equal(opts.redirect, 'error'); assert.equal(opts.headers.Authorization, 'Bearer secret-key'); return url.endsWith('/v1/models') ? Response.json({ data: [{ id: 'new-model' }] }) : new Response('', { status: 404 }); });
+  const r = await biubiu.fetchModels({ baseUrl: 'https://new.test', apiKey: 'secret-key' }); assert.equal(r.count, 1); assert.equal(urls.length, 2); assert.ok(!JSON.stringify(r).includes('secret-key'));
 });
 test('rejects unauthorized endpoints without reflecting response bodies', async t => {
-  const { harbor } = await fixture(t, async () => new Response('stored-secret', { status: 401 }));
-  const r = await callTool(harbor, 'fetch_models', { baseUrl: 'https://new.test', apiKey: 'secret-key' }); assert.equal(r.isError, true); assert.ok(!JSON.stringify(r).includes('secret')); assert.match(r.content[0].text, /401/);
+  const { biubiu } = await fixture(t, async () => new Response('stored-secret', { status: 401 }));
+  const r = await callTool(biubiu, 'fetch_models', { baseUrl: 'https://new.test', apiKey: 'secret-key' }); assert.equal(r.isError, true); assert.ok(!JSON.stringify(r).includes('secret')); assert.match(r.content[0].text, /401/);
 });
 test('saved credentials cannot be sent to a changed endpoint', async t => {
-  let called = false; const { harbor } = await fixture(t, async () => { called = true; return Response.json({ data: [] }); });
-  await assert.rejects(harbor.fetchModels({ baseUrl: 'https://attacker.test', existingProviderId: 'mine' }), /地址已变更/); assert.equal(called, false);
+  let called = false; const { biubiu } = await fixture(t, async () => { called = true; return Response.json({ data: [] }); });
+  await assert.rejects(biubiu.fetchModels({ baseUrl: 'https://attacker.test', existingProviderId: 'mine' }), /地址已变更/); assert.equal(called, false);
 });
 test('merges models, preserves saved settings and exact backup; reimport is a no-op', async t => {
-  const { harbor, configPath, dir } = await fixture(t); const original = await fs.readFile(configPath, 'utf8');
-  const session = await harbor.fetchModels({ baseUrl: 'https://provider.test', existingProviderId: 'mine', protocol: 'anthropic-messages' });
-  const imported = await harbor.importModels({ sessionId: session.sessionId, modelIds: ['old-model', 'new-model'], providerName: 'Ignored rename' });
+  const { biubiu, configPath, dir } = await fixture(t); const original = await fs.readFile(configPath, 'utf8');
+  const session = await biubiu.fetchModels({ baseUrl: 'https://provider.test', existingProviderId: 'mine', protocol: 'anthropic-messages' });
+  const imported = await biubiu.importModels({ sessionId: session.sessionId, modelIds: ['old-model', 'new-model'], providerName: 'Ignored rename' });
   assert.equal(imported.added, 1); assert.equal(await fs.readFile(imported.backupPath, 'utf8'), original);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')); assert.deepEqual(saved.config.defaultModelSelection, seed().config.defaultModelSelection);
   assert.deepEqual(saved.config.modelConfigRules.providerModelRules[0], seed().config.modelConfigRules.providerModelRules[0]);
   assert.deepEqual(saved.config.providerConfigRules.providerRules[0].config.personalModelIds, ['old-model', 'new-model']);
-  assert.deepEqual((await harbor.providers()).providers[0].models, ['old-model', 'new-model']);
-  const again =await harbor.importModels({ sessionId: session.sessionId, modelIds: ['new-model'], providerName: 'Mine' }); assert.equal(again.unchanged, true);
-  assert.equal((await fs.readdir(path.join(dir, 'backups', 'model-harbor'))).length, 1);
+  assert.deepEqual((await biubiu.providers()).providers[0].models, ['old-model', 'new-model']);
+  const again =await biubiu.importModels({ sessionId: session.sessionId, modelIds: ['new-model'], providerName: 'Mine' }); assert.equal(again.unchanged, true);
+  assert.equal((await fs.readdir(path.join(dir, 'backups', 'biubiu-ai'))).length, 1);
 });
 test('new supplier gets selected models only, correct protocol and provider order', async t => {
-  const { harbor, configPath } = await fixture(t); const s = await harbor.fetchModels({ baseUrl: 'https://new.test/v1', apiKey: 'new-secret', protocol: 'openai-responses' });
-  const r = await harbor.importModels({ sessionId: s.sessionId, modelIds: ['new-model'], providerName: 'New API' }); assert.equal(r.created, true);
+  const { biubiu, configPath } = await fixture(t); const s = await biubiu.fetchModels({ baseUrl: 'https://new.test/v1', apiKey: 'new-secret', protocol: 'openai-responses' });
+  const r = await biubiu.importModels({ sessionId: s.sessionId, modelIds: ['new-model'], providerName: 'New API' }); assert.equal(r.created, true);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')); const p = saved.config.providerConfigRules.providerRules[1];
   assert.equal(p.config.access.apiKey, 'new-secret'); assert.equal(p.config.api.type, 'openai-responses'); assert.deepEqual(p.config.personalModelIds, ['new-model']); assert.deepEqual(saved.config.providerOrder, ['mine', p.providerId]);
 });
 test('verified new key updates matching provider without duplicating it', async t => {
-  const { harbor, configPath } = await fixture(t); const s = await harbor.fetchModels({ baseUrl: 'https://provider.test', apiKey: 'replacement', protocol: 'anthropic-messages' });
-  await harbor.importModels({ sessionId: s.sessionId, modelIds: ['old-model'], providerName: 'Same endpoint' }); const saved = JSON.parse(await fs.readFile(configPath, 'utf8'));
+  const { biubiu, configPath } = await fixture(t); const s = await biubiu.fetchModels({ baseUrl: 'https://provider.test', apiKey: 'replacement', protocol: 'anthropic-messages' });
+  await biubiu.importModels({ sessionId: s.sessionId, modelIds: ['old-model'], providerName: 'Same endpoint' }); const saved = JSON.parse(await fs.readFile(configPath, 'utf8'));
   assert.equal(saved.config.providerConfigRules.providerRules.length, 1); assert.equal(saved.config.providerConfigRules.providerRules[0].config.access.apiKey, 'replacement');
 });
 test('invalid selections, expired sessions and incompatible files leave config unchanged', async t => {
-  const { harbor, configPath } = await fixture(t); const before = await fs.readFile(configPath, 'utf8'); const s = await harbor.fetchModels({ baseUrl: 'https://new.test', apiKey: 'key' });
-  await assert.rejects(harbor.importModels({ sessionId: s.sessionId, modelIds: ['invented'], providerName: 'Name' }));
-  harbor.sessions.get(s.sessionId).created = 0; await assert.rejects(harbor.importModels({ sessionId: s.sessionId, modelIds: ['new-model'] }), /过期/);
-  assert.equal(await fs.readFile(configPath, 'utf8'), before); await fs.writeFile(configPath, '{"schemaVersion":999}'); await assert.rejects(harbor.providers(), /不兼容/);
+  const { biubiu, configPath } = await fixture(t); const before = await fs.readFile(configPath, 'utf8'); const s = await biubiu.fetchModels({ baseUrl: 'https://new.test', apiKey: 'key' });
+  await assert.rejects(biubiu.importModels({ sessionId: s.sessionId, modelIds: ['invented'], providerName: 'Name' }));
+  biubiu.sessions.get(s.sessionId).created = 0; await assert.rejects(biubiu.importModels({ sessionId: s.sessionId, modelIds: ['new-model'] }), /过期/);
+  assert.equal(await fs.readFile(configPath, 'utf8'), before); await fs.writeFile(configPath, '{"schemaVersion":999}'); await assert.rejects(biubiu.providers(), /不兼容/);
 });
 test('concurrent lock prevents overwriting another operation', async t => {
-  const { harbor, configPath } = await fixture(t); const s = await harbor.fetchModels({ baseUrl: 'https://new.test', apiKey: 'key' }); await fs.writeFile(`${configPath}.model-harbor.lock`, '');
-  const before = await fs.readFile(configPath, 'utf8'); await assert.rejects(harbor.importModels({ sessionId: s.sessionId, modelIds: ['new-model'] }), /同步/); assert.equal(await fs.readFile(configPath, 'utf8'), before);
-  await assert.rejects(harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 'other-key' }), /同步/);
-  await assert.rejects(harbor.deleteProvider({ providerId: 'mine' }), /同步/); assert.equal(await fs.readFile(configPath, 'utf8'), before);
+  const { biubiu, configPath } = await fixture(t); const s = await biubiu.fetchModels({ baseUrl: 'https://new.test', apiKey: 'key' }); await fs.writeFile(`${configPath}.biubiu-ai.lock`, '');
+  const before = await fs.readFile(configPath, 'utf8'); await assert.rejects(biubiu.importModels({ sessionId: s.sessionId, modelIds: ['new-model'] }), /同步/); assert.equal(await fs.readFile(configPath, 'utf8'), before);
+  await assert.rejects(biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 'other-key' }), /同步/);
+  await assert.rejects(biubiu.deleteProvider({ providerId: 'mine' }), /同步/); assert.equal(await fs.readFile(configPath, 'utf8'), before);
 });
 test('a change is dropped when ZCode saves the config while it is being written', async t => {
-  const { harbor, configPath, dir } = await fixture(t);
-  const zcode = JSON.stringify({ ...seed(), saved: 'by ZCode' }), resolve = harbor.resolvedProvider.bind(harbor);
-  harbor.resolvedProvider = async p => { await fs.writeFile(configPath, zcode); return resolve(p); };
-  await assert.rejects(harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' }), /ZCode 刚刚更新了配置，本次修改已取消/);
+  const { biubiu, configPath, dir } = await fixture(t);
+  const zcode = JSON.stringify({ ...seed(), saved: 'by ZCode' }), resolve = biubiu.resolvedProvider.bind(biubiu);
+  biubiu.resolvedProvider = async p => { await fs.writeFile(configPath, zcode); return resolve(p); };
+  await assert.rejects(biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' }), /ZCode 刚刚更新了配置，本次修改已取消/);
   assert.equal(await fs.readFile(configPath, 'utf8'), zcode);
   assert.deepEqual((await fs.readdir(dir)).filter(name => name !== 'backups' && name !== 'cache'), ['provider_config.json'], 'no temporary file or lock is left');
 });
 test('update_provider changes a listed service\'s address or key with a backup, keeps the key when left empty and never returns it', async t => {
-  const { harbor, configPath, dir } = await fixture(t); const original = await fs.readFile(configPath, 'utf8');
-  const moved = await callTool(harbor, 'update_provider', { providerId: 'mine', baseUrl: 'https://moved.test/v1/chat/completions', apiKey: '' });
+  const { biubiu, configPath, dir } = await fixture(t); const original = await fs.readFile(configPath, 'utf8');
+  const moved = await callTool(biubiu, 'update_provider', { providerId: 'mine', baseUrl: 'https://moved.test/v1/chat/completions', apiKey: '' });
   assert.deepEqual([moved.isError, moved.structuredContent.urlChanged, moved.structuredContent.keyChanged], [undefined, true, false]); assert.ok(!/secret/.test(JSON.stringify(moved)));
   assert.equal(await fs.readFile(moved.structuredContent.backupPath, 'utf8'), original);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')), p = saved.config.providerConfigRules.providerRules[0];
   assert.deepEqual(p.config.api, { type: 'anthropic-messages', baseUrl: 'https://moved.test/v1' }); assert.equal(p.config.access.apiKey, 'stored-secret');
   assert.deepEqual(saved.config.modelConfigRules, seed().config.modelConfigRules); assert.deepEqual(saved.config.defaultModelSelection, seed().config.defaultModelSelection);
-  const rotated = await callTool(harbor, 'update_provider', { providerId: 'mine', baseUrl: 'https://moved.test/v1', apiKey: ' rotated-secret ' });
+  const rotated = await callTool(biubiu, 'update_provider', { providerId: 'mine', baseUrl: 'https://moved.test/v1', apiKey: ' rotated-secret ' });
   assert.deepEqual([rotated.structuredContent.urlChanged, rotated.structuredContent.keyChanged], [false, true]); assert.ok(!/secret/.test(JSON.stringify(rotated)));
   assert.deepEqual(JSON.parse(await fs.readFile(configPath, 'utf8')).config.providerConfigRules.providerRules[0].config.access, { type: 'api-key', apiKey: 'rotated-secret' });
-  const same = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test/v1/', apiKey: 'rotated-secret' });
-  assert.equal(same.unchanged, true); assert.equal((await fs.readdir(path.join(dir, 'backups', 'model-harbor'))).length, 2);
+  const same = await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test/v1/', apiKey: 'rotated-secret' });
+  assert.equal(same.unchanged, true); assert.equal((await fs.readdir(path.join(dir, 'backups', 'biubiu-ai'))).length, 2);
 });
 test('each write keeps the ten newest backups it made and leaves every other file alone', async t => {
-  const { harbor, configPath, dir } = await fixture(t), folder = path.join(dir, 'backups', 'model-harbor');
+  const { biubiu, configPath, dir } = await fixture(t), folder = path.join(dir, 'backups', 'biubiu-ai');
   const days = (year, n) => Array.from({ length: n }, (_, i) => `provider_config-${year}-01-${String(i + 1).padStart(2, '0')}T00-00-00-000Z-0123abcd.json`);
   const listing = async () => (await fs.readdir(folder)).sort(), put = names => Promise.all(names.map(name => fs.writeFile(path.join(folder, name), name)));
   const old = days(2026, 12), others = ['provider_config-mine.json', `${old[0]}.bak`, 'notes.txt'];
   await fs.mkdir(folder, { recursive: true }); await put([...old, ...others]);
   await fs.writeFile(path.join(dir, 'backups', old[0]), 'not ours');
-  const first = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' });
+  const first = await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' });
   assert.deepEqual(await listing(), [...others, ...old.slice(3), path.basename(first.backupPath)].sort(), 'the three oldest go');
   // Backups made while the clock ran ahead sort after the one just made, which stays all the same.
   const ahead = days(2999, 10), before = await fs.readFile(configPath, 'utf8'); await put(ahead);
-  const second = await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test' });
+  const second = await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test' });
   assert.equal(await fs.readFile(second.backupPath, 'utf8'), before);
   assert.deepEqual(await listing(), [...others, ...ahead.slice(1), path.basename(second.backupPath)].sort());
   // A write without a backup, as deleting a site key, keeps ten too.
   const kept = await listing(); await put(days(2000, 2));
-  await harbor.changeConfig(async () => ({}), '', { backup: false });
+  await biubiu.changeConfig(async () => ({}), '', { backup: false });
   assert.deepEqual(await listing(), kept);
   assert.equal(await fs.readFile(path.join(dir, 'backups', old[0]), 'utf8'), 'not ours');
 });
+test('backups an earlier version made in its old folder (0.8.12 or earlier) join the new one and count toward the ten kept', async t => {
+  const { biubiu, dir } = await fixture(t), folder = path.join(dir, 'backups', 'biubiu-ai'), legacy = path.join(dir, 'backups', 'model-harbor');
+  const days = n => Array.from({ length: n }, (_, i) => `provider_config-2026-02-${String(i + 1).padStart(2, '0')}T00-00-00-000Z-0123abcd.json`);
+  await fs.mkdir(legacy, { recursive: true });
+  for (const name of days(12)) await fs.writeFile(path.join(legacy, name), name);
+  const made = await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://moved.test' });
+  assert.deepEqual((await fs.readdir(folder)).sort(), [...days(12).slice(3), path.basename(made.backupPath)].sort(), 'moved over, then the oldest go');
+  await assert.rejects(fs.access(legacy), 'the old folder goes once empty');
+  // Another file in the old folder is not ours: it stays, and so does the folder.
+  await fs.mkdir(legacy); await fs.writeFile(path.join(legacy, 'notes.txt'), 'mine'); await fs.writeFile(path.join(legacy, days(1)[0]), 'old');
+  await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test' });
+  assert.deepEqual(await fs.readdir(legacy), ['notes.txt']);
+});
 test('update_provider refuses bad input, unlisted services and a template service\'s address without touching the config', async t => {
-  const { harbor, configPath } = await fixture(t);
+  const { biubiu, configPath } = await fixture(t);
   const doc = seed(), rules = doc.config.providerConfigRules.providerRules;
   rules.push({ providerId: 'deepseek', templateId: 'deepseek', providerName: 'DeepSeek', config: { group: 'standard-personal', access: { type: 'api-key', apiKey: 'template-secret' } } });
   rules.push({ providerId: 'other', providerName: '非自定义', config: { group: 'builtin', access: { type: 'api-key', apiKey: 'other-secret' }, api: { type: 'openai-chat-completions', baseUrl: 'https://other.test' } } });
   await fs.writeFile(configPath, JSON.stringify(doc)); const before = await fs.readFile(configPath, 'utf8');
-  assert.deepEqual((await harbor.providers()).providers.map(p => [p.id, p.fixedAddress]), [['mine', false], ['deepseek', true]]);
+  assert.deepEqual((await biubiu.providers()).providers.map(p => [p.id, p.fixedAddress]), [['mine', false], ['deepseek', true]]);
   for (const [args, message] of [[{ providerId: 'mine', baseUrl: 'https://u:p@moved.test' }, /HTTP/], [{ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 'line\nbreak' }, /格式无效/], [{ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 42 }, /格式无效/],
     [{ providerId: 'missing', baseUrl: 'https://provider.test' }, /没有找到/], [{ baseUrl: 'https://provider.test' }, /没有找到/], [{ providerId: 'other', baseUrl: 'https://other.test', apiKey: 'x' }, /没有找到/], [{ providerId: 'deepseek', baseUrl: 'https://elsewhere.test' }, /内置模板/]]) {
-    const r = await callTool(harbor, 'update_provider', args);
+    const r = await callTool(biubiu, 'update_provider', args);
     assert.equal(r.isError, true, JSON.stringify(args)); assert.match(r.content[0].text, message); assert.ok(!/secret/.test(JSON.stringify(r)), JSON.stringify(args));
   }
   assert.equal(await fs.readFile(configPath, 'utf8'), before);
-  await harbor.updateProvider({ providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', apiKey: 'new-template-secret' });
+  await biubiu.updateProvider({ providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/anthropic', apiKey: 'new-template-secret' });
   const p = JSON.parse(await fs.readFile(configPath, 'utf8')).config.providerConfigRules.providerRules[1];
   assert.equal(p.config.api, undefined, 'the template still supplies the address'); assert.equal(p.config.access.apiKey, 'new-template-secret');
 });
 test('delete_provider removes a listed service with its order entry and model settings, but not the default model\'s service', async t => {
-  const { harbor, configPath } = await fixture(t);
+  const { biubiu, configPath } = await fixture(t);
   const other = { providerId: 'other', providerName: '非自定义', config: { group: 'builtin', api: { type: 'openai-chat-completions', baseUrl: 'https://other.test' } } };
   const expected = seed(); expected.config.providerConfigRules.providerRules.push(other);
   const doc = structuredClone(expected), config = doc.config;
@@ -152,33 +165,33 @@ test('delete_provider removes a listed service with its order entry and model se
   config.modelConfigRules.providerModelRules.push({ providerId: 'spare', modelId: 's-1', config: { enabled: true } });
   config.modelConfigRules.manualProviderModelRules.push({ providerId: 'spare', modelId: 's-2', config: { enabled: true } });
   await fs.writeFile(configPath, JSON.stringify(doc)); const before = await fs.readFile(configPath, 'utf8');
-  const removed = await callTool(harbor, 'delete_provider', { providerId: 'spare' });
+  const removed = await callTool(biubiu, 'delete_provider', { providerId: 'spare' });
   assert.equal(removed.structuredContent.providerName, '备用'); assert.ok(!/secret/.test(JSON.stringify(removed)));
   assert.equal(await fs.readFile(removed.structuredContent.backupPath, 'utf8'), before);
   assert.deepEqual(JSON.parse(await fs.readFile(configPath, 'utf8')), expected);
   const kept = await fs.readFile(configPath, 'utf8');
-  for (const args of [{ providerId: 'mine' }, { providerId: 'other' }, { providerId: 'spare' }, {}, undefined]) assert.equal((await callTool(harbor, 'delete_provider', args)).isError, true, JSON.stringify(args));
-  assert.match((await callTool(harbor, 'delete_provider', { providerId: 'mine' })).content[0].text, /默认模型/);
+  for (const args of [{ providerId: 'mine' }, { providerId: 'other' }, { providerId: 'spare' }, {}, undefined]) assert.equal((await callTool(biubiu, 'delete_provider', args)).isError, true, JSON.stringify(args));
+  assert.match((await callTool(biubiu, 'delete_provider', { providerId: 'mine' })).content[0].text, /默认模型/);
   assert.equal(await fs.readFile(configPath, 'utf8'), kept);
   const free = seed(); delete free.config.defaultModelSelection; await fs.writeFile(configPath, JSON.stringify(free));
-  await harbor.deleteProvider({ providerId: 'mine' });
+  await biubiu.deleteProvider({ providerId: 'mine' });
   const empty = JSON.parse(await fs.readFile(configPath, 'utf8')).config;
   assert.deepEqual([empty.providerOrder, empty.providerConfigRules.providerRules, empty.modelConfigRules.providerModelRules], [[], [], []]);
 });
 test('an import fetched before the key was changed in the services list does not write the old key back', async t => {
-  const { harbor, configPath } = await fixture(t);
-  const stale = await harbor.fetchModels({ baseUrl: 'https://provider.test', existingProviderId: 'mine', protocol: 'anthropic-messages' });
-  await harbor.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 'rotated-secret' }); const changed = await fs.readFile(configPath, 'utf8');
-  await assert.rejects(harbor.importModels({ sessionId: stale.sessionId, modelIds: ['new-model'] }), /原供应商配置已变化/);
+  const { biubiu, configPath } = await fixture(t);
+  const stale = await biubiu.fetchModels({ baseUrl: 'https://provider.test', existingProviderId: 'mine', protocol: 'anthropic-messages' });
+  await biubiu.updateProvider({ providerId: 'mine', baseUrl: 'https://provider.test', apiKey: 'rotated-secret' }); const changed = await fs.readFile(configPath, 'utf8');
+  await assert.rejects(biubiu.importModels({ sessionId: stale.sessionId, modelIds: ['new-model'] }), /原供应商配置已变化/);
   assert.equal(await fs.readFile(configPath, 'utf8'), changed);
-  const typed = await harbor.fetchModels({ baseUrl: 'https://provider.test', apiKey: 'typed-secret', existingProviderId: 'mine', protocol: 'anthropic-messages' });
-  await harbor.importModels({ sessionId: typed.sessionId, modelIds: ['new-model'] });
-  await harbor.importModels({ sessionId: typed.sessionId, modelIds: ['new-model', 'old-model'] });
+  const typed = await biubiu.fetchModels({ baseUrl: 'https://provider.test', apiKey: 'typed-secret', existingProviderId: 'mine', protocol: 'anthropic-messages' });
+  await biubiu.importModels({ sessionId: typed.sessionId, modelIds: ['new-model'] });
+  await biubiu.importModels({ sessionId: typed.sessionId, modelIds: ['new-model', 'old-model'] });
   assert.equal(JSON.parse(await fs.readFile(configPath, 'utf8')).config.providerConfigRules.providerRules[0].config.access.apiKey, 'typed-secret', 'the key a session brings may be imported again');
 });
 test('only the panel tools are callable and unknown names fail without throwing', async () => {
   assert.deepEqual([...TOOL_NAMES].sort(), ['delete_provider', 'fetch_models', 'get_models', 'import_models', 'list_providers', 'reveal_key', 'site_account', 'site_add_group', 'site_delete_key', 'site_login', 'site_logout', 'site_remove_group', 'test_model', 'update_provider']);
-  for (const name of ['open_model_harbor', 'nope', undefined]) {
+  for (const name of ['open_biubiu_ai', 'nope', undefined]) {
     const r = await callTool(null, name);
     assert.equal(r.isError, true); assert.equal(r.content[0].text, '未知工具。');
   }
@@ -199,7 +212,7 @@ test('simplified panel keeps the core flow; models are tested, not tuned', async
   for (const gone of ['advancedBtn', '调整参数', '还原识别值', 'modelSettings', 'function editor(', 'class="chip']) assert.ok(!html.includes(gone), gone);
   assert.equal(html.split("call('test_model', { sessionId: ").length, 3, 'one 测试 on each page, with the model and nothing else');
   assert.match(html, /line\.append\(row, testLink\(m, '测试', runTest\)\)/);
-  for (const removed of ['class="hero"', 'empty-art', 'sourceNames', 'selectedTab', 'MODEL HARBOR']) assert.ok(!html.includes(removed), removed);
+  for (const removed of ['class="hero"', 'empty-art', 'sourceNames', 'selectedTab', ['MODEL', 'HARBOR'].join(' ')]) assert.ok(!html.includes(removed), removed);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]; assert.equal(scripts.length, 1); assert.doesNotThrow(() => new vm.Script(scripts[0][1]));
   for (const tool of TOOL_NAMES) assert.ok(html.includes(`'${tool}'`), tool);
 });
@@ -491,7 +504,7 @@ test('a site key\'s models open under it on the site page and are added from the
   assert.deepEqual(reveals(), [[true, 'nearest']]);
   // Ticked is used in ZCode. What ZCode has starts ticked, except a model the site no longer offers, which is listed
   // after the others, unticked, so saving would take it out; nothing changes before 保存.
-  assert.equal(text(picker(), 'found')[0], '网站提供 3 个，ZCode 在用 1 个，1 个网站已不再提供；勾选的就是要用的');
+  assert.equal(text(picker(), 'found')[0], '网站 3 个 · 在用 1 个 · 停供 1 个');
   assert.deepEqual(ticks(), [['model-a', true, false], ['model-b', false, false], ['model-c', false, false], ['model-old', false, false]], 'a model in ZCode can be unticked');
   assert.deepEqual(text(picker(), 'meta'), ['已在 ZCode · 上下文 200000', '未识别参数', '未识别参数', '网站已不再提供，还在 ZCode 里']);
   assert.equal(all(item(0), c => c.attrs['aria-label'] === '测试 model-old').length, 0, 'a model the site no longer offers cannot be tested through it');
@@ -631,32 +644,32 @@ test('a service is changed or deleted from its own item: the key field starts em
   assert.deepEqual([fixedUrl.disabled, fixedUrl.dataset.change, focused], [true, undefined, fixedKey], 'a template address stays read-only, even after a write re-enables the form');
 });
 test('reveal_key returns one listed provider key on request and nothing else', async t => {
-  const { harbor, configPath } = await fixture(t);
+  const { biubiu, configPath } = await fixture(t);
   const doc = seed(), rules = doc.config.providerConfigRules.providerRules;
   rules.push({ providerId: 'nokey', providerName: '没有 Key', config: { group: 'standard-personal', access: { type: 'api-key', apiKey: '' }, api: { type: 'openai-chat-completions', baseUrl: 'https://nokey.test' } } });
   rules.push({ providerId: 'other', providerName: '非自定义', config: { group: 'builtin', access: { type: 'api-key', apiKey: 'other-secret' }, api: { type: 'openai-chat-completions', baseUrl: 'https://other.test' } } });
   await fs.writeFile(configPath, JSON.stringify(doc)); const before = await fs.readFile(configPath, 'utf8');
-  const listed = await callTool(harbor, 'list_providers');
+  const listed = await callTool(biubiu, 'list_providers');
   assert.deepEqual(listed.structuredContent.providers.map(p => [p.id, p.baseUrl, p.hasKey]), [['mine', 'https://provider.test', true], ['nokey', 'https://nokey.test', false]]);
   assert.ok(!/secret/.test(JSON.stringify(listed)));
-  const r = await callTool(harbor, 'reveal_key', { providerId: 'mine' });
+  const r = await callTool(biubiu, 'reveal_key', { providerId: 'mine' });
   assert.deepEqual(r.structuredContent, { id: 'mine', apiKey: 'stored-secret' }); assert.ok(!r.content[0].text.includes('stored-secret'));
   for (const args of [undefined, null, {}, { providerId: '' }, { providerId: ['mine'] }, { providerId: 'missing' }, { providerId: 'nokey' }, { providerId: 'other' }]) {
-    const e = await callTool(harbor, 'reveal_key', args);
+    const e = await callTool(biubiu, 'reveal_key', args);
     assert.equal(e.isError, true, JSON.stringify(args)); assert.equal(e.structuredContent, undefined); assert.ok(!/secret/.test(JSON.stringify(e)), JSON.stringify(args));
   }
   assert.equal(await fs.readFile(configPath, 'utf8'), before);
 });
 test('template-only provider resolves its URL and reuses its key without duplicating built-in models', async t => {
   const requests = [];
-  const { harbor, configPath } = await fixture(t, async (url, opts) => { requests.push(url); assert.equal(opts.headers.Authorization, 'Bearer stored-secret'); return url === 'https://api.deepseek.com/models' ? Response.json({ data: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }] }) : new Response('', { status: 404 }); });
+  const { biubiu, configPath } = await fixture(t, async (url, opts) => { requests.push(url); assert.equal(opts.headers.Authorization, 'Bearer stored-secret'); return url === 'https://api.deepseek.com/models' ? Response.json({ data: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }] }) : new Response('', { status: 404 }); });
   const doc = seed(); const p = doc.config.providerConfigRules.providerRules[0]; p.providerId = 'deepseek'; p.templateId = 'deepseek'; delete p.config.api; p.config.personalModelIds = []; p.config.modelOrder = ['deepseek-flash', 'deepseek-v4-pro'];
   await fs.writeFile(configPath, JSON.stringify(doc));
-  const listed = (await harbor.providers()).providers[0]; assert.equal(listed.baseUrl, 'https://api.deepseek.com/anthropic'); assert.equal(listed.modelCount, 2);
+  const listed = (await biubiu.providers()).providers[0]; assert.equal(listed.baseUrl, 'https://api.deepseek.com/anthropic'); assert.equal(listed.modelCount, 2);
   assert.deepEqual(listed.models, ['deepseek-flash', 'deepseek-v4-pro']);
-  const r = await harbor.fetchModels({ baseUrl: listed.baseUrl, protocol: listed.protocol, existingProviderId: listed.id });
+  const r = await biubiu.fetchModels({ baseUrl: listed.baseUrl, protocol: listed.protocol, existingProviderId: listed.id });
   assert.ok(requests.includes('https://api.deepseek.com/models'));
-  const imported = await harbor.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id) }); assert.equal(imported.added, 0);
+  const imported = await biubiu.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id) }); assert.equal(imported.added, 0);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')); assert.deepEqual(saved.config.providerConfigRules.providerRules[0].config.personalModelIds, []); assert.equal(saved.config.providerConfigRules.providerRules[0].config.api, undefined);
 });
 test('the site page opens with the account and its total top-ups beside 刷新 and 退出登录, then the balance and the link that opens the site', async () => {
@@ -687,4 +700,53 @@ test('cards, buttons, fields, notices, check boxes and the scroll bar are rounde
   for (const selector of ['.primary', '.small', '.status', '.note.fail', '.row input', '.tag', '.dot', '::-webkit-scrollbar-thumb', '.input,.select', '#connectForm,#siteLogin,.acct,.list,#savedList,#siteKeys,.gplat>[role=list]']) assert.match(rule(selector), /border-radius:/, selector);
   // A native popup takes the select's own background, so it stays opaque, in the page color.
   assert.match(rule('.select'), /background-color:var\(--bg\)/);
+});
+test('使用教程 walks a new user from signing in to a group\'s models in ZCode, moving on by itself once each step is done', async () => {
+  const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
+  const footer = html.slice(html.indexOf('<div class="ver">'), html.indexOf('</div>', html.indexOf('<div class="ver">')));
+  assert.match(footer, /<button class="link tourlink" id="tourLink" type="button" hidden>使用教程<\/button>/, 'the footer opens it again at any time');
+  assert.ok(html.includes("$('tourLink').onclick = startTour;"));
+  assert.ok(html.includes("else if (e.data?.type === 'tour') startTour();"), 'the host starts it for a new install and from the tray');
+  assert.equal(html.split("tellHost?.('tour-done')").length, 3, 'leaving the welcome either way tells the host it was seen');
+  // The copy on the guide's cards stays short: a title and one line of at most 12 characters.
+  const titles = [...html.matchAll(/title: '([^']+)', desc: '([^']+)'/g)];
+  assert.ok(titles.length >= 7, String(titles.length));
+  for (const [, title, desc] of titles) { assert.ok([...title].length <= 12, title); assert.ok([...desc].length <= 12, desc); }
+  // Choosing a group says what the orange rate beside it means.
+  assert.ok(html.includes("legend.append(el('span', 'grate', `×${spec.rate}`), '计费倍率，越小越省')"));
+  assert.ok(html.includes("desc: '点「添加」列出模型', rate: rate(site.groups),"));
+
+  const source = name => { const at = html.indexOf(`\n  function ${name}(`) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
+  const ctx = { tour: { step: 'login' }, site: null, pick: null, busy: false, asking: null, changes: { held: 0, adds: [], drops: [] } };
+  ctx.pickChanges = () => ctx.changes;
+  vm.runInNewContext(['tourNext', 'tourSaved'].map(source).join('\n'), ctx);
+  const next = step => { ctx.tour.step = step; return ctx.tourNext(); };
+  assert.equal(next('login'), 'login', 'it waits for the account to be read');
+  ctx.site = { signedIn: false, site: { name: 'biubiu AI' } };
+  assert.equal(next('login'), 'login'); assert.equal(next('group'), 'login', 'signed out, it goes back to signing in');
+  assert.equal(next('welcome'), 'welcome', 'the welcome waits for its own buttons');
+  ctx.site = { signedIn: true, site: { name: 'biubiu AI' }, groups: [{ id: '71', name: 'Claude Pro', inZCode: [] }], keys: [{ id: '7', name: 'ZCode · Claude Pro', inZCode: '' }] };
+  assert.equal(next('login'), 'balance', 'signed in, it moves on by itself');
+  assert.equal(next('balance'), 'balance', 'the balance waits for 下一步');
+  assert.equal(next('group'), 'group');
+  ctx.asking = { id: '71', kind: 'key' };
+  assert.equal(next('group'), 'newkey', 'a group without a key asks first, and the guide says why');
+  ctx.asking = null; ctx.busy = true;
+  assert.equal(next('newkey'), 'newkey', 'while the key is made');
+  ctx.busy = false;
+  assert.equal(next('newkey'), 'group', 'cancelled, it is back at choosing a group');
+  ctx.pick = { id: '7', group: '71', loading: true };
+  assert.equal(next('group'), 'models', 'the models open under the row');
+  ctx.pick = { id: '7', group: '71', result: { models: [] }, message: '已在网站上新建 Key', error: '' };
+  ctx.changes = { held: 0, adds: ['claude-opus-5-5'], drops: [] };
+  assert.equal(next('models'), 'models', 'a message about the new key is no save');
+  ctx.busy = true; ctx.changes = { held: 0, adds: [], drops: [] };
+  assert.equal(next('models'), 'models', 'nor is a save under way');
+  ctx.busy = false; ctx.pick.message = '「biubiu AI · Claude Pro」添加了 2 个模型。'; ctx.changes = { held: 2, adds: [], drops: [] };
+  ctx.site.groups[0].inZCode = [{ name: 'biubiu AI · Claude Pro', modelCount: 2 }];
+  assert.equal(next('models'), 'zcode', 'saved, it shows where the models are in ZCode');
+  assert.deepEqual({ ...ctx.tour.saved }, { group: '71', id: '7', name: 'biubiu AI · Claude Pro' });
+  assert.equal(next('zcode'), 'zcode', 'the last step waits for 完成');
+  ctx.pick = null;
+  assert.equal(next('models'), 'group', 'folding the models away goes back to choosing a group');
 });

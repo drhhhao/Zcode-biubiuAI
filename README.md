@@ -32,7 +32,7 @@
 
 1. **下载**：打开 [Releases 页面](https://github.com/drhhhao/Zcode-biubiuAI/releases/latest)，在 Assets 里下载 `biubiuAI-Setup-<版本号>.exe`。GitHub 慢的话，从国内的 [Gitee 镜像](https://gitee.com/drhhhao_0/Zcode-biubiuAI/releases) 下载同一个文件。
 2. **安装**：双击下载的文件，点「安装」。第一次运行时 Windows 可能提示“Windows 已保护你的电脑”，点「更多信息」→「仍要运行」。不用另装 Node.js 等任何东西，需要的运行环境安装程序会一起装好。
-3. **使用**：打开 ZCode，biubiu AI 面板会贴在 ZCode 窗口旁边。登录 biubiu AI 账户，点分组的「添加」，回到 ZCode 的模型选择里就能选到这些模型。
+3. **使用**：打开 ZCode，biubiu AI 面板会贴在 ZCode 窗口旁边，第一次打开时「使用教程」会带你一步步做：登录 biubiu AI 账户，点分组的「添加」并勾选模型，回到 ZCode 的模型选择里就能选到这些模型。
 
 每一步的截图和更多用法见 **[图文使用教程](docs/tutorial.md)**。
 

@@ -1,6 +1,6 @@
-// biubiu AI desktop companion. Its internal names (namespace ModelHarbor, ModelHarbor.exe, MODEL_HARBOR_* variables,
-// the ModelHarbor data folder and the startup entry) keep the project's English working name, so settings, the saved
-// sign-in and the startup entry carry over; nothing the user sees uses it.
+// biubiu AI desktop companion (namespace BiubiuAI, BiubiuAI.exe, BIUBIU_AI_* variables, data folder "biubiu AI").
+// Up to 0.8.12 these carried the project's old working name; an installed copy updated from such a version carries its
+// data folder, saved sign-in and startup entry over to the new names once (see Legacy).
 // A borderless WebView2 panel docked beside the ZCode main window: it sits outside ZCode's edge,
 // follows every move and resize, hides while ZCode is maximized or minimized, and collapses to a
 // small tab on ZCode's edge. It only reads ZCode's window position, state and a few pixels for the
@@ -31,30 +31,33 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.12.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.12.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.12")]
+[assembly: System.Reflection.AssemblyVersion("0.8.13.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.13.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.13")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
-namespace ModelHarbor
+namespace BiubiuAI
 {
     static class Program
     {
-        public const string Version = "0.8.12";
-        public const string ShowEventName = @"Local\ModelHarbor.Companion.Show";
-        public const string QuitEventName = @"Local\ModelHarbor.Companion.Quit";
-        public const string CollapseEventName = @"Local\ModelHarbor.Companion.Collapse";
-        public const string ExpandEventName = @"Local\ModelHarbor.Companion.Expand";
-        public const string CheckUpdateEventName = @"Local\ModelHarbor.Companion.CheckUpdate";
-        const string MutexName = @"Local\ModelHarbor.Companion.Instance";
+        public const string Version = "0.8.13";
+        public const string ShowEventName = @"Local\BiubiuAI.Companion.Show";
+        public const string QuitEventName = @"Local\BiubiuAI.Companion.Quit";
+        public const string CollapseEventName = @"Local\BiubiuAI.Companion.Collapse";
+        public const string ExpandEventName = @"Local\BiubiuAI.Companion.Expand";
+        public const string CheckUpdateEventName = @"Local\BiubiuAI.Companion.CheckUpdate";
+        const string MutexName = @"Local\BiubiuAI.Companion.Instance";
 
         [STAThread]
         static int Main(string[] args)
         {
             var options = Options.Parse(args);
-            if (options.InstallStartup) { Startup.Enable(); return 0; }
-            if (options.UninstallStartup) { Startup.Disable(); return 0; }
+            // The installer runs these before it starts the companion, so one of them may be first to find the data folder
+            // under the old name and move it (Paths): each says so in the log, as the companion itself would.
+            if (options.InstallStartup) { NoteDataFolder(); Startup.Enable(); return 0; }
+            if (options.UninstallStartup) { NoteDataFolder(); Startup.Disable(); return 0; }
+            if (options.MigrateStartup) { NoteDataFolder(); Startup.Migrate(); return 0; }
             if (options.Quit) return QuitRunningInstance() ? 0 : 1;
             if (options.Collapse) return Signal(CollapseEventName) ? 0 : 1;
             if (options.Expand) return Signal(ExpandEventName) ? 0 : 1;
@@ -75,12 +78,25 @@ namespace ModelHarbor
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                 Application.ThreadException += (s, e) => Log.Write("ui error: " + e.Exception);
                 AppDomain.CurrentDomain.UnhandledException += (s, e) => Log.Write("fatal error: " + e.ExceptionObject);
+                // An install updated from 0.8.12 or earlier: a copy of the old version still running quits first, so its data
+                // folder can move to the new name (Paths), and its startup entry becomes this one's.
+                Legacy.QuitEarlierCopy();
                 Log.Write("companion " + Version + " starting" + (options.Background ? " in background" : ""));
+                NoteDataFolder();
+                if (Legacy.InstalledCopy) Startup.Migrate();
                 using (var companion = new Companion(options)) Application.Run(companion);
                 Log.Write("companion stopped");
                 mutex.ReleaseMutex();
             }
             return 0;
+        }
+
+        // What finding the data folder did, the first time this process looked for it (Paths moves it at most once).
+        static void NoteDataFolder()
+        {
+            if (Paths.SetAside != null) Log.Write("a data folder a development build left was set aside as \"" + Paths.SetAside + "\"");
+            if (Paths.CarriedOver) Log.Write("data folder carried over from the old name");
+            else if (Paths.DataDir == Legacy.DataDir) Log.Write("data folder still under the old name; moving it is tried at the next start");
         }
 
         // Asks a running instance to exit and waits until its single-instance mutex is gone.
@@ -107,7 +123,7 @@ namespace ModelHarbor
 
     sealed class Options
     {
-        public bool Background, Quit, Collapse, Expand, InstallStartup, UninstallStartup, DevTools, CheckUpdate;
+        public bool Background, Quit, Collapse, Expand, InstallStartup, UninstallStartup, MigrateStartup, DevTools, CheckUpdate;
 
         public static Options Parse(string[] args)
         {
@@ -120,6 +136,7 @@ namespace ModelHarbor
                     case "--quit": o.Quit = true; break;
                     case "--install-startup": o.InstallStartup = true; break;
                     case "--uninstall-startup": o.UninstallStartup = true; break;
+                    case "--migrate-startup": o.MigrateStartup = true; break;
                     case "--devtools": o.DevTools = true; break;
                     case "--collapse": o.Collapse = true; break;
                     case "--expand": o.Expand = true; break;
@@ -135,15 +152,50 @@ namespace ModelHarbor
         public static readonly string AppDir = AppDomain.CurrentDomain.BaseDirectory;
         static string ResolveDataDir()
         {
-            string fromEnv = Environment.GetEnvironmentVariable("MODEL_HARBOR_DATA_DIR");
+            string fromEnv = Environment.GetEnvironmentVariable("BIUBIU_AI_DATA_DIR");
             try { if (!string.IsNullOrEmpty(fromEnv) && Path.IsPathRooted(fromEnv)) return Path.GetFullPath(fromEnv); }
             catch (ArgumentException) { }
             catch (NotSupportedException) { }
             catch (PathTooLongException) { }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelHarbor");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), DataFolder);
+            // An installed copy updated from 0.8.12 or earlier finds its data under the old name and moves it here once.
+            if (!Legacy.InstalledCopy || !Directory.Exists(Legacy.DataDir)) return dir;
+            // A folder under the new name that holds no sign-in while the old one does was left by a development build run
+            // on this machine before the update (an installed copy has not run under the new name yet). It is set aside,
+            // never deleted, so the installed copy's own data comes over.
+            if (Directory.Exists(dir) && !File.Exists(Path.Combine(dir, SessionFile)) && File.Exists(Path.Combine(Legacy.DataDir, SessionFile)))
+            {
+                string aside = dir + " (开发版留下的 " + DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + ")";
+                if (!Move(dir, aside)) return dir;
+                SetAside = Path.GetFileName(aside);
+            }
+            if (Directory.Exists(dir)) return dir;
+            // The old copy's WebView2 processes may hold the folder for a few seconds after it quits; failing that, the
+            // folder is used where it is and moving is tried again at the next start.
+            if (!Move(Legacy.DataDir, dir)) return Legacy.DataDir;
+            CarriedOver = true;
+            return dir;
         }
 
-        // MODEL_HARBOR_DATA_DIR (an absolute path) isolates settings, log and WebView2 data, e.g. for tests.
+        // Moves a folder, trying for up to 15 seconds while something still holds it.
+        static bool Move(string from, string to)
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                try { Directory.Move(from, to); return true; }
+                catch (IOException) when (attempt < 150) { Thread.Sleep(100); }
+                catch (UnauthorizedAccessException) when (attempt < 150) { Thread.Sleep(100); }
+                catch (Exception) { return false; }
+            }
+        }
+
+        public const string DataFolder = "biubiu AI";
+        const string SessionFile = "site-session.json";
+        public static bool CarriedOver;
+        // The name a development build's folder was set aside under, when it was.
+        public static string SetAside;
+
+        // BIUBIU_AI_DATA_DIR (an absolute path) isolates settings, log and WebView2 data, e.g. for tests.
         public static readonly string DataDir = ResolveDataDir();
         public static readonly string WebViewData = Path.Combine(DataDir, "WebView2");
         public static readonly string LogFile = Path.Combine(DataDir, "companion.log");
@@ -156,28 +208,48 @@ namespace ModelHarbor
     // sign-in. A key that cannot be read is replaced, which makes Node discard the old sign-in. Never logged.
     static class SessionKey
     {
-        static readonly byte[] Entropy = Encoding.UTF8.GetBytes("ModelHarbor.SiteSession.v1");
+        static readonly byte[] Entropy = Encoding.UTF8.GetBytes("BiubiuAI.SiteSession.v1");
+
+        // A key protected under the old name (0.8.12 or earlier) still opens, and is protected again under the new one.
+        static byte[] Open(byte[] stored, out bool old)
+        {
+            old = false;
+            try { return ProtectedData.Unprotect(stored, Entropy, DataProtectionScope.CurrentUser); }
+            catch (CryptographicException) { }
+            try { byte[] key = ProtectedData.Unprotect(stored, Legacy.SessionEntropy, DataProtectionScope.CurrentUser); old = true; return key; }
+            catch (CryptographicException) { return null; }
+        }
+
+        static void Save(byte[] key)
+        {
+            Directory.CreateDirectory(Paths.DataDir);
+            string temporary = Paths.SessionKeyFile + ".tmp";
+            File.WriteAllBytes(temporary, ProtectedData.Protect(key, Entropy, DataProtectionScope.CurrentUser));
+            if (File.Exists(Paths.SessionKeyFile)) File.Delete(Paths.SessionKeyFile);
+            File.Move(temporary, Paths.SessionKeyFile);
+        }
 
         public static string Load()
         {
             try
             {
                 byte[] key = null;
+                bool old = false;
                 if (File.Exists(Paths.SessionKeyFile))
                 {
-                    try { key = ProtectedData.Unprotect(File.ReadAllBytes(Paths.SessionKeyFile), Entropy, DataProtectionScope.CurrentUser); }
-                    catch (CryptographicException) { key = null; }
+                    key = Open(File.ReadAllBytes(Paths.SessionKeyFile), out old);
                     if (key != null && key.Length != 32) key = null;
                 }
                 if (key == null)
                 {
                     key = new byte[32];
                     using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(key);
-                    Directory.CreateDirectory(Paths.DataDir);
-                    string temporary = Paths.SessionKeyFile + ".tmp";
-                    File.WriteAllBytes(temporary, ProtectedData.Protect(key, Entropy, DataProtectionScope.CurrentUser));
-                    if (File.Exists(Paths.SessionKeyFile)) File.Delete(Paths.SessionKeyFile);
-                    File.Move(temporary, Paths.SessionKeyFile);
+                    Save(key);
+                }
+                else if (old)
+                {
+                    Save(key);
+                    Log.Write("site session key carried over from the old name");
                 }
                 return Convert.ToBase64String(key);
             }
@@ -218,7 +290,7 @@ namespace ModelHarbor
     static class Startup
     {
         const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        const string ValueName = "ModelHarbor Companion";
+        const string ValueName = "biubiu AI";
         // Task Manager's Startup page records its enabled/disabled switch here, beside the Run value.
         // The first byte is even when the entry is enabled (02, 06) and odd when it is disabled (03, 07).
         const string ApprovedKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
@@ -253,6 +325,7 @@ namespace ModelHarbor
         // just ticked is the one that takes effect at the next sign-in.
         public static void Enable()
         {
+            DropOld();
             using (var key = Registry.CurrentUser.CreateSubKey(RunKey)) key.SetValue(ValueName, Command, RegistryValueKind.String);
             if (!IsDisabledInTaskManager()) return;
             using (var key = Registry.CurrentUser.OpenSubKey(ApprovedKey, true))
@@ -261,12 +334,90 @@ namespace ModelHarbor
 
         public static void Disable()
         {
+            DropOld();
             using (var key = Registry.CurrentUser.OpenSubKey(RunKey, true)) if (key != null) key.DeleteValue(ValueName, false);
             try
             {
                 using (var key = Registry.CurrentUser.OpenSubKey(ApprovedKey, true)) if (key != null) key.DeleteValue(ValueName, false);
             }
             catch (Exception) { }
+        }
+
+        // The entry an earlier version (0.8.12 or before) made under its old name, for the program this one replaced in
+        // the same folder, becomes this one's, with Task Manager's switch as it was. An old entry for another copy stays.
+        public static void Migrate()
+        {
+            string old;
+            using (var key = Registry.CurrentUser.OpenSubKey(RunKey)) old = key == null ? null : key.GetValue(Legacy.RunValue) as string;
+            if (old == null || !Beside(old)) return;
+            byte[] approved = null;
+            try { using (var key = Registry.CurrentUser.OpenSubKey(ApprovedKey)) approved = key == null ? null : key.GetValue(Legacy.RunValue) as byte[]; }
+            catch (Exception) { }
+            using (var key = Registry.CurrentUser.CreateSubKey(RunKey)) key.SetValue(ValueName, Command, RegistryValueKind.String);
+            try { using (var key = Registry.CurrentUser.OpenSubKey(ApprovedKey, true)) if (key != null && approved != null) key.SetValue(ValueName, approved, RegistryValueKind.Binary); }
+            catch (Exception) { }
+            DropOld();
+            Log.Write("startup entry carried over from the old name");
+        }
+
+        // Removes the old-named entry when it starts the program this one replaced.
+        static void DropOld()
+        {
+            try
+            {
+                string old;
+                using (var key = Registry.CurrentUser.OpenSubKey(RunKey)) old = key == null ? null : key.GetValue(Legacy.RunValue) as string;
+                if (old == null || !Beside(old)) return;
+                using (var key = Registry.CurrentUser.OpenSubKey(RunKey, true)) if (key != null) key.DeleteValue(Legacy.RunValue, false);
+                using (var key = Registry.CurrentUser.OpenSubKey(ApprovedKey, true)) if (key != null) key.DeleteValue(Legacy.RunValue, false);
+            }
+            catch (Exception) { }
+        }
+
+        // Whether a startup command runs a program in this program's folder.
+        static bool Beside(string command)
+        {
+            string text = command.Trim(), exe = text.StartsWith("\"", StringComparison.Ordinal) ? text.Substring(1, Math.Max(0, text.IndexOf('"', 1) - 1)) : text.Split(' ')[0];
+            try { return string.Equals(Path.GetFullPath(Path.GetDirectoryName(exe)).TrimEnd('\\'), Path.GetFullPath(Path.GetDirectoryName(Application.ExecutablePath)).TrimEnd('\\'), StringComparison.OrdinalIgnoreCase); }
+            catch (Exception) { return false; }
+        }
+    }
+
+    // The names biubiu AI used inside up to 0.8.12, the project's old working name. Only carrying an earlier install over
+    // reads them: its data folder, the key its saved sign-in was protected with, its startup entry, and a copy of it still
+    // running while this one starts. A development build never touches them, so it leaves an installed biubiu AI alone.
+    static class Legacy
+    {
+        public static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ModelHarbor");
+        public static readonly byte[] SessionEntropy = Encoding.UTF8.GetBytes("ModelHarbor.SiteSession.v1");
+        public const string RunValue = "ModelHarbor Companion";
+        const string QuitEventName = @"Local\ModelHarbor.Companion.Quit", MutexName = @"Local\ModelHarbor.Companion.Instance";
+
+        // A copy the installer put in place (its list of files sits beside bin) that runs with its own data folder: a test's
+        // installed copy always has a stand-in one (BIUBIU_AI_DATA_DIR), so it never touches what the machine's copy uses.
+        public static bool InstalledCopy
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BIUBIU_AI_DATA_DIR"))) return false;
+                try { return File.Exists(Path.Combine(Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\')), "uninstall.list")); }
+                catch (Exception) { return false; }
+            }
+        }
+
+        // An old copy still running is asked to quit, as its own --quit would, and given up to ten seconds.
+        public static void QuitEarlierCopy()
+        {
+            if (!InstalledCopy) return;
+            try { using (var handle = EventWaitHandle.OpenExisting(QuitEventName)) handle.Set(); }
+            catch (Exception) { return; }
+            for (int i = 0; i < 100; i++)
+            {
+                try { using (Mutex.OpenExisting(MutexName)) { } }
+                catch (WaitHandleCannotBeOpenedException) { return; }
+                catch (UnauthorizedAccessException) { }
+                Thread.Sleep(100);
+            }
         }
     }
 
@@ -283,13 +434,16 @@ namespace ModelHarbor
         // The newer version the tray has already told of, so each is told once; and the version that ran last, so the
         // first run after an update can say it took.
         public string UpdateSeen, LastVersion;
+        // A new install, with no settings file yet, has the panel's 使用教程 start once by itself; the page says when it
+        // was seen. Kept as tour=pending until then, so a first run that ends before the panel shows still gets it.
+        public bool TourPending;
         string savedZCodeExe = "ZCode.exe";
 
-        // MODEL_HARBOR_ZCODE_EXE overrides the process image name to follow for this run only; it is never saved.
+        // BIUBIU_AI_ZCODE_EXE overrides the process image name to follow for this run only; it is never saved.
         public static Settings Load()
         {
             var s = LoadFile();
-            string fromEnv = Environment.GetEnvironmentVariable("MODEL_HARBOR_ZCODE_EXE");
+            string fromEnv = Environment.GetEnvironmentVariable("BIUBIU_AI_ZCODE_EXE");
             if (IsExeName(fromEnv)) s.ZCodeExe = fromEnv.Trim();
             return s;
         }
@@ -306,7 +460,7 @@ namespace ModelHarbor
             var s = new Settings();
             try
             {
-                if (!File.Exists(Paths.SettingsFile)) return s;
+                if (!File.Exists(Paths.SettingsFile)) { s.TourPending = true; return s; }
                 foreach (var line in File.ReadAllLines(Paths.SettingsFile, Encoding.UTF8))
                 {
                     int i = line.IndexOf('=');
@@ -339,6 +493,9 @@ namespace ModelHarbor
                         case "version":
                             if (Updates.IsVersion(value)) s.LastVersion = value;
                             break;
+                        case "tour":
+                            s.TourPending = value == "pending";
+                            break;
                     }
                 }
             }
@@ -351,8 +508,8 @@ namespace ModelHarbor
             try
             {
                 Directory.CreateDirectory(Paths.DataDir);
-                File.WriteAllText(Paths.SettingsFile, string.Format(CultureInfo.InvariantCulture, "panelWidth={0:0}\r\ntopOffset={1:0}\r\nexpanded={2}\r\ndock={3}\r\nzcodeExe={4}\r\n{5}{6}{7}", PanelWidthDip, TopOffsetDip, Expanded ? 1 : 0, PreferLeft ? "left" : "right", savedZCodeExe,
-                    Theme == null ? "" : "theme=" + Theme + "\r\n", UpdateSeen == null ? "" : "updateSeen=" + UpdateSeen + "\r\n", LastVersion == null ? "" : "version=" + LastVersion + "\r\n"), new UTF8Encoding(false));
+                File.WriteAllText(Paths.SettingsFile, string.Format(CultureInfo.InvariantCulture, "panelWidth={0:0}\r\ntopOffset={1:0}\r\nexpanded={2}\r\ndock={3}\r\nzcodeExe={4}\r\n{5}{6}{7}{8}", PanelWidthDip, TopOffsetDip, Expanded ? 1 : 0, PreferLeft ? "left" : "right", savedZCodeExe,
+                    Theme == null ? "" : "theme=" + Theme + "\r\n", UpdateSeen == null ? "" : "updateSeen=" + UpdateSeen + "\r\n", LastVersion == null ? "" : "version=" + LastVersion + "\r\n", TourPending ? "tour=pending\r\n" : ""), new UTF8Encoding(false));
             }
             catch (Exception e) { Log.Write("settings could not be saved: " + e.Message); }
         }
@@ -483,11 +640,11 @@ namespace ModelHarbor
 
     static class Locate
     {
-        // MODEL_HARBOR_NODE first; then the runtime the installer puts beside bin (node\node.exe), so an installed
+        // BIUBIU_AI_NODE first; then the runtime the installer puts beside bin (node\node.exe), so an installed
         // companion needs no Node.js of its own; then a Node.js on PATH or in its usual folders, as in a development tree.
         public static string Node()
         {
-            string fromEnv = Environment.GetEnvironmentVariable("MODEL_HARBOR_NODE");
+            string fromEnv = Environment.GetEnvironmentVariable("BIUBIU_AI_NODE");
             if (!string.IsNullOrEmpty(fromEnv) && File.Exists(fromEnv)) return fromEnv;
             string bundled = Path.GetFullPath(Path.Combine(Paths.AppDir, "..", "node", "node.exe"));
             if (File.Exists(bundled)) return bundled;
@@ -511,7 +668,7 @@ namespace ModelHarbor
 
         public static string ServerScript()
         {
-            string fromEnv = Environment.GetEnvironmentVariable("MODEL_HARBOR_APP_SERVER");
+            string fromEnv = Environment.GetEnvironmentVariable("BIUBIU_AI_APP_SERVER");
             if (!string.IsNullOrEmpty(fromEnv) && File.Exists(fromEnv)) return Path.GetFullPath(fromEnv);
             string beside = Path.GetFullPath(Path.Combine(Paths.AppDir, "..", "server.mjs"));
             return File.Exists(beside) ? beside : null;
@@ -576,7 +733,7 @@ namespace ModelHarbor
         public void Start()
         {
             string node = Locate.Node(), script = Locate.ServerScript();
-            if (node == null) { Fail("没有找到 biubiu AI 需要的 Node.js 运行时。请重新运行 biubiu AI 安装程序；在开发目录里运行时，请安装 Node.js 22 或更新版本，或用 MODEL_HARBOR_NODE 指定 node.exe。"); return; }
+            if (node == null) { Fail("没有找到 biubiu AI 需要的 Node.js 运行时。请重新运行 biubiu AI 安装程序；在开发目录里运行时，请安装 Node.js 22 或更新版本，或用 BIUBIU_AI_NODE 指定 node.exe。"); return; }
             if (script == null) { Fail("没有找到 biubiu AI 的本地服务 server.mjs。请重新运行 biubiu AI 安装程序；在开发目录里运行时，请保持程序位于 app\\bin 目录。"); return; }
             lock (sync)
             {
@@ -590,16 +747,18 @@ namespace ModelHarbor
                 RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
                 StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             };
-            psi.EnvironmentVariables["MODEL_HARBOR_APP_TOKEN"] = Token;
-            psi.EnvironmentVariables["MODEL_HARBOR_HOST_PID"] = Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
+            psi.EnvironmentVariables["BIUBIU_AI_APP_TOKEN"] = Token;
+            psi.EnvironmentVariables["BIUBIU_AI_HOST_PID"] = Process.GetCurrentProcess().Id.ToString(CultureInfo.InvariantCulture);
+            // Only an installed copy takes over what an earlier version kept under the old name (lib/metadata.mjs).
+            if (Legacy.InstalledCopy) psi.EnvironmentVariables["BIUBIU_AI_CARRY_OVER"] = "1"; else psi.EnvironmentVariables.Remove("BIUBIU_AI_CARRY_OVER");
             psi.EnvironmentVariables.Remove("NODE_OPTIONS");
             psi.EnvironmentVariables["UV_THREADPOOL_SIZE"] = PoolThreads;
-            psi.EnvironmentVariables.Remove("MODEL_HARBOR_APP_PORT");
-            psi.EnvironmentVariables.Remove("MODEL_HARBOR_SESSION_KEY");
+            psi.EnvironmentVariables.Remove("BIUBIU_AI_APP_PORT");
+            psi.EnvironmentVariables.Remove("BIUBIU_AI_SESSION_KEY");
             if (sessionKey != null)
             {
-                psi.EnvironmentVariables["MODEL_HARBOR_SESSION_KEY"] = sessionKey;
-                psi.EnvironmentVariables["MODEL_HARBOR_SESSION_DIR"] = Paths.DataDir;
+                psi.EnvironmentVariables["BIUBIU_AI_SESSION_KEY"] = sessionKey;
+                psi.EnvironmentVariables["BIUBIU_AI_SESSION_DIR"] = Paths.DataDir;
             }
 
             var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -618,7 +777,7 @@ namespace ModelHarbor
                 Log.Write("server did not report ready within 20 s");
                 try { if (!launch.Process.HasExited) launch.Process.Kill(); } catch (Exception) { }
             }, null, 20000, Timeout.Infinite);
-            new Thread(() => ReadStdout(launch)) { IsBackground = true, Name = "model-harbor-server-stdout" }.Start();
+            new Thread(() => ReadStdout(launch)) { IsBackground = true, Name = "biubiu-ai-server-stdout" }.Start();
             Log.Write("server started (pid " + process.Id + ")");
         }
 
@@ -812,7 +971,7 @@ namespace ModelHarbor
                         client.Proxy = null;
                         client.Encoding = Encoding.UTF8;
                         client.Headers[HttpRequestHeader.ContentType] = "application/json";
-                        client.Headers["X-Harbor-App"] = key;
+                        client.Headers["X-Biubiu-App"] = key;
                         client.UploadString("http://127.0.0.1:" + target.ToString(CultureInfo.InvariantCulture) + "/api/host", "POST", json);
                     }
                 }
@@ -1117,7 +1276,12 @@ namespace ModelHarbor
         public event EventHandler SiteSignedOut;
         // The footer's link to a newer version.
         public event EventHandler UpdateRequested;
+        // The page has left the welcome of 使用教程, so a new install's first tour is done.
+        public event EventHandler TourSeen;
         public bool AllowClose;
+        // Whether the page should start 使用教程: once for a new install, or when the tray asks; sent again on each
+        // "ready" until the page says it was seen.
+        bool tourWanted;
         // The panel's WebView2 environment, which the site window shares (with a profile of its own).
         public CoreWebView2Environment WebEnvironment { get; private set; }
         readonly WebView2 web = new WebView2();
@@ -1267,10 +1431,25 @@ namespace ModelHarbor
             string message = null;
             try { message = e.TryGetWebMessageAsString(); } catch (ArgumentException) { }
             if (message == "hide") { var handler = HideRequested; if (handler != null) handler(this, EventArgs.Empty); }
-            else if (message == "ready") { PostPanel(); SendUpdate(); }
+            else if (message == "ready") { PostPanel(); SendUpdate(); SendTour(); }
             else if (message == "open-site") { var handler = SiteRequested; if (handler != null) handler(this, EventArgs.Empty); }
             else if (message == "site-signed-out") { var handler = SiteSignedOut; if (handler != null) handler(this, EventArgs.Empty); }
             else if (message == "update") { var handler = UpdateRequested; if (handler != null) handler(this, EventArgs.Empty); }
+            else if (message == "tour-done") { tourWanted = false; var handler = TourSeen; if (handler != null) handler(this, EventArgs.Empty); }
+        }
+
+        // Starts 使用教程 on the page: now if it listens, and again when it next says "ready", as it may still be loading.
+        public void StartTour()
+        {
+            tourWanted = true;
+            SendTour();
+        }
+
+        void SendTour()
+        {
+            if (!ready || !tourWanted) return;
+            try { web.CoreWebView2.PostWebMessageAsJson("{\"type\":\"tour\"}"); }
+            catch (Exception error) { Log.Write("tour message failed: " + error.GetType().Name); }
         }
 
         // A newer version for the footer: found ("available"), "downloading" with its percentage, or "installing"; no
@@ -1870,14 +2049,14 @@ namespace ModelHarbor
     // silently into this installation (--update: the desktop shortcut and the start at sign-in stay as they are), quits
     // the companion and starts the new version. The same installer is first fetched from the Gitee mirror, far quicker in
     // China; only GitHub's record says what it must be, and when the mirror's file is missing or differs, GitHub's own is
-    // fetched. MODEL_HARBOR_UPDATE_URL names a stand-in for the latest release (its mirror under /mirror/), for tests, or
+    // fetched. BIUBIU_AI_UPDATE_URL names a stand-in for the latest release (its mirror under /mirror/), for tests, or
     // "off" to never look.
     static class Updates
     {
         public const string Repository = "https://github.com/drhhhao/Zcode-biubiuAI";
         public const string MirrorRepository = "https://gitee.com/drhhhao_0/Zcode-biubiuAI";
         const string LatestRelease = "https://api.github.com/repos/drhhhao/Zcode-biubiuAI/releases/latest";
-        static readonly string Override = (Environment.GetEnvironmentVariable("MODEL_HARBOR_UPDATE_URL") ?? "").Trim();
+        static readonly string Override = (Environment.GetEnvironmentVariable("BIUBIU_AI_UPDATE_URL") ?? "").Trim();
 
         static bool Off { get { return Override.Equals("off", StringComparison.OrdinalIgnoreCase); } }
         public static bool StandIn { get { return Override.Length > 0 && !Off; } }
@@ -2089,7 +2268,7 @@ namespace ModelHarbor
             this.origin = origin; this.ask = ask; this.openOutside = openOutside; this.devTools = devTools; this.dark = dark;
             var bytes = new byte[24];
             using (var rng = new RNGCryptoServiceProvider()) rng.GetBytes(bytes);
-            marker = "model-harbor-" + BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
+            marker = "biubiu-ai-" + BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
             Text = Title(null);
             StartPosition = FormStartPosition.Manual;
             AutoScaleMode = AutoScaleMode.None;
@@ -2164,7 +2343,7 @@ namespace ModelHarbor
         string BootstrapScript()
         {
             return "(() => { if (location.origin !== " + Json.Quote(origin) + ") return; try {"
-                + " localStorage.setItem('auth_session', JSON.stringify({ sessionId: 'model-harbor', version: 1, accessToken: null, refreshToken: " + Json.Quote(marker) + " }));"
+                + " localStorage.setItem('auth_session', JSON.stringify({ sessionId: 'biubiu-ai', version: 1, accessToken: null, refreshToken: " + Json.Quote(marker) + " }));"
                 + " localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token');"
                 + " } catch (e) { } })();";
         }
@@ -2272,7 +2451,7 @@ namespace ModelHarbor
         readonly TabForm tab = new TabForm();
         readonly NotifyIcon tray = new NotifyIcon();
         readonly TrayMenu menu = new TrayMenu();
-        readonly ToolStripMenuItem toggleItem, reloadItem, startupItem, dockRightItem, dockLeftItem, updateItem;
+        readonly ToolStripMenuItem toggleItem, reloadItem, tourItem, startupItem, dockRightItem, dockLeftItem, updateItem;
         readonly Icon trayIcon, appIcon;
         readonly IntPtr trayIconHandle;
         readonly ZCodeTracker tracker;
@@ -2336,6 +2515,9 @@ namespace ModelHarbor
             panel.SiteRequested += (s, e) => OpenSite();
             panel.SiteSignedOut += (s, e) => { if (siteWindow != null) siteWindow.Close(); };
             panel.UpdateRequested += (s, e) => OnUpdateItem();
+            panel.TourSeen += (s, e) => { if (settings.TourPending) { settings.TourPending = false; settings.Save(); } };
+            // A new install shows 使用教程 once. BIUBIU_AI_TOUR=off leaves it out for tests, which start with no data.
+            if (settings.TourPending && !string.Equals((Environment.GetEnvironmentVariable("BIUBIU_AI_TOUR") ?? "").Trim(), "off", StringComparison.OrdinalIgnoreCase)) panel.StartTour();
             panel.GripDrag += OnGripDrag;
             panel.GripDragEnd += (s, e) =>
             {
@@ -2348,6 +2530,7 @@ namespace ModelHarbor
             appIcon = Logo.AppIcon();
             toggleItem = menu.Add("展开面板", () => Toggle());
             reloadItem = menu.Add("重新加载面板", () => Reload());
+            tourItem = menu.Add("使用教程", () => ShowTour());
             menu.AddSeparator();
             dockRightItem = menu.Add("优先贴在 ZCode 右侧", () => SetDock(false), TrayMenu.Mark.Option);
             dockLeftItem = menu.Add("优先贴在 ZCode 左侧", () => SetDock(true), TrayMenu.Mark.Option);
@@ -2364,6 +2547,7 @@ namespace ModelHarbor
                 toggleItem.Text = shown && PanelOpen ? "收起面板" : "展开面板";
                 toggleItem.ShortcutKeyDisplayString = hotKeyRegistered ? "Ctrl+Alt+M" : null;
                 reloadItem.Enabled = webReady;
+                tourItem.Enabled = webReady;
                 dockRightItem.Checked = !settings.PreferLeft;
                 dockLeftItem.Checked = settings.PreferLeft;
                 try { startupItem.Checked = Startup.IsEnabled(); } catch (Exception) { startupItem.Checked = false; }
@@ -2399,7 +2583,7 @@ namespace ModelHarbor
             collapseEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CollapseEventName);
             expandEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ExpandEventName);
             checkUpdateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CheckUpdateEventName);
-            signalThread = new Thread(WatchSignals) { IsBackground = true, Name = "model-harbor-signals" };
+            signalThread = new Thread(WatchSignals) { IsBackground = true, Name = "biubiu-ai-signals" };
             signalThread.Start();
 
             server.Ready += port => Post(() => OnServerReady(port));
@@ -2687,6 +2871,14 @@ namespace ModelHarbor
         }
 
         void Toggle() { if (shown && PanelOpen) Collapse(); else Expand(true); }
+
+        // 使用教程 from the tray: the panel comes out and the page starts the guide. A panel out of sight says why, as
+        // Expand does, and the guide waits on the page for when it shows.
+        void ShowTour()
+        {
+            Expand(true);
+            panel.StartTour();
+        }
 
         void SetDock(bool left)
         {

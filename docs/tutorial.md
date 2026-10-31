@@ -1,8 +1,22 @@
 # biubiu AI 图文使用教程
 
-biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.12 版，安装和卸载页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
+biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账户后，点一下就能把分组或站内 Key 的模型加进 ZCode；也能接入其他 OpenAI / Anthropic 兼容的服务，并管理 ZCode 里已经加好的服务。本教程按第一次使用的顺序编写，截图来自 0.8.13 版，安装和卸载页面的截图来自 0.8.9 版，界面相同（截图里的账户、Key 和服务都是演示数据）。
 
 <p align="center"><img src="images/overview.png" alt="biubiu AI 面板贴在 ZCode 窗口右侧（左边的 ZCode 是示意）" width="735"></p>
+
+## 快速上手
+
+装好以后第一次打开面板，会自动出现 **使用教程**，跟着它一步一步点就行：
+
+1. **登录账户**：填 ro.biubiu007.com 的邮箱和密码，点 **登录**。
+2. **看余额**：余额下面的链接可以打开网站充值。
+3. **选一个分组**：点分组右边的 **添加**；分组还没有 Key 时，点 **新建 Key 并选择模型**。分组旁边橙色的 `×0.6` 是计费倍率：按 0.6 倍计费，数字越小越省。
+4. **勾选模型**：勾选要用的模型，点 **添加到 ZCode**。
+5. **去 ZCode 里选用**：在 ZCode 的模型选择器里找「biubiu AI · 分组名」。
+
+<p align="center"><img src="images/tour-1-login.png" alt="使用教程第 1 步：登录账户" width="200"> <img src="images/tour-3-group.png" alt="第 3 步：选一个分组" width="200"> <img src="images/tour-4-models.png" alt="第 4 步：勾选要用的模型" width="200"> <img src="images/tour-5-zcode.png" alt="第 5 步：去 ZCode 里选用" width="200"></p>
+
+要你动手的步骤（登录、点添加、保存）做完就自动进入下一步。随时可以点 **跳过教程** 或按 `Esc` 退出；以后想再看，点面板底部版本号旁边的 **使用教程**，或托盘菜单里的 **使用教程**。每一步的详细说明见下面各节。
 
 ## 目录
 
@@ -61,7 +75,9 @@ biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账�
 
 ## 3. 第一次打开
 
-打开 ZCode，biubiu AI 面板会贴在 ZCode 窗口的右边，跟着 ZCode 一起移动、缩放（见本页最上面的示意图）。
+打开 ZCode，biubiu AI 面板会贴在 ZCode 窗口的右边，跟着 ZCode 一起移动、缩放（见本页最上面的示意图）。第一次打开时面板上会出现 **使用教程**，点 **开始** 跟着做（见 [快速上手](#快速上手)），不需要就点 **跳过**。
+
+<p align="center"><img src="images/tour-0-welcome.png" alt="第一次打开时的使用教程" width="300"></p>
 
 - ZCode **最大化** 时旁边没有空位，biubiu AI 收成贴在 ZCode 右边缘内侧的小标签 <img src="images/tab.png" alt="收起后的小标签" width="33">，不会挡住 ZCode；点它就在 ZCode 里展开面板，用完点 **收起** 回到小标签。
 - 打开 biubiu AI 时如果 ZCode 还没打开（或者最小化了），屏幕右下角会弹出通知「biubiu AI 已启动，图标在任务栏右下角。」，打开 ZCode 后面板就会出现。
@@ -96,7 +112,7 @@ biubiu AI 是一个贴在 ZCode 窗口旁边的小面板：登录 biubiu AI 账�
 
 ## 5. 一键添加分组
 
-这是最常用的方式：**一个分组的全部模型，一次加进 ZCode**。
+这是最常用的方式：**挑一个分组，勾选它的模型加进 ZCode**。
 
 分组按平台（Claude、GPT……）列出，每行是分组名、说明和计费倍率（例如 `×0.6` 表示按 0.6 倍计费）。点分组右边的 **添加**，不会把分组的模型一股脑全加进去，而是先在这一行下面列出这个分组能用的模型，由你勾选：
 
@@ -202,6 +218,7 @@ biubiu AI 在任务栏右下角有一个小手枪图标（如果没看到，点�
 
 - **展开面板 / 收起面板**
 - **重新加载面板**：面板显示不正常时用。
+- **使用教程**：展开面板，重新走一遍新手引导（见 [快速上手](#快速上手)）。
 - **优先贴在 ZCode 右侧 / 左侧**
 - **登录 Windows 时在后台待命**：勾选后，开机时 biubiu AI 在后台等待，打开 ZCode 就出现（和上次一样展开或收起）。
 - **打开日志文件夹**：反馈问题时可以附上这里的 `companion.log`。日志里不会记录 Key、密码或令牌。
@@ -254,12 +271,12 @@ biubiu AI 在任务栏右下角有一个小手枪图标（如果没看到，点�
 
 **模型加好了，在 ZCode 里找不到？** 在 ZCode 的模型选择里找服务「biubiu AI · 分组名」「biubiu AI · Key 名称」或你在连接服务时填写的服务名。
 
-**想撤回一次修改？** biubiu AI 修改 ZCode 配置前，会把原配置备份到 `C:\Users\<你的用户名>\.zcode\v2\backups\model-harbor\`，只保留最近 10 份，更早的会自动删除。需要撤回时，先关闭 ZCode，再用对应时间的备份文件替换 `C:\Users\<你的用户名>\.zcode\v2\provider_config.json`。（删除站内 Key 时按设计不做备份，请在确认前想清楚。）
+**想撤回一次修改？** biubiu AI 修改 ZCode 配置前，会把原配置备份到 `C:\Users\<你的用户名>\.zcode\v2\backups\biubiu-ai\`，只保留最近 10 份，更早的会自动删除。需要撤回时，先关闭 ZCode，再用对应时间的备份文件替换 `C:\Users\<你的用户名>\.zcode\v2\provider_config.json`。（删除站内 Key 时按设计不做备份，请在确认前想清楚。）
 
 **biubiu AI 的数据存在哪里？**
 
 - 程序：安装位置（默认 `%LOCALAPPDATA%\Programs\biubiu AI`）。
-- 设置、日志、网站登录状态（加密）：`%LOCALAPPDATA%\ModelHarbor`。
+- 设置、日志、网站登录状态（加密）：`%LOCALAPPDATA%\biubiu AI`。
 - 加进 ZCode 的服务和 Key：ZCode 自己的配置文件里。
 
 **杀毒软件报毒或拦截？** 安装程序还没有数字签名，部分杀毒软件会对新的、没有签名的程序比较敏感。请只从本仓库的 Releases 页面下载，可以按第 1 节核对 SHA-256，然后在杀毒软件里选择信任。

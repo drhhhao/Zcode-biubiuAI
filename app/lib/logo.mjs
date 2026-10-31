@@ -1,6 +1,6 @@
 // The biubiu AI mark: a finger gun drawn as one continuous line, firing two four-pointed AI sparkles ("biu biu").
 // This file is the only source of its shape and colours. app/icon.mjs draws the exe icon from it at build time; the
-// host's Logo class (app/host/ModelHarbor.cs) and the panel footer (app/lib/panel.html) carry copies of the same paths,
+// host's Logo class (app/host/BiubiuAI.cs) and the panel footer (app/lib/panel.html) carry copies of the same paths,
 // which app/lib/core.test.mjs compares with these. To change the drawing, edit build/companion-dev/logo-design.mjs,
 // run it, and paste its output here and into those copies.
 // Coordinates are on a 1024 x 1024 canvas; the paths use only absolute M, L, C and Z.

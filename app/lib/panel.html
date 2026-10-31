@@ -6,9 +6,9 @@
 <style>
 /* iOS-like: grouped cards on a soft gray page, a system sans in place of the serifs, rounded controls, a segmented
    control for the pages and spring-like motion. One ink, the mark's orange for ticks, focus and the site link, red only
-   for what deletes. The page and ink colors are copied into the host's Palette (ModelHarbor.cs). */
-:root{color-scheme:light;--bg:#f2f2f7;--card:#fff;--ink:#1d1d1f;--muted:#6e6e73;--faint:#aeaeb2;--edge:rgb(60 60 67/.3);--line:rgb(60 60 67/.12);--fill:rgb(118 118 128/.12);--fill-hi:rgb(118 118 128/.2);--accent:#ea580c;--accent-ink:#c2410c;--accent-wash:rgb(234 88 12/.08);--danger:#d70015;--danger-wash:rgb(255 59 48/.1);--ok:#34c759;--ok-ink:#248a3d;--lift:0 1px 3px rgb(0 0 0/.12),0 3px 10px rgb(0 0 0/.06);--ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.4,.64,1);--round-lg:16px;--round:14px;--round-sm:10px;--round-xs:7px;--pad:20px;--sans:"SF Pro Text",-apple-system,"Segoe UI Variable Text","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--display:"SF Pro Display",-apple-system,"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--rounded:"SF Pro Rounded",ui-rounded,var(--display);--mono:"SF Mono",ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font:14px/1.5 var(--sans);font-synthesis:none;-webkit-font-smoothing:antialiased}
-html[data-theme=dark]{color-scheme:dark;--bg:#1c1c1e;--card:#2c2c2e;--ink:#f5f5f7;--muted:#98989f;--faint:#636366;--edge:rgb(235 235 245/.3);--line:rgb(235 235 245/.1);--fill:rgb(118 118 128/.24);--fill-hi:rgb(118 118 128/.34);--accent:#f97316;--accent-ink:#ff9a52;--accent-wash:rgb(249 115 22/.14);--danger:#ff6961;--danger-wash:rgb(255 69 58/.16);--ok:#30d158;--ok-ink:#30d158;--lift:0 1px 3px rgb(0 0 0/.5),0 3px 10px rgb(0 0 0/.25)}
+   for what deletes. The page and ink colors are copied into the host's Palette (BiubiuAI.cs). */
+:root{color-scheme:light;--bg:#f2f2f7;--card:#fff;--ink:#1d1d1f;--muted:#6e6e73;--faint:#aeaeb2;--edge:rgb(60 60 67/.3);--line:rgb(60 60 67/.12);--fill:rgb(118 118 128/.12);--fill-hi:rgb(118 118 128/.2);--accent:#ea580c;--accent-ink:#c2410c;--accent-wash:rgb(234 88 12/.08);--danger:#d70015;--danger-wash:rgb(255 59 48/.1);--ok:#34c759;--ok-ink:#248a3d;--lift:0 1px 3px rgb(0 0 0/.12),0 3px 10px rgb(0 0 0/.06);--scrim:rgb(0 0 0/.36);--ease:cubic-bezier(.16,1,.3,1);--spring:cubic-bezier(.34,1.4,.64,1);--round-lg:16px;--round:14px;--round-sm:10px;--round-xs:7px;--pad:20px;--sans:"SF Pro Text",-apple-system,"Segoe UI Variable Text","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--display:"SF Pro Display",-apple-system,"Segoe UI Variable Display","Segoe UI Variable","Segoe UI","PingFang SC","HarmonyOS Sans SC",MiSans,"Microsoft YaHei UI","Microsoft YaHei",sans-serif;--rounded:"SF Pro Rounded",ui-rounded,var(--display);--mono:"SF Mono",ui-monospace,"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;font:14px/1.5 var(--sans);font-synthesis:none;-webkit-font-smoothing:antialiased}
+html[data-theme=dark]{color-scheme:dark;--bg:#1c1c1e;--card:#2c2c2e;--ink:#f5f5f7;--muted:#98989f;--faint:#636366;--edge:rgb(235 235 245/.3);--line:rgb(235 235 245/.1);--fill:rgb(118 118 128/.24);--fill-hi:rgb(118 118 128/.34);--accent:#f97316;--accent-ink:#ff9a52;--accent-wash:rgb(249 115 22/.14);--danger:#ff6961;--danger-wash:rgb(255 69 58/.16);--ok:#30d158;--ok-ink:#30d158;--lift:0 1px 3px rgb(0 0 0/.5),0 3px 10px rgb(0 0 0/.25);--scrim:rgb(0 0 0/.6)}
 *,::before,::after{box-sizing:border-box}[hidden]{display:none!important}
 /* The window has the rounded corners of ZCode's own (Windows 11 draws them), so the boxes inside are rounded too:
    cards, buttons, fields, notices, check boxes and the scroll bar. */
@@ -176,6 +176,37 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 .ver .mark{width:18px;height:auto;flex:none;color:var(--ink)}
 /* A newer version, which the host found: a link at the end of the footer, then its progress. */
 .ver .update{margin:0 -10px 0 auto;color:var(--accent-ink)}.ver .update:disabled{color:var(--muted);cursor:default}
+.ver .tourlink{color:var(--muted);font-size:12px}
+/* 使用教程: the panel dims around what to do next, which a ring in the mark's orange (the focus color) marks, and a card
+   at the foot of the panel says the step: a title, one line, the dots of the steps and 下一步, or what moves it on. */
+@keyframes fade{from{opacity:0}}@keyframes rise{from{opacity:0;transform:translateY(16px) scale(.98)}}@keyframes swap{from{opacity:0;transform:translateY(4px)}}
+.tour{position:fixed;inset:0;z-index:20;pointer-events:none;animation:fade .3s var(--ease);transition:opacity .26s var(--ease)}
+.tour.leaving{opacity:0}.tour.leaving *{pointer-events:none!important}
+.tourdim{position:fixed;inset:0;background:var(--scrim);transition:opacity .35s var(--ease)}
+.tourblock{position:fixed;pointer-events:auto}
+.tourhole{position:fixed;left:0;top:0;will-change:transform;transition:opacity .35s var(--ease);border-radius:var(--round-lg);box-shadow:0 0 0 2px var(--accent),0 0 0 6px var(--accent-wash),0 0 0 300vmax var(--scrim)}
+.tourcard{position:fixed;left:12px;right:12px;bottom:12px;max-width:600px;margin:0 auto;padding:16px 16px 14px;border-radius:var(--round-lg);background:var(--card);box-shadow:0 10px 30px rgb(0 0 0/.2),0 1px 3px rgb(0 0 0/.12);pointer-events:auto;animation:rise .55s var(--ease);transition:opacity .24s var(--ease),transform .24s var(--ease)}
+.tourdim.off,.tourhole.off{opacity:0}
+.tourcard.dock{overflow:hidden;transition:height .42s var(--ease),opacity .24s var(--ease),transform .24s var(--ease)}
+.tourcard.gone{opacity:0;transform:translateY(8px) scale(.98);pointer-events:none}
+.swap{animation:swap .38s var(--ease)}
+html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0 1px var(--line)}
+.tourhead{display:flex;align-items:baseline;gap:12px}
+.tourtitle{flex:1;min-width:0;margin:0;font:700 17px/1.35 var(--display);letter-spacing:-.005em}
+.tourdesc{margin:3px 0 0;font-size:13px;line-height:1.5;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tourchip{display:inline-block;max-width:100%;margin-top:10px;padding:4px 11px;border-radius:var(--round-xs);background:var(--bg);font-size:13px;font-weight:600;overflow-wrap:anywhere}
+/* What the billing rate beside a group means, with the rate's own orange badge. */
+.tourlegend{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.tourfoot{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:32px;margin-top:14px}
+.tourdots{display:flex;align-items:center;gap:5px}.tourdots i{width:6px;height:6px;border-radius:3px;background:var(--fill-hi);transition:width .45s var(--ease),background-color .45s var(--ease)}.tourdots i.done{background:var(--faint)}.tourdots i.on{width:18px;background:var(--ink)}
+.tourwait{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);white-space:nowrap}.tourwait::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+.tourcard.welcome{top:12px;height:fit-content;max-height:calc(100% - 24px);overflow:auto;margin:auto;padding:24px 20px 16px}
+.welcome .mark{display:block;width:40px;height:auto;margin-bottom:14px;color:var(--ink)}.welcome .tourtitle{font-size:21px}
+.tourlist{display:grid;gap:12px;margin:18px 0 20px;padding:0;list-style:none}
+.tourlist li{display:flex;align-items:flex-start;gap:12px}
+.tourlist b{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-top:1px;border-radius:50%;background:var(--ink);color:var(--card);font:700 12px/1 var(--rounded)}
+.tourlist span{display:flex;flex-direction:column}.tourlist strong{font-size:14.5px;font-weight:600;line-height:1.45}.tourlist em{font-size:12.5px;font-style:normal;line-height:1.5;color:var(--muted)}
+.tourlater{display:block;margin:10px auto 0;color:var(--muted)}
 @media(max-width:380px){:root{--pad:14px}.pagetab{font-size:13px}}
 @media(min-width:560px){:root{--pad:28px}.shell{padding-top:20px}}
 @media(prefers-reduced-motion:reduce){*,::before,::after{transition-duration:0s!important;animation:none!important}}
@@ -198,7 +229,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 <div class="field float"><label for="sitePassword">密码</label><input class="input" id="sitePassword" type="password" placeholder="网站的登录密码" autocomplete="current-password" maxlength="256"></div>
 <button class="primary" id="siteLoginBtn" type="submit" disabled>登录</button>
 <div class="note fail" id="siteLoginError" role="alert" hidden></div>
-<div class="note" id="siteNote">密码只用于登录，不会保存。</div>
+<div class="note" id="siteNote">用网站账号登录</div>
 </form>
 <div id="siteAccount" hidden>
 <div class="acct"><div class="siteme"><dl class="svcinfo" id="siteInfo"></dl><div class="siteacts"><button class="link" id="siteRefresh" type="button" data-site>刷新</button><button class="link" id="siteLogout" type="button" data-site>退出登录</button></div></div>
@@ -208,7 +239,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 <div class="sitehead"><button class="fold" id="siteGroupsFold" type="button" aria-expanded="true" aria-controls="siteGroupsBody"><span class="sub">分组</span></button><span class="count" id="siteGroupCount"></span></div>
 <div id="siteGroupsBody">
 <div id="siteGroups"></div>
-<div class="note">添加、选择模型：列出网站现在提供的模型，勾选的才在 ZCode 里使用。删除：只从 ZCode 移除，网站上的 Key 保留。</div>
+<div class="note">勾选的模型才进 ZCode</div>
 </div>
 <div class="status" id="siteStatus" role="status" aria-live="polite"></div>
 </div>
@@ -247,7 +278,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 <div id="savedList" role="list" aria-label="已导入的服务"></div>
 </section>
 </div>
-<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.12</span><button class="link update" id="updateLink" type="button" hidden></button></div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.13</span><button class="link tourlink" id="tourLink" type="button" hidden>使用教程</button><button class="link update" id="updateLink" type="button" hidden></button></div>
 </main>
 <template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
 <script>
@@ -461,7 +492,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     try {
       const providerName = $('providerName').value.trim() || hostname(result.baseUrl) || '我的模型服务';
       const data = await call('import_models', { sessionId: result.sessionId, modelIds: ids, providerName });
-      status(window.__HARBOR_PREVIEW__ ? `预览：已添加 ${data.added} 个模型。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份。在 ZCode 的模型选择器里就能选到；如果没看到，重新打开模型选择器。`);
+      status(window.__BIUBIU_PREVIEW__ ? `预览：已添加 ${data.added} 个模型。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份。在 ZCode 的模型选择器里就能选到；如果没看到，重新打开模型选择器。`);
       await loadProviders();
     } catch (e) { status(e.message, true); }
     finally { setBusy(false); render(); }
@@ -542,7 +573,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       form.onsubmit = e => { e.preventDefault(); run(save, '正在保存…', async () => {
         const data = await call('update_provider', { providerId: p.id, baseUrl: url.value.trim(), apiKey: key.value.trim() });
         const what = data.urlChanged && data.keyChanged ? '地址和 Key' : data.urlChanged ? '地址' : ' Key';
-        return data.unchanged ? '地址和 Key 都没有变化，配置没有改动。' : window.__HARBOR_PREVIEW__ ? `预览：已更新「${data.providerName}」的${what}。真实 ZCode 配置没有改动。` : `已更新「${data.providerName}」的${what}。原配置已自动备份。`;
+        return data.unchanged ? '地址和 Key 都没有变化，配置没有改动。' : window.__BIUBIU_PREVIEW__ ? `预览：已更新「${data.providerName}」的${what}。真实 ZCode 配置没有改动。` : `已更新「${data.providerName}」的${what}。原配置已自动备份。`;
       }, error); };
       info.hidden = true; open(form);
       (p.fixedAddress ? key : url).focus();
@@ -553,7 +584,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       drop.onclick = () => run(drop, '正在删除…', async () => {
         const data = await call('delete_provider', { providerId: p.id });
         openModels.delete(p.id);
-        return window.__HARBOR_PREVIEW__ ? `预览：已删除「${data.providerName}」。真实 ZCode 配置没有改动。` : `已从 ZCode 删除「${data.providerName}」。原配置已自动备份。`;
+        return window.__BIUBIU_PREVIEW__ ? `预览：已删除「${data.providerName}」。真实 ZCode 配置没有改动。` : `已从 ZCode 删除「${data.providerName}」。原配置已自动备份。`;
       }, error);
       open(el('div', 'svcask', `从 ZCode 删除「${p.name}」和它的 ${p.modelCount} 个模型？删除前会自动备份。`), error, bar(cancel, drop));
       cancel.focus();
@@ -585,7 +616,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     if (!site) return;
     renderBalance();
     $('siteLogin').hidden = !!site.signedIn; $('siteAccount').hidden = !site.signedIn;
-    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `用 ${site.site?.host || '网站'} 的账号登录，密码不会保存。`; updateControls(); return; }
+    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `用 ${site.site?.host || '网站'} 账号登录`; updateControls(); return; }
     renderOpen();
     $('siteError').textContent = site.error || ''; $('siteError').hidden = !site.error;
     renderGroups();
@@ -598,7 +629,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     link.hidden = !openSite || !host;
     $('siteOpenText').textContent = `打开 ${host}`;
     link.setAttribute('aria-label', `打开 ${host}，已登录 ${site.email || '这个账户'}`);
-    link.title = window.__HARBOR_PREVIEW__ ? '预览没有桌面外挂，只在新标签页打开网站的登录页。' : '在单独的窗口里打开网站，已登录这个账户';
+    link.title = window.__BIUBIU_PREVIEW__ ? '预览没有桌面外挂，只在新标签页打开网站的登录页。' : '在单独的窗口里打开网站，已登录这个账户';
   }
   $('siteOpen').onclick = () => { if (openSite && site?.signedIn) openSite(); };
   // The balance on the site tab and on the site page, with the account and its total top-ups above it. Reading the
@@ -717,7 +748,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     }
     function draw(focus) {
       const visible = shown(), using = rows.filter(m => m.inZCode && !m.gone).length, gone = rows.length - offered, n = pick.selected.size;
-      found.textContent = !using && !gone ? `找到 ${offered} 个${n ? `，已选 ${n} 个` : '，勾选要添加的模型'}` : `网站提供 ${offered} 个，ZCode 在用 ${using} 个${gone ? `，${gone} 个网站已不再提供` : ''}；勾选的就是要用的`;
+      found.textContent = !using && !gone ? `找到 ${offered} 个${n ? `，已选 ${n} 个` : '，勾选要添加的模型'}` : `网站 ${offered} 个 · 在用 ${using} 个${gone ? ` · 停供 ${gone} 个` : ''}`;
       all.hidden = !visible.length; all.textContent = visible.length && visible.every(m => pick.selected.has(m.id)) ? '取消全选' : '全选';
       list.replaceChildren(...visible.map(m => {
         const item = el('div', 'model' + (pick.selected.has(m.id) ? ' picked' : '')), line = el('div', 'line'), row = el('label', 'row'), tick = el('input'), info = el('span', 'info'), tested = pick.tests?.get(m.id);
@@ -734,7 +765,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       addButton(add);
       if (focus) for (const n of list.querySelectorAll('input[type=checkbox]')) if (n.dataset.id === focus) { n.focus(); break; }
     }
-    foot.append(add, el('div', 'note', '勾选的模型在 ZCode 里使用，取消勾选的从 ZCode 移除；新加的按列出的参数加入。修改前自动备份。「测试」会用少量额度。'));
+    foot.append(add, el('div', 'note', '勾选即用，取消即移除'));
     if (pick.message) foot.append(el('div', 'note', pick.message));
     if (pick.error) foot.append(el('div', 'note fail', pick.error));
     box.append(list, foot);
@@ -795,7 +826,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       for (const m of current.result.models) m.inZCode = current.selected.has(m.id);
       current.result.missing = current.result.missing.filter(id => current.selected.has(id));
       const done = [data.added ? `添加了 ${data.added} 个模型` : '', data.removed ? `移除了 ${data.removed} 个模型` : ''].filter(Boolean).join('、');
-      current.message = window.__HARBOR_PREVIEW__ ? `预览：「${data.providerName}」${done || '没有变化'}。真实 ZCode 配置没有改动。` : data.unchanged ? '和 ZCode 里的一致，配置没有改动。' : `「${data.providerName}」${done}。原配置已自动备份；在 ZCode 的模型选择器里就能看到，没看到的话重新打开模型选择器。`;
+      current.message = window.__BIUBIU_PREVIEW__ ? `预览：「${data.providerName}」${done || '没有变化'}。真实 ZCode 配置没有改动。` : data.unchanged ? '和 ZCode 里的一致，配置没有改动。' : `「${data.providerName}」${done}。原配置已自动备份；在 ZCode 的模型选择器里就能看到，没看到的话重新打开模型选择器。`;
       await Promise.all([loadSite(), loadProviders()]);
     } catch (e) { current.error = e.message; }
     finally { setBusy(false); redrawPick(current, 'models'); }
@@ -820,7 +851,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
     try {
       const r = await call('site_delete_key', { siteKeyId: k.id }), services = r.removed?.length ? `「${r.removed.join('」「')}」` : '';
       keyAsking = null; done = true;
-      keyStatus(window.__HARBOR_PREVIEW__ ? `预览：已删除站内 Key「${r.keyName}」${services ? `，临时配置里的${services}也已删除` : ''}。真实 ZCode 配置没有改动。` : `已删除站内 Key「${r.keyName}」${services ? `，并从 ZCode 删除了${services}` : ''}。`);
+      keyStatus(window.__BIUBIU_PREVIEW__ ? `预览：已删除站内 Key「${r.keyName}」${services ? `，临时配置里的${services}也已删除` : ''}。真实 ZCode 配置没有改动。` : `已删除站内 Key「${r.keyName}」${services ? `，并从 ZCode 删除了${services}` : ''}。`);
     } catch (e) { keyAsking = { id: k.id, error: e.message }; }
     finally {
       await Promise.all([loadSite(), loadProviders()]); setBusy(false); renderKeys(done ? '' : `${k.id}:cancel`);
@@ -942,7 +973,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
   function removeGroup(g, trigger) {
     return groupChange(g, trigger, '正在删除…', async () => {
       const r = await call('site_remove_group', { groupId: g.id });
-      return window.__HARBOR_PREVIEW__ ? `预览：已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。真实 ZCode 配置没有改动。` : `已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。原配置已自动备份，网站上的 Key 保留。`;
+      return window.__BIUBIU_PREVIEW__ ? `预览：已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。真实 ZCode 配置没有改动。` : `已从 ZCode 删除分组「${r.groupName}」的 ${r.models} 个模型。原配置已自动备份，网站上的 Key 保留。`;
     });
   }
   // A site action that fails reports on the site page, since the status line belongs to the connect page. Reading the
@@ -955,7 +986,7 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
   async function loadSite(force = true) {
     if (!bridge || (!force && Date.now() - siteAt < 60000)) return;
     const seq = ++siteSeq; balanceAt = Date.now();
-    try { const data = await call('site_account'); if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); if (siteMissing) { siteMissing = false; renderPages(); } renderSite(); } }
+    try { const data = await call('site_account'); if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); if (siteMissing) { siteMissing = false; renderPages(); } $('tourLink').hidden = false; renderSite(); } }
     catch { if (!site) noSite(); }
   }
   for (const id of ['siteEmail', 'sitePassword']) $(id).addEventListener('input', () => { $('siteLoginError').hidden = true; updateControls(); });
@@ -995,6 +1026,190 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
       renderServices();
     } catch (e) { $('keyNote').textContent = e.message; }
   }
+  // 使用教程: a guide on the site page from signing in to a group's models in ZCode. The panel dims around what to do
+  // next and a card at its foot says the step. A step the user does (sign in, 添加, save) moves on by itself once it is
+  // done; nothing is clicked for the user. Outside the ring nothing takes a click, so the card's 跳过教程 (or Esc) is the
+  // way out. The host starts it once for a new install and from the tray (message 'tour'), the footer's 使用教程 at any
+  // time; leaving its welcome either way tells the host it was seen ('tour-done'). tour is { step, spec, layer, dim, hole,
+  // blocks, card, body, dots, acts, shown, size, drawn, glide, scroll, frame, saved }; it follows the page frame by frame.
+  const TOUR_STEPS = 5, TOUR_GLIDE = 520;
+  let tour = null;
+  // With reduced motion asked for, the ring jumps, the page jumps and the card changes at once.
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function startTour() {
+    if (!bridge || siteMissing) return;
+    endTour(false, true);
+    showPage('site');
+    const layer = el('div', 'tour'), dim = el('div', 'tourdim'), hole = el('div', 'tourhole off'), blocks = [0, 1, 2, 3].map(() => el('div', 'tourblock'));
+    layer.append(dim, hole, ...blocks);
+    document.body.append(layer);
+    tour = { step: 'welcome', layer, dim, hole, blocks, card: null, shown: null, size: '', drawn: '', glide: null, scroll: true };
+    drawTour();
+    tour.frame = requestAnimationFrame(tickTour);
+  }
+  // The guide fades away rather than vanishing; now drops it at once, as when it starts over.
+  function endTour(seen = false, now = false) {
+    if (seen) tellHost?.('tour-done');
+    if (!tour) return;
+    const { layer, frame } = tour;
+    tour = null; cancelAnimationFrame(frame); document.body.style.paddingBottom = '';
+    if (now || calm()) layer.remove(); else { layer.classList.add('leaving'); setTimeout(() => layer.remove(), 280); }
+  }
+  // Where the user is: back to signing in when signed out, on to the models once a group's or a key's models open, and
+  // on to ZCode once they are saved. The welcome, the balance and the last step wait for the card's own buttons.
+  function tourNext() {
+    const step = tour.step;
+    if (step === 'welcome' || step === 'zcode' || !site) return step;
+    if (!site.signedIn) return 'login';
+    if (step === 'login') return 'balance';
+    if (step === 'balance') return step;
+    if (step === 'models') {
+      if (pick?.result && !busy && pick.message && !pick.error) { const c = pickChanges(); if (c.held && !c.adds.length && !c.drops.length) { tour.saved = tourSaved(); return 'zcode'; } }
+      if (pick || busy) return step;
+    }
+    if (pick) return 'models';
+    if (asking?.kind === 'key') return 'newkey';
+    return busy && step === 'newkey' ? step : 'group';
+  }
+  // The service the saved models are in, by the name ZCode shows, and the row they were picked under.
+  function tourSaved() {
+    const g = pick.group ? site.groups?.find(x => x.id === pick.group) : null, k = site.keys?.find(x => x.id === pick.id);
+    const name = g ? g.inZCode?.[0]?.name : k?.inZCode;
+    return { group: pick.group || '', id: pick.id, name: name || `${site.site?.name || '站点'} · ${(g || k)?.name || ''}` };
+  }
+  function tourSpec(step) {
+    const groups = (site?.groups || []).some(g => !g.blocked), keys = (site?.keys || []).some(k => !k.blocked);
+    // An example for the legend: a rate other than ×1 shows best what the number does.
+    const rate = list => { const rates = (list || []).filter(x => !x.blocked && x.multiplier != null).map(x => x.multiplier); return rates.find(r => r !== 1) ?? rates[0]; };
+    switch (step) {
+      case 'login': return { n: 1, title: '登录账户', desc: '用网站的邮箱和密码', wait: '登录后自动继续', target: () => $('siteLogin').hidden ? $('siteCard') : $('siteLogin') };
+      case 'balance': return { n: 2, title: '你的余额', desc: '充值点下面的链接', next: 'group', target: () => document.querySelector('.acct') };
+      case 'group':
+        if (groups) return { n: 3, title: '选一个分组', desc: '点「添加」列出模型', rate: rate(site.groups), wait: '点了自动继续', fold: 'siteGroupsFold', target: () => $('siteGroupsBody') };
+        if (keys) return { n: 3, title: '选一个 Key', desc: '点「添加到 ZCode」', rate: rate(site.keys), wait: '点了自动继续', fold: 'siteKeysFold', target: () => $('siteKeysBody') };
+        return { n: 3, title: '还没有分组', desc: '先到网站上开通', last: true, target: () => document.querySelector('.acct') };
+      case 'newkey': return { n: 3, title: '先建一个 Key', desc: '不限额度、不过期', wait: '点了自动继续', target: () => $('siteGroups').querySelector('.gask')?.closest('.grow') };
+      case 'models': return { n: 4, title: '勾选要用的模型', desc: '勾好后点「添加」', wait: '加好自动继续', target: () => $('keyPick') };
+      case 'zcode': return { n: 5, title: '去 ZCode 里选用', desc: '在模型选择器里找它', chip: tour.saved.name, last: true, target: () => {
+        const s = tour.saved, list = s.group ? $('siteGroups') : $('siteKeys'), at = s.group || s.id;
+        return (list.querySelector(`[data-focus="${CSS.escape(`${at}:models`)}"]`) || list.querySelector(`[data-focus="${CSS.escape(`${at}:action`)}"]`))?.closest(s.group ? '.grow' : '.svc') || null;
+      } };
+    }
+  }
+  // The welcome sits in the middle of the dimmed panel. Leaving it, it fades away and the step card rises from the foot
+  // of the panel; from step to step that card stays where it is: its height glides to the new words, which fade in, and
+  // the dots slide on. The ring glides from where it was to what the step is about (placeTour).
+  function drawTour() {
+    const t = tour, title = el('h2', 'tourtitle');
+    title.id = 'tourTitle';
+    if (t.step === 'welcome') {
+      const card = el('div', 'tourcard welcome'), list = el('ol', 'tourlist'), start = el('button', 'primary', '开始'), later = el('button', 'link tourlater', '跳过');
+      for (const [n, a, b] of [['1', '登录账户', '网站的邮箱和密码'], ['2', '添加分组', '勾选要用的模型'], ['3', '在 ZCode 里选用', '模型选择器里找']]) {
+        const li = el('li'), text = el('span'); text.append(el('strong', '', a), el('em', '', b)); li.append(el('b', '', n), text); list.append(li);
+      }
+      card.setAttribute('role', 'dialog'); card.setAttribute('aria-labelledby', 'tourTitle');
+      title.textContent = '欢迎使用 biubiu AI'; start.type = later.type = 'button';
+      start.onclick = () => { tellHost?.('tour-done'); t.step = site?.signedIn ? 'balance' : 'login'; drawTour(); };
+      later.onclick = () => endTour(true);
+      card.append(document.querySelector('.ver .mark').cloneNode(true), title, el('p', 'tourdesc', '三步把模型加进 ZCode'), list, start, later);
+      if (t.card) leaveCard(t.card);
+      t.spec = null; t.card = card; t.layer.append(card);
+      t.dim.classList.remove('off'); t.hole.classList.add('off'); shieldTour(null);
+      document.body.style.paddingBottom = ''; start.focus();
+      return;
+    }
+    // The last step shows where the models went, with the list under them folded away.
+    if (t.step === 'zcode' && pick) closePick();
+    const spec = t.spec = tourSpec(t.step), head = el('div', 'tourhead'), words = [head, el('p', 'tourdesc', spec.desc)], acts = [];
+    if (spec.fold && $(spec.fold).getAttribute('aria-expanded') !== 'true') fold($(spec.fold), true);
+    let card = t.card;
+    const fresh = !card || card.classList.contains('welcome');
+    if (fresh) {
+      if (card) leaveCard(card);
+      card = t.card = el('div', 'tourcard dock');
+      card.setAttribute('role', 'dialog'); card.setAttribute('aria-labelledby', 'tourTitle');
+      const foot = el('div', 'tourfoot');
+      t.body = el('div', 'tourbody'); t.dots = el('span', 'tourdots'); t.acts = el('span', 'touracts');
+      for (let i = 0; i < TOUR_STEPS; i++) t.dots.append(el('i'));
+      t.dots.setAttribute('role', 'img');
+      foot.append(t.dots, t.acts); card.append(t.body, foot); t.layer.append(card);
+    }
+    title.textContent = spec.title; head.append(title);
+    if (!spec.last) { const skip = el('button', 'hide', '跳过教程'); skip.type = 'button'; skip.onclick = () => endTour(); head.append(skip); }
+    if (spec.chip) words.push(el('div', 'tourchip', spec.chip));
+    // The orange ×0.6 beside each group and key is its billing rate; the step that points at them says so.
+    if (spec.rate != null) { const legend = el('p', 'tourlegend'); legend.append(el('span', 'grate', `×${spec.rate}`), '计费倍率，越小越省'); words.push(legend); }
+    let go = null;
+    if (spec.wait) acts.push(el('span', 'tourwait', spec.wait));
+    else { go = el('button', 'small go', spec.last ? '完成' : '下一步'); go.type = 'button'; go.onclick = () => { if (spec.next) { t.step = spec.next; drawTour(); } else endTour(); }; acts.push(go); }
+    const before = card.offsetHeight;
+    card.style.height = '';
+    t.body.replaceChildren(...words); t.acts.replaceChildren(...acts);
+    if (!fresh) { replayTour(t.body); replayTour(t.acts); }
+    [...t.dots.children].forEach((dot, i) => { dot.className = i + 1 === spec.n ? 'on' : i + 1 < spec.n ? 'done' : ''; });
+    t.dots.setAttribute('aria-label', `第 ${spec.n} 步，共 ${TOUR_STEPS} 步`);
+    const after = card.offsetHeight;
+    if (!fresh && before !== after && !calm()) {
+      card.style.height = `${before}px`; void card.offsetHeight; card.style.height = `${after}px`;
+      clearTimeout(t.heightTimer); t.heightTimer = setTimeout(() => { if (t.card === card) card.style.height = ''; }, 460);
+    }
+    document.body.style.paddingBottom = `${after + 24}px`;
+    t.scroll = true; t.size = ''; t.glide = { from: t.shown, at: performance.now() };
+    if (go) go.focus(); else if (t.step === 'login' && !$('siteLogin').hidden) $('siteEmail').focus();
+  }
+  function replayTour(node) { node.classList.remove('swap'); void node.offsetWidth; node.classList.add('swap'); }
+  function leaveCard(card) { card.querySelector('#tourTitle')?.removeAttribute('id'); card.classList.add('gone'); setTimeout(() => card.remove(), 260); }
+  // Each frame: the step the page has reached, and the ring around what the step is about, below the tabs and above the
+  // card. The step's target scrolls into view under the tabs once, smoothly. Without one in sight the whole panel stays
+  // dimmed.
+  function tickTour(now) {
+    if (!tour) return;
+    if (siteMissing) { endTour(); return; }
+    const next = tourNext();
+    if (next !== tour.step) { tour.step = next; drawTour(); }
+    if (tour.spec) placeTour(now ?? performance.now());
+    tour.frame = requestAnimationFrame(tickTour);
+  }
+  // The ring glides for TOUR_GLIDE milliseconds from where it was (or from the whole panel, after the welcome) to where its
+  // target is now, and follows the target exactly after that, so it scrolls with the page instead of trailing it. A
+  // target that grows or shrinks, as when its models open under it, makes it glide again.
+  function placeTour(now) {
+    const t = tour, target = t.spec.target(), tabs = $('pageTabs').getBoundingClientRect().bottom, floor = t.card.getBoundingClientRect().top - 10;
+    if (target && t.scroll) { t.scroll = false; const by = target.getBoundingClientRect().top - tabs - 14; if (Math.abs(by) > 1) scrollBy({ top: by, behavior: calm() ? 'auto' : 'smooth' }); }
+    const r = target?.getBoundingClientRect(), pad = 6, size = r ? `${Math.round(r.width)}x${Math.round(r.height)}` : '';
+    let box = null;
+    if (r?.height) { const top = Math.max(r.top - pad, tabs + 4), bottom = Math.min(r.bottom + pad, floor); if (bottom - top > 12) box = [r.left - pad, top, r.width + 2 * pad, bottom - top]; }
+    if (box && t.size && size !== t.size && !t.glide) t.glide = { from: t.shown, at: now };
+    t.size = size;
+    if (!box) {
+      if (t.drawn) { t.drawn = ''; t.dim.classList.remove('off'); t.hole.classList.add('off'); shieldTour(null); }
+      return;
+    }
+    let shown = box;
+    if (t.glide && !calm()) {
+      const p = Math.min(1, Math.max(0, (now - t.glide.at) / TOUR_GLIDE)), eased = 1 - Math.pow(1 - p, 4), from = t.glide.from || [0, 0, innerWidth, innerHeight];
+      shown = box.map((v, i) => from[i] + (v - from[i]) * eased);
+      if (p >= 1) t.glide = null;
+    } else t.glide = null;
+    shown = shown.map(v => Math.round(v * 2) / 2); t.shown = shown;
+    const key = shown.join();
+    if (key === t.drawn) return;
+    if (!t.drawn) { t.dim.classList.add('off'); t.hole.classList.remove('off'); }
+    t.drawn = key;
+    const [x, y, w, h] = shown;
+    Object.assign(t.hole.style, { transform: `translate(${x}px,${y}px)`, width: `${w}px`, height: `${h}px` });
+    shieldTour(shown);
+  }
+  // Clear blocks around the ring take the clicks outside it; without a ring, one block takes them all.
+  function shieldTour(box) {
+    const [above, below, left, right] = tour.blocks, px = n => `${n}px`, [x, y, w, h] = box || [0, 0, 0, 0];
+    Object.assign(above.style, { left: '0', right: '0', top: '0', height: box ? px(y) : '100%' });
+    Object.assign(below.style, { left: '0', right: '0', top: px(y + h), bottom: '0' }); below.hidden = !box;
+    Object.assign(left.style, { left: '0', top: px(y), width: px(Math.max(0, x)), height: px(h) }); left.hidden = !box;
+    Object.assign(right.style, { left: px(x + w), right: '0', top: px(y), height: px(h) }); right.hidden = !box;
+  }
+  document.addEventListener('keydown', e => { if (tour && e.key === 'Escape') { e.preventDefault(); endTour(tour.step === 'welcome'); } });
+  $('tourLink').onclick = startTour;
   // A newer version the host found (app mode only): a link in the footer, then its download and install. The host asks
   // the user before anything is downloaded; the page only passes the click on.
   function showUpdate(u) {
@@ -1011,16 +1226,16 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
   async function init() {
     updateControls();
     try {
-      if (window.__HARBOR_PREVIEW__) {
+      if (window.__BIUBIU_PREVIEW__) {
         $('previewTag').style.display = 'inline'; $('stateText').textContent = '预览模式';
-        bridge = async (name, args) => { const r = await fetch('/api/tool', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Harbor-Preview': window.__HARBOR_PREVIEW__ }, body: JSON.stringify({ name, args }) }); if (!r.ok) throw new Error('预览服务连接失败'); return r.json(); };
+        bridge = async (name, args) => { const r = await fetch('/api/tool', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Biubiu-Preview': window.__BIUBIU_PREVIEW__ }, body: JSON.stringify({ name, args }) }); if (!r.ok) throw new Error('预览服务连接失败'); return r.json(); };
         openSite = () => { const origin = site?.site?.origin; if (origin) window.open(`${origin}/login`, '_blank', 'noopener'); };
-      } else if (window.__HARBOR_APP__) {
-        const app = window.__HARBOR_APP__;
-        const api = async (path, init = {}) => { const r = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', 'X-Harbor-App': app.token } }); if (!r.ok) throw new Error('biubiu AI 本地服务连接失败，请从托盘图标重新打开。'); return r.json(); };
+      } else if (window.__BIUBIU_APP__) {
+        const app = window.__BIUBIU_APP__;
+        const api = async (path, init = {}) => { const r = await fetch(path, { ...init, headers: { 'Content-Type': 'application/json', 'X-Biubiu-App': app.token } }); if (!r.ok) throw new Error('biubiu AI 本地服务连接失败，请从托盘图标重新打开。'); return r.json(); };
         bridge = (name, args) => api('/api/tool', { method: 'POST', body: JSON.stringify({ name, args }) });
         const webview = await hostChannel();
-        webview?.addEventListener('message', e => { if (e.data?.type === 'theme') theme(e.data.theme); else if (e.data?.type === 'panel') panelShown(e.data.visible === true); else if (e.data?.type === 'site-window' && e.data.error) siteProblem(String(e.data.error)); else if (e.data?.type === 'update') showUpdate(e.data); });
+        webview?.addEventListener('message', e => { if (e.data?.type === 'theme') theme(e.data.theme); else if (e.data?.type === 'panel') panelShown(e.data.visible === true); else if (e.data?.type === 'site-window' && e.data.error) siteProblem(String(e.data.error)); else if (e.data?.type === 'update') showUpdate(e.data); else if (e.data?.type === 'tour') startTour(); });
         if (webview) { tellHost = message => webview.postMessage(message); openSite = () => tellHost('open-site'); $('updateLink').onclick = () => tellHost('update'); }
         if (webview) { $('appHide').hidden = false; $('appHide').onclick = () => webview.postMessage('hide'); webview.postMessage('ready'); }
         try { theme((await api('/api/host')).theme); } catch { theme('light'); }

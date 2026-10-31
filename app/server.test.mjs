@@ -19,13 +19,13 @@ const seed = () => ({ schemaVersion: 1, config: { providerOrder: ['mine'], provi
 const exited = child => new Promise(resolve => { if (child.exitCode !== null) resolve(child.exitCode); else child.once('exit', code => resolve(code)); });
 
 async function startServer(t, { sessionKey } = {}) {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'model-harbor-app-test-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'biubiu-ai-app-test-'));
   const configPath = path.join(dir, 'provider_config.json');
   await fs.writeFile(configPath, JSON.stringify(seed()));
   const token = crypto.randomBytes(32).toString('hex');
-  const env = { ...process.env, MODEL_HARBOR_CONFIG_PATH: configPath, MODEL_HARBOR_APP_TOKEN: token, MODEL_HARBOR_HOST_PID: String(process.pid), MODEL_HARBOR_REFRESH_CATALOG: '0' };
-  delete env.NODE_OPTIONS; delete env.MODEL_HARBOR_SESSION_KEY; delete env.MODEL_HARBOR_SESSION_DIR;
-  if (sessionKey) Object.assign(env, { MODEL_HARBOR_SESSION_KEY: sessionKey, MODEL_HARBOR_SESSION_DIR: dir });
+  const env = { ...process.env, BIUBIU_AI_CONFIG_PATH: configPath, BIUBIU_AI_APP_TOKEN: token, BIUBIU_AI_HOST_PID: String(process.pid), BIUBIU_AI_REFRESH_CATALOG: '0' };
+  delete env.NODE_OPTIONS; delete env.BIUBIU_AI_SESSION_KEY; delete env.BIUBIU_AI_SESSION_DIR;
+  if (sessionKey) Object.assign(env, { BIUBIU_AI_SESSION_KEY: sessionKey, BIUBIU_AI_SESSION_DIR: dir });
   const child = spawn(process.execPath, [path.join(appDir, 'server.mjs')], { stdio: ['pipe', 'pipe', 'pipe'], env });
   let out = '', err = '';
   child.stderr.on('data', b => { err += b; });
@@ -56,13 +56,13 @@ function request(port, { method = 'GET', path: target = '/', headers = {}, body 
   });
 }
 
-const api = (s, target, { method = 'POST', body, headers = {} } = {}) => request(s.port, { method, path: target, body, headers: { 'Content-Type': 'application/json', 'X-Harbor-App': s.token, Origin: `http://127.0.0.1:${s.port}`, ...headers } });
+const api = (s, target, { method = 'POST', body, headers = {} } = {}) => request(s.port, { method, path: target, body, headers: { 'Content-Type': 'application/json', 'X-Biubiu-App': s.token, Origin: `http://127.0.0.1:${s.port}`, ...headers } });
 
 test('ready line reports a loopback port and the health check needs no secrets', async t => {
   const s = await startServer(t);
   assert.equal(s.ready.event, 'ready'); assert.equal(s.ready.version, VERSION); assert.ok(s.port > 0);
   const health = await request(s.port, { path: '/healthz' });
-  assert.equal(health.status, 200); assert.deepEqual(JSON.parse(health.text), { ok: true, name: 'model-harbor-app', version: VERSION });
+  assert.equal(health.status, 200); assert.deepEqual(JSON.parse(health.text), { ok: true, name: 'biubiu-ai-app', version: VERSION });
   assert.ok(!s.output().includes(s.token)); assert.ok(!s.errors().includes(s.token)); assert.ok(!health.text.includes(s.token));
 });
 
@@ -81,7 +81,7 @@ test('panel page requires the launch key and ships a nonce-only CSP', async t =>
   const tags = [...page.text.matchAll(/<(script|style)\b[^>]*>/g)].map(m => m[0]);
   assert.equal(tags.filter(tag => tag.startsWith('<script')).length, 2);
   for (const tag of tags) assert.ok(tag.includes(`nonce="${nonce}"`), tag);
-  assert.match(page.text, /window\.__HARBOR_APP__=Object\.freeze/);
+  assert.match(page.text, /window\.__BIUBIU_APP__=Object\.freeze/);
   assert.ok(page.text.includes(`v${VERSION}`));
 });
 
@@ -93,13 +93,13 @@ test('requests with a foreign Host header are refused', async t => {
 test('tool API enforces token, origin, fetch site, content type and payload rules', async t => {
   const s = await startServer(t);
   const list = JSON.stringify({ name: 'list_providers', args: {} });
-  assert.equal((await api(s, '/api/tool', { body: list, headers: { 'X-Harbor-App': '' } })).status, 403);
-  assert.equal((await api(s, '/api/tool', { body: list, headers: { 'X-Harbor-App': 'x'.repeat(64) } })).status, 403);
+  assert.equal((await api(s, '/api/tool', { body: list, headers: { 'X-Biubiu-App': '' } })).status, 403);
+  assert.equal((await api(s, '/api/tool', { body: list, headers: { 'X-Biubiu-App': 'x'.repeat(64) } })).status, 403);
   assert.equal((await api(s, '/api/tool', { body: list, headers: { Origin: 'http://evil.test' } })).status, 403);
   assert.equal((await api(s, '/api/tool', { body: list, headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
   assert.equal((await api(s, '/api/tool', { body: list, headers: { 'Content-Type': 'text/plain' } })).status, 415);
   assert.equal((await api(s, '/api/tool', { body: '{not json' })).status, 400);
-  assert.equal((await api(s, '/api/tool', { body: JSON.stringify({ name: 'open_model_harbor' }) })).status, 400);
+  assert.equal((await api(s, '/api/tool', { body: JSON.stringify({ name: 'open_biubiu_ai' }) })).status, 400);
   assert.equal((await api(s, '/api/tool', { body: JSON.stringify({ name: 'nope' }) })).status, 400);
   assert.equal((await api(s, '/api/tool', { body: JSON.stringify({ name: 'list_providers', args: [] }) })).status, 400);
   assert.equal((await api(s, '/api/tool', { method: 'GET' })).status, 405);
@@ -115,7 +115,7 @@ test('tool API enforces token, origin, fetch site, content type and payload rule
 test('reveal_key answers only the tokened panel, is never cached and never logged', async t => {
   const s = await startServer(t);
   const reveal = JSON.stringify({ name: 'reveal_key', args: { providerId: 'mine' } });
-  for (const headers of [{ 'X-Harbor-App': '' }, { Origin: 'http://evil.test' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
+  for (const headers of [{ 'X-Biubiu-App': '' }, { Origin: 'http://evil.test' }, { 'Sec-Fetch-Site': 'cross-site' }]) {
     const denied = await api(s, '/api/tool', { body: reveal, headers });
     assert.equal(denied.status, 403, JSON.stringify(headers)); assert.ok(!denied.text.includes('stored-secret'));
   }
@@ -131,7 +131,7 @@ test('reveal_key answers only the tokened panel, is never cached and never logge
 test('update_provider and delete_provider change the config for the tokened panel without echoing or logging a key', async t => {
   const s = await startServer(t);
   const update = JSON.stringify({ name: 'update_provider', args: { providerId: 'mine', baseUrl: 'https://moved.test/v1', apiKey: 'rotated-secret' } });
-  assert.equal((await api(s, '/api/tool', { body: update, headers: { 'X-Harbor-App': '' } })).status, 403);
+  assert.equal((await api(s, '/api/tool', { body: update, headers: { 'X-Biubiu-App': '' } })).status, 403);
   assert.equal(await fs.readFile(s.configPath, 'utf8'), JSON.stringify(seed()));
   const updated = await api(s, '/api/tool', { body: update });
   assert.equal(updated.status, 200); assert.equal(updated.headers['cache-control'], 'no-store'); assert.ok(!updated.text.includes('secret'));
@@ -148,7 +148,7 @@ test('the site account answers only the tokened panel, starts signed out, and ne
   const sessionKey = crypto.randomBytes(32).toString('base64');
   const s = await startServer(t, { sessionKey });
   const account = JSON.stringify({ name: 'site_account', args: {} });
-  assert.equal((await api(s, '/api/tool', { body: account, headers: { 'X-Harbor-App': '' } })).status, 403);
+  assert.equal((await api(s, '/api/tool', { body: account, headers: { 'X-Biubiu-App': '' } })).status, 403);
   const ok = await api(s, '/api/tool', { body: account });
   assert.equal(ok.status, 200); assert.equal(ok.headers['cache-control'], 'no-store');
   assert.deepEqual(JSON.parse(ok.text).structuredContent, { signedIn: false, site: { origin: 'https://ro.biubiu007.com', host: 'ro.biubiu007.com', name: 'biubiu AI' } });
@@ -190,38 +190,38 @@ test('helpers compare secrets in constant time and refuse a panel without inline
 
 test('panel supports the companion bridge and the preview, and no longer the ZCode plugin host', async () => {
   const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
-  for (const marker of ['window.__HARBOR_APP__', "'X-Harbor-App'", 'window.__HARBOR_PREVIEW__', "postMessage('hide')"]) assert.ok(html.includes(marker), marker);
+  for (const marker of ['window.__BIUBIU_APP__', "'X-Biubiu-App'", 'window.__BIUBIU_PREVIEW__', "postMessage('hide')"]) assert.ok(html.includes(marker), marker);
   assert.ok(!html.includes('window.zcode'));
   await assert.rejects(fs.stat(path.join(root, 'plugins')));
   assert.match(html, /id="appHide"[^>]*hidden/);
 });
 
 test('desktop host sources carry the shared version and per-monitor DPI awareness', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   assert.ok(cs.includes(`public const string Version = "${VERSION}";`));
   assert.ok(cs.includes(`AssemblyInformationalVersion("${VERSION}")`));
   assert.ok(cs.includes(`AssemblyVersion("${VERSION}.0")`));
   const manifest = await fs.readFile(path.join(appDir, 'host', 'app.manifest'), 'utf8');
   assert.ok(manifest.includes(`version="${VERSION}.0"`));
   assert.match(manifest, /PerMonitorV2/);
-  assert.ok(!/MODEL_HARBOR_APP_TOKEN[^;\n]*Log\.Write/.test(cs), 'token must never be logged');
+  assert.ok(!/BIUBIU_AI_APP_TOKEN[^;\n]*Log\.Write/.test(cs), 'token must never be logged');
 });
 
 test('the desktop host keeps the site session key DPAPI-protected for the current user and never logs it', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const start = cs.indexOf('static class SessionKey'), keyClass = cs.slice(start, cs.indexOf('\n    }\n', start));
   assert.ok(start > 0, 'the host has a SessionKey class');
   assert.match(keyClass, /ProtectedData\.Protect\([^;]*DataProtectionScope\.CurrentUser\)/);
   assert.match(keyClass, /ProtectedData\.Unprotect\([^;]*DataProtectionScope\.CurrentUser\)/);
   for (const line of cs.split('\n').filter(l => l.includes('Log.Write('))) assert.ok(!/\bkey\b|sessionKey|SESSION_KEY/.test(line.replace(/"[^"]*"/g, '""')), line.trim());
-  assert.match(cs, /psi\.EnvironmentVariables\["MODEL_HARBOR_SESSION_KEY"\] = sessionKey;/);
-  assert.match(cs, /psi\.EnvironmentVariables\["MODEL_HARBOR_SESSION_DIR"\] = Paths\.DataDir;/);
-  assert.match(await fs.readFile(path.join(appDir, 'server.mjs'), 'utf8'), /delete env\.MODEL_HARBOR_SESSION_KEY;/, 'Node drops the key from its environment once read');
+  assert.match(cs, /psi\.EnvironmentVariables\["BIUBIU_AI_SESSION_KEY"\] = sessionKey;/);
+  assert.match(cs, /psi\.EnvironmentVariables\["BIUBIU_AI_SESSION_DIR"\] = Paths\.DataDir;/);
+  assert.match(await fs.readFile(path.join(appDir, 'server.mjs'), 'utf8'), /delete env\.BIUBIU_AI_SESSION_KEY;/, 'Node drops the key from its environment once read');
   assert.ok((await fs.readFile(path.join(appDir, 'build.mjs'), 'utf8')).includes('/r:System.Security.dll'));
 });
 
 test('the desktop host tells the page when the panel hides or shows, and when the page is ready, so revealed keys are masked again and the balance is read only while shown', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
   // WinForms leaves the web view "visible" while the form is hidden, so visibilitychange alone never fires in the host.
   const panel = cs.slice(cs.indexOf('sealed class PanelForm : Form'), cs.indexOf('sealed class TabForm : Form'));
@@ -230,14 +230,14 @@ test('the desktop host tells the page when the panel hides or shows, and when th
   assert.match(panel.slice(hook, panel.indexOf('\n        }\n', hook)), /base\.OnVisibleChanged\(e\);\s*PostPanel\(\);$/);
   assert.ok(post > 0 && panel.slice(post, post + 400).includes('PostWebMessageAsJson("{\\"type\\":\\"panel\\",\\"visible\\":" + (Visible ? "true" : "false") + "}")'));
   // The page may load in a hidden panel, or in one shown before it listened: it says ready once it listens.
-  assert.ok(panel.includes('else if (message == "ready") { PostPanel(); SendUpdate(); }'));
+  assert.ok(panel.includes('else if (message == "ready") { PostPanel(); SendUpdate(); SendTour(); }'));
   assert.ok(html.includes("webview.postMessage('ready');"));
   assert.ok(html.includes("else if (e.data?.type === 'panel') panelShown(e.data.visible === true);"));
   assert.ok(html.includes("document.addEventListener('visibilitychange', () => panelShown(!document.hidden));"));
 });
 
 test('the desktop host keeps Node and the hidden panel small in memory', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   // Node: a capped young generation, and two libuv pool threads whatever the launching shell sets.
   const flags = cs.match(/const string NodeFlags = "([^"]+)";/);
   assert.ok(flags, 'the host names the flags it starts Node with');
@@ -291,7 +291,7 @@ test('the host asks for the site window\'s access token on stdin, and only its o
 });
 
 test('the site window shows only the site, InPrivate, and answers only its own renewals, with a token Node hands over', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
   const form = cs.slice(cs.indexOf('sealed class SiteForm : Form'), cs.indexOf('sealed class Companion : ApplicationContext'));
   assert.ok(form.includes(`public const string SiteOrigin = "${SITE.origin}";`), 'the host opens the site Node signs in to');
@@ -314,7 +314,7 @@ test('the site window shows only the site, InPrivate, and answers only its own r
 });
 
 test('the panel and its collapsed tab have the rounded corners of ZCode\'s own window', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const panel = cs.slice(cs.indexOf('sealed class PanelForm : Form'), cs.indexOf('sealed class TabForm : Form'));
   const tab = cs.slice(cs.indexOf('sealed class TabForm : Form'), cs.indexOf('sealed class TrayMenu : ContextMenuStrip'));
   assert.ok(panel.includes('Native.TrySetCorner(Handle, Native.DWMWCP_ROUND);'));
@@ -324,7 +324,7 @@ test('the panel and its collapsed tab have the rounded corners of ZCode\'s own w
 });
 
 test('the tray icon\'s menu is drawn like the panel: its theme, rounded corners, the mark on top, the panel\'s own marks', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const menu = cs.slice(cs.indexOf('sealed class TrayMenu : ContextMenuStrip'), cs.indexOf('static class Shapes'));
   const companion = cs.slice(cs.indexOf('sealed class Companion : ApplicationContext'), cs.indexOf('static class Native'));
   assert.ok(menu.length > 0 && companion.length > 0);
@@ -357,7 +357,7 @@ test('the tray icon\'s menu is drawn like the panel: its theme, rounded corners,
 });
 
 test('updates come from GitHub Releases: an installed copy tells of a newer version once, updates only when the user says yes, downloads from the Gitee mirror first and runs only an installer whose SHA-256 is GitHub\'s', async () => {
-  const cs = await fs.readFile(path.join(appDir, 'host', 'ModelHarbor.cs'), 'utf8');
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
   const html = await fs.readFile(path.join(appDir, 'lib', 'panel.html'), 'utf8');
   const updates = cs.slice(cs.indexOf('static class Updates'), cs.indexOf('// The site in a window of its own'));
   const companion = cs.slice(cs.indexOf('sealed class Companion : ApplicationContext'), cs.indexOf('static class Native'));
@@ -422,4 +422,36 @@ test('updates come from GitHub Releases: an installed copy tells of a newer vers
   assert.deepEqual([els.updateLink.disabled, els.updateLink.textContent], [true, '正在安装 0.9.0…']);
   ctx.showUpdate({ type: 'update', version: null, state: 'available', percent: 0 });
   assert.equal(els.updateLink.hidden, true);
+});
+
+test('使用教程 starts by itself once for a new install, from the tray at any time, and never in the window checks', async () => {
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
+  // No settings file yet is a new install; tour=pending keeps it until the page says the guide was seen.
+  assert.ok(cs.includes('if (!File.Exists(Paths.SettingsFile)) { s.TourPending = true; return s; }'));
+  assert.ok(cs.includes('s.TourPending = value == "pending";') && cs.includes('TourPending ? "tour=pending'));
+  assert.ok(cs.includes('else if (message == "tour-done") { tourWanted = false;'));
+  assert.ok(cs.includes('panel.TourSeen += (s, e) => { if (settings.TourPending) { settings.TourPending = false; settings.Save(); } };'));
+  assert.match(cs, /if \(settings\.TourPending && !string\.Equals\(\(Environment\.GetEnvironmentVariable\("BIUBIU_AI_TOUR"\) \?\? ""\)\.Trim\(\), "off", StringComparison\.OrdinalIgnoreCase\)\) panel\.StartTour\(\);/);
+  assert.ok(cs.includes('tourItem = menu.Add("使用教程", () => ShowTour());'));
+  // The window checks start with empty data folders, which a new install's guide would cover.
+  for (const script of ['smoke-host.ps1', 'installer-check.ps1', 'docs-installer.ps1']) {
+    const text = await fs.readFile(path.join(appDir, '..', 'build', 'companion-dev', script), 'utf8');
+    assert.ok(text.includes("$env:BIUBIU_AI_TOUR = 'off'"), script);
+  }
+});
+
+test('an installed copy updated from an old-named version carries its data folder over, setting aside one a development build left', async () => {
+  const cs = await fs.readFile(path.join(appDir, 'host', 'BiubiuAI.cs'), 'utf8');
+  const at = cs.indexOf('static string ResolveDataDir()'), resolve = cs.slice(at, cs.indexOf('\n        }\n', at));
+  // A stand-in data folder (tests) comes first, so nothing is carried over there; nor in a development build.
+  assert.ok(resolve.indexOf('BIUBIU_AI_DATA_DIR') < resolve.indexOf('Legacy.InstalledCopy'));
+  assert.ok(resolve.includes('if (!Legacy.InstalledCopy || !Directory.Exists(Legacy.DataDir)) return dir;'));
+  // Only a new folder without a sign-in, beside an old one with it, is set aside, under a new name and never deleted.
+  assert.ok(resolve.includes('if (Directory.Exists(dir) && !File.Exists(Path.Combine(dir, SessionFile)) && File.Exists(Path.Combine(Legacy.DataDir, SessionFile)))'));
+  assert.ok(resolve.includes('if (!Move(dir, aside)) return dir;') && !/Directory\.Delete/.test(resolve));
+  assert.ok(resolve.includes('if (!Move(Legacy.DataDir, dir)) return Legacy.DataDir;'), 'a folder that cannot move yet is used where it is');
+  assert.match(cs, /catch \(IOException\) when \(attempt < 150\) \{ Thread\.Sleep\(100\); \}/, 'tried for up to 15 seconds');
+  // The installer's --migrate-startup run is usually first to look for the folder, so it moves it: every way in logs that.
+  for (const option of ['InstallStartup', 'UninstallStartup', 'MigrateStartup']) assert.match(cs, new RegExp(`if \\(options\\.${option}\\) \\{ NoteDataFolder\\(\\); `), option);
+  assert.ok(cs.includes('NoteDataFolder();\n                if (Legacy.InstalledCopy) Startup.Migrate();'));
 });

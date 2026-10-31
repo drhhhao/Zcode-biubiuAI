@@ -17,16 +17,18 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $version = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $setup = Join-Path $root "dist\biubiuAI-Setup-$version.exe"
 $shots = Join-Path $root 'build\companion-dev'
-$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor'
+$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\BiubiuAI'
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'biubiu AI.lnk'
 $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'biubiu AI.lnk'
-$realData = Join-Path $env:LOCALAPPDATA 'ModelHarbor'
+$realData = Join-Path $env:LOCALAPPDATA 'biubiu AI'
+# Settings > Apps entry of an install made by 0.8.12 or earlier, under the project's old working name.
+$legacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ModelHarbor'
 $setupLog = Join-Path $env:TEMP 'biubiu-ai-setup.log'
 $updateDownloads = Join-Path ([IO.Path]::GetTempPath()) 'biubiu-ai-update'
 
 if (-not (Test-Path -LiteralPath $setup)) { throw "missing $setup; run npm run app:installer first" }
-if (Test-Path $uninstallKey) { throw 'biubiu AI is installed on this machine (Settings > Apps lists it); uninstall it first, or check on another machine, so this check does not replace that entry' }
+if ((Test-Path $uninstallKey) -or (Test-Path $legacyUninstallKey)) { throw 'biubiu AI is installed on this machine (Settings > Apps lists it); uninstall it first, or check on another machine, so this check does not replace that entry' }
 if (Test-Path -LiteralPath $startMenu) { throw 'a Start menu shortcut named biubiu AI exists already; this check would replace it' }
 
 . (Join-Path $PSScriptRoot 'window-helpers.ps1')
@@ -49,7 +51,7 @@ $dir = Join-Path (Join-Path $tmp (Zh 'U+88C5 biubiu U+6D4BU+8BD5')) (Zh 'U+7A0BU
 $uiDir = Join-Path $tmp 'ui install'
 $ui = $null
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dir) | Out-Null
-$runBefore = (Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion'
+$runBefore = (Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'biubiu AI'
 $desktopBefore = Test-Path -LiteralPath $desktop
 $dataBefore = Test-Path -LiteralPath $realData
 $shell = New-Object -ComObject WScript.Shell
@@ -65,7 +67,7 @@ function Shell-Path([string]$file) {
   $item = (New-Object -ComObject Shell.Application).Namespace((Split-Path -Parent $file)).ParseName((Split-Path -Leaf $file))
   if ($item) { return $item.Path } else { return $file }
 }
-Remove-Item Env:MODEL_HARBOR_NODE, Env:MODEL_HARBOR_APP_SERVER -ErrorAction SilentlyContinue
+Remove-Item Env:BIUBIU_AI_NODE, Env:BIUBIU_AI_APP_SERVER -ErrorAction SilentlyContinue
 $setupStart = Start-Process -FilePath $setup -PassThru
 try {
   # The installer as a user first sees it, closed without installing.
@@ -75,7 +77,7 @@ try {
   # A silent install into a path with spaces and Chinese.
   $code = Run-Setup "--silent --dir `"$dir`" --no-desktop --no-startup"
   Check 'install / exit code' ($code -eq 0) "exit $code"
-  foreach ($f in 'bin\ModelHarbor.exe', 'bin\WebView2Loader.dll', 'bin\biubiu.ico', 'server.mjs', 'lib\core.mjs', 'lib\panel.html', 'lib\model-catalog.json', 'node\node.exe', 'node\LICENSE.txt', 'Uninstall.exe', 'uninstall.list') {
+  foreach ($f in 'bin\BiubiuAI.exe', 'bin\WebView2Loader.dll', 'bin\biubiu.ico', 'server.mjs', 'lib\core.mjs', 'lib\panel.html', 'lib\model-catalog.json', 'node\node.exe', 'node\LICENSE.txt', 'Uninstall.exe', 'uninstall.list') {
     Check "install / $f" (Test-Path -LiteralPath (Join-Path $dir $f)) ''
   }
   $files = @(Get-ChildItem -LiteralPath $dir -Recurse -File | ForEach-Object { $_.FullName.Substring($dir.Length + 1) })
@@ -87,16 +89,16 @@ try {
   $entry = Get-ItemProperty -Path $uninstallKey -ErrorAction SilentlyContinue
   Check 'install / Settings > Apps entry' ($entry -and $entry.DisplayName -eq 'biubiu AI' -and $entry.DisplayVersion -eq $version -and $entry.InstallLocation -eq $dir) "$($entry.DisplayName) $($entry.DisplayVersion)"
   Check 'install / uninstall command' ($entry.UninstallString -eq ('"' + (Join-Path $dir 'Uninstall.exe') + '"')) "$($entry.UninstallString)"
-  Check 'install / Start menu shortcut' ((Test-Path -LiteralPath $startMenu) -and (Link-Target $startMenu) -eq (Shell-Path (Join-Path $dir 'bin\ModelHarbor.exe'))) (Link-Target $startMenu)
+  Check 'install / Start menu shortcut' ((Test-Path -LiteralPath $startMenu) -and (Link-Target $startMenu) -eq (Shell-Path (Join-Path $dir 'bin\BiubiuAI.exe'))) (Link-Target $startMenu)
   Check 'install / no desktop shortcut when not asked' ((Test-Path -LiteralPath $desktop) -eq $desktopBefore) ''
-  Check 'install / no start at sign-in when not asked' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion') -eq $runBefore) ''
+  Check 'install / no start at sign-in when not asked' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'biubiu AI') -eq $runBefore) ''
 
   # The installed copy passes the smoke test, with Node.js off PATH so only the runtime beside bin can serve it.
   $savedPath = $env:PATH
   $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and -not (Test-Path -LiteralPath (Join-Path $_ 'node.exe')) }) -join ';'
-  $env:MODEL_HARBOR_EXE = Join-Path $dir 'bin\ModelHarbor.exe'
+  $env:BIUBIU_AI_EXE = Join-Path $dir 'bin\BiubiuAI.exe'
   try { $smoke = @(& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'smoke-host.ps1') 2>&1 | ForEach-Object { "$_" }) }
-  finally { $env:PATH = $savedPath; Remove-Item Env:MODEL_HARBOR_EXE -ErrorAction SilentlyContinue }
+  finally { $env:PATH = $savedPath; Remove-Item Env:BIUBIU_AI_EXE -ErrorAction SilentlyContinue }
   $smoke | Where-Object { $_ -match '^(FAIL|NOTE)' } | ForEach-Object { [Console]::Out.WriteLine("      smoke: $_") }
   # The whole run stays beside the screenshots (GitHub keeps it with them).
   [IO.File]::WriteAllLines((Join-Path $PSScriptRoot 'installed-smoke.txt'), [string[]]$smoke, (New-Object Text.UTF8Encoding $false))
@@ -121,7 +123,7 @@ try {
   # the companion, installs in place leaving the desktop shortcut and the start at sign-in as they were, and starts it
   # again. Then the stand-in names a SHA-256 the file does not have: the mirror's file is set aside for GitHub's, which is
   # refused too.
-  $exeHere = Join-Path $dir 'bin\ModelHarbor.exe'
+  $exeHere = Join-Path $dir 'bin\BiubiuAI.exe'
   $updateData = Join-Path $tmp 'update-data'
   $updateLog = Join-Path $updateData 'companion.log'
   $portFile = Join-Path $tmp 'stand-in.port'
@@ -138,7 +140,7 @@ try {
   while (-not (Test-Path -LiteralPath $portFile) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 100 }
   $port = (Get-Content -LiteralPath $portFile -Raw).Trim()
   $setupLines = @(Get-Content -LiteralPath $setupLog -Encoding UTF8).Count
-  $env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = $updateData; $env:MODEL_HARBOR_UPDATE_URL = "http://127.0.0.1:$port/latest"
+  $env:BIUBIU_AI_ZCODE_EXE = 'FakeZCode.exe'; $env:BIUBIU_AI_DATA_DIR = $updateData; $env:BIUBIU_AI_UPDATE_URL = "http://127.0.0.1:$port/latest"; $env:BIUBIU_AI_TOUR = 'off'
   try {
     $first = Start-Process -FilePath $exeHere -ArgumentList '--background' -PassThru
     $deadline = (Get-Date).AddSeconds(40)
@@ -159,7 +161,7 @@ try {
     Check 'one-click update / the companion quits for the installer' ($first.WaitForExit(90000)) ''
     $second = $null; $deadline = (Get-Date).AddSeconds(60)
     while (-not $second -and (Get-Date) -lt $deadline) {
-      $second = Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $first.Id -and $_.Path -eq $exeHere } | Select-Object -First 1
+      $second = Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $first.Id -and $_.Path -eq $exeHere } | Select-Object -First 1
       if (-not $second) { Start-Sleep -Milliseconds 300 }
     }
     Check 'one-click update / installed and started again' ($null -ne $second) ''
@@ -174,7 +176,7 @@ try {
     $after = @(Get-Content -LiteralPath $setupLog -Encoding UTF8 | Select-Object -Skip $setupLines)
     Check 'one-click update / a silent install in place' ((@($after | Where-Object { $_ -match [regex]::Escape("install $version to $dir") }).Count -eq 1) -and (@($after | Where-Object { $_ -match 'update from biubiu AI' }).Count -eq 1)) ''
     Check 'one-click update / no desktop shortcut added' ((Test-Path -LiteralPath $desktop) -eq $desktopBefore) ''
-    Check 'one-click update / start at sign-in untouched' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion') -eq $runBefore) ''
+    Check 'one-click update / start at sign-in untouched' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'biubiu AI') -eq $runBefore) ''
     Check 'one-click update / Settings > Apps entry still here' ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $dir) ''
     # Started again, it looks once more (the third look) and finds the version already told.
     $deadline = (Get-Date).AddSeconds(30)
@@ -200,15 +202,15 @@ try {
     Check 'wrong SHA-256 / the download deleted' (@(Get-ChildItem -LiteralPath $updateDownloads -File -ErrorAction SilentlyContinue).Count -eq 0) ''
     Check 'one-click update / the real data folder untouched' (-not (Escaped)) ''
   } finally {
-    if (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue) { Start-Process -FilePath $exeHere -ArgumentList '--quit' -Wait | Out-Null }
-    Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR, Env:MODEL_HARBOR_UPDATE_URL -ErrorAction SilentlyContinue
+    if (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue) { Start-Process -FilePath $exeHere -ArgumentList '--quit' -Wait | Out-Null }
+    Remove-Item Env:BIUBIU_AI_ZCODE_EXE, Env:BIUBIU_AI_DATA_DIR, Env:BIUBIU_AI_UPDATE_URL, Env:BIUBIU_AI_TOUR -ErrorAction SilentlyContinue
     if ($standIn -and -not $standIn.HasExited) { try { $standIn.Kill() } catch { } }
   }
 
   # The uninstaller as a user first sees it (from its copy in the temp folder), closed without removing anything.
   Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') | Out-Null
   Check 'uninstaller window / shown and closed' (Shot-Window $uninstallTitle (Join-Path $shots 'uninstaller.png')) 'build\companion-dev\uninstaller.png'
-  Check 'uninstaller window / nothing removed by closing' ((Test-Path -LiteralPath (Join-Path $dir 'bin\ModelHarbor.exe')) -and (Test-Path $uninstallKey)) ''
+  Check 'uninstaller window / nothing removed by closing' ((Test-Path -LiteralPath (Join-Path $dir 'bin\BiubiuAI.exe')) -and (Test-Path $uninstallKey)) ''
 
   # A silent uninstall.
   $code = (Start-Process -FilePath (Join-Path $dir 'Uninstall.exe') -ArgumentList '--silent' -PassThru -Wait).ExitCode
@@ -219,7 +221,7 @@ try {
   Check 'uninstall / Settings > Apps entry removed' (-not (Test-Path $uninstallKey)) ''
   Check 'uninstall / Start menu shortcut removed' (-not (Test-Path -LiteralPath $startMenu)) ''
   Check 'uninstall / the companion''s data folder kept' ((Test-Path -LiteralPath $realData) -eq $dataBefore) ''
-  Check 'uninstall / start at sign-in untouched' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'ModelHarbor Companion') -eq $runBefore) ''
+  Check 'uninstall / start at sign-in untouched' (((Get-ItemProperty -Path $runKey -ErrorAction SilentlyContinue).'biubiu AI') -eq $runBefore) ''
 
   # A folder that holds other files gets a biubiu AI folder of its own, and the other files outlive the uninstall.
   $shared = Join-Path $tmp (Zh 'U+6709U+6587U+4EF6U+7684U+6587U+4EF6U+5939')
@@ -227,7 +229,7 @@ try {
   [IO.File]::WriteAllText((Join-Path $shared 'notes.txt'), 'mine', (New-Object Text.UTF8Encoding $false))
   $code = Run-Setup "--silent --dir `"$shared`" --no-desktop --no-startup"
   $inside = Join-Path $shared 'biubiu AI'
-  Check 'shared folder / installs into a folder of its own' (($code -eq 0) -and (Test-Path -LiteralPath (Join-Path $inside 'bin\ModelHarbor.exe')) -and ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $inside)) "exit $code"
+  Check 'shared folder / installs into a folder of its own' (($code -eq 0) -and (Test-Path -LiteralPath (Join-Path $inside 'bin\BiubiuAI.exe')) -and ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $inside)) "exit $code"
   $code = (Start-Process -FilePath (Join-Path $inside 'Uninstall.exe') -ArgumentList '--silent' -PassThru -Wait).ExitCode
   Wait-Uninstalled $inside
   Check 'shared folder / uninstalled' (($code -eq 0) -and -not (Test-Path -LiteralPath $inside) -and -not (Test-Path $uninstallKey)) ''
@@ -235,7 +237,7 @@ try {
 
   # An install through the window as a user clicks it: the install button, then the finish button with the start box
   # cleared. Had the box stayed ticked, the companion would follow the stand-in ZCode with a temporary data folder.
-  $env:MODEL_HARBOR_ZCODE_EXE = 'FakeZCode.exe'; $env:MODEL_HARBOR_DATA_DIR = Join-Path $tmp 'ui-data'
+  $env:BIUBIU_AI_ZCODE_EXE = 'FakeZCode.exe'; $env:BIUBIU_AI_DATA_DIR = Join-Path $tmp 'ui-data'
   try {
     $ui = Start-Process -FilePath $setup -ArgumentList "--dir `"$uiDir`" --no-desktop --no-startup" -PassThru
     $window = Wait-Window $setupTitle
@@ -251,18 +253,18 @@ try {
     [Win]::Save($window, (Join-Path $shots 'installer-done.png'))
     [void][Win]::Press([IntPtr]$finish.Current.NativeWindowHandle)
     Check 'window install / closed' ($ui.WaitForExit(15000)) ''
-    Check 'window install / files and entry' ((Test-Path -LiteralPath (Join-Path $uiDir 'bin\ModelHarbor.exe')) -and ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $uiDir)) ''
+    Check 'window install / files and entry' ((Test-Path -LiteralPath (Join-Path $uiDir 'bin\BiubiuAI.exe')) -and ((Get-ItemProperty -Path $uninstallKey).InstallLocation -eq $uiDir)) ''
     Start-Sleep -Seconds 2
-    Check 'window install / biubiu AI not started' (-not (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue)) ''
-  } finally { Remove-Item Env:MODEL_HARBOR_ZCODE_EXE, Env:MODEL_HARBOR_DATA_DIR -ErrorAction SilentlyContinue }
+    Check 'window install / biubiu AI not started' (-not (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue)) ''
+  } finally { Remove-Item Env:BIUBIU_AI_ZCODE_EXE, Env:BIUBIU_AI_DATA_DIR -ErrorAction SilentlyContinue }
   $code = (Start-Process -FilePath (Join-Path $uiDir 'Uninstall.exe') -ArgumentList '--silent' -PassThru -Wait).ExitCode
   Wait-Uninstalled $uiDir
   Check 'window install / uninstalled' (($code -eq 0) -and -not (Test-Path -LiteralPath $uiDir) -and -not (Test-Path $uninstallKey)) ''
 } finally {
   if (-not $setupStart.HasExited) { try { $setupStart.Kill() } catch { } }
   if ($ui -and -not $ui.HasExited) { try { $ui.Kill() } catch { } }
-  foreach ($exe in @((Join-Path $uiDir 'bin\ModelHarbor.exe'), (Join-Path $dir 'bin\ModelHarbor.exe'),(Join-Path $tmp ((Zh 'U+6709U+6587U+4EF6U+7684U+6587U+4EF6U+5939') + '\biubiu AI\bin\ModelHarbor.exe')))) {
-    if ((Test-Path -LiteralPath $exe) -and (Get-Process -Name ModelHarbor -ErrorAction SilentlyContinue)) { & $exe --quit | Out-Null }
+  foreach ($exe in @((Join-Path $uiDir 'bin\BiubiuAI.exe'), (Join-Path $dir 'bin\BiubiuAI.exe'),(Join-Path $tmp ((Zh 'U+6709U+6587U+4EF6U+7684U+6587U+4EF6U+5939') + '\biubiu AI\bin\BiubiuAI.exe')))) {
+    if ((Test-Path -LiteralPath $exe) -and (Get-Process -Name BiubiuAI -ErrorAction SilentlyContinue)) { & $exe --quit | Out-Null }
   }
   if ((Test-Path $uninstallKey) -and ((Get-ItemProperty $uninstallKey).InstallLocation -like "$tmp*")) { Remove-Item $uninstallKey -Recurse }
   if ((Test-Path -LiteralPath $startMenu) -and ((Link-Target $startMenu) -like "$tmp*")) { Remove-Item -LiteralPath $startMenu }

@@ -1,11 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { Harbor, CONFIG_PATH } from '../lib/core.mjs';
+import { BiubiuAI, CONFIG_PATH } from '../lib/core.mjs';
 
 // Explicit integration check requested by the user. Logs contain no credentials.
 const apply = process.argv.includes('--apply');
 const chat = process.argv.includes('--chat');
-const h = new Harbor({ builtinConfigPath: 'E:/Zcode/resources/config/provider/zcode-builtin.json' });
+const h = new BiubiuAI({ builtinConfigPath: 'E:/Zcode/resources/config/provider/zcode-builtin.json' });
 const report = { checkedAt: new Date().toISOString(), configuration: CONFIG_PATH, apply, chat, providers: [] };
 for (const p of (await h.providers()).providers) {
   const row = { name: p.name, id: p.id, baseUrl: p.baseUrl, protocol: p.protocol, previouslyConfigured: p.modelCount };

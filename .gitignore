@@ -12,3 +12,6 @@ build/companion-dev/installed-smoke.txt
 !build/companion-dev/biubiu-icon.png
 docs/plugin-era/
 releases/
+
+# Design proofs (ui-designer mock-ups) stay on this machine.
+build/companion-dev/tutorial-proof/
