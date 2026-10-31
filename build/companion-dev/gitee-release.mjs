@@ -6,7 +6,7 @@
 // timed out), so .github/workflows/gitee.yml only pushes the tag and this runs on a computer in China after publishing:
 //   GITEE_TOKEN=... HTTPS_PROXY=http://127.0.0.1:7897 NO_PROXY=gitee.com,.gitee.com NODE_USE_ENV_PROXY=1 \
 //     node build/companion-dev/gitee-release.mjs v<version>
-// Usage: node gitee-release.mjs <tag>
+// Usage: node gitee-release.mjs <tag> [--file dist/biubiuAI-Setup-<version>.exe]
 // Environment: GITEE_TOKEN; GITHUB_TOKEN (optional), GITHUB_REPOSITORY and GITEE_REPOSITORY (owner/name, these repositories
 // by default).
 import { spawnSync } from 'node:child_process';
@@ -15,7 +15,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// --file <path> takes the installer from this computer (GitHub is slow from China) instead of downloading it from GitHub;
+// it is used only when its size and SHA-256 are GitHub's record, as a download from GitHub would have to be.
 const tag = process.argv[2];
+const fileAt = process.argv.indexOf('--file'), localFile = fileAt > 0 ? process.argv[fileAt + 1] : null;
 const { GITHUB_TOKEN, GITEE_TOKEN } = process.env;
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY || 'drhhhao/Zcode-biubiuAI';
 const GITEE_REPOSITORY = process.env.GITEE_REPOSITORY || 'drhhhao_0/Zcode-biubiuAI';
@@ -79,8 +82,8 @@ if (release.draft || release.prerelease) fail(`${tag} is not published on GitHub
 const asset = (release.assets || []).find(a => a.name === name);
 if (!asset || !/^sha256:[0-9a-f]{64}$/.test(asset.digest || '')) fail(`${tag} on GitHub has no ${name} with a SHA-256`);
 const want = asset.digest.slice(7);
-const bytes = await download(asset.browser_download_url, `${name} from GitHub`);
-if (bytes.length !== asset.size || sha256(bytes) !== want) fail(`${name} from GitHub does not match GitHub's record`);
+const bytes = localFile ? fs.readFileSync(localFile) : await download(asset.browser_download_url, `${name} from GitHub`);
+if (bytes.length !== asset.size || sha256(bytes) !== want) fail(`${name} ${localFile ? `at ${localFile}` : 'from GitHub'} does not match GitHub's record`);
 console.log(`${name}: ${bytes.length} bytes, SHA-256 ${want} (GitHub's record)`);
 
 // The Gitee release of that tag, made if missing; its notes are GitHub's, which name the SHA-256.
