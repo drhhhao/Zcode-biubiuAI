@@ -1,6 +1,6 @@
 {
   "name": "biubiu-ai-project",
-  "version": "0.8.13",
+  "version": "0.8.14",
   "private": true,
   "type": "module",
   "description": "biubiu AI desktop companion for ZCode: a WebView2 side panel that docks beside the ZCode window",

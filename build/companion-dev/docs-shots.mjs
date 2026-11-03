@@ -1,11 +1,14 @@
-// Screenshots for docs/tutorial.md, written to docs/images/. The panel shots are the real panel in app mode, served by
+// Screenshots for docs/tutorial.md and the README's step-by-step guide, written to docs/images/. The panel shots are the real panel in app mode, served by
 // app/server.mjs's own server as the companion serves it, backed by the demo account and demo service (app/demo.mjs) and a
 // temporary ZCode configuration, and driven in headless Edge over the DevTools protocol, so nothing reaches the real site,
 // the real ZCode configuration or the network. The overview is a schematic: a plain frame for ZCode beside a real panel shot.
 // --release photographs the latest GitHub release instead, through the system proxy Edge uses, or through HTTPS_PROXY
 // when that is set (for a system proxy that is switched off).
 // --tour photographs only 使用教程, the guide a new user meets (the panel shots include it too).
-// Usage: node build/companion-dev/docs-shots.mjs [--release | --tour]
+// The README's guide shows where to click with numbered red marks (guide-*.png): the panel's are taken with the panel
+// shots; --guide takes the rest, online like --release: ZCode's download page, this project's GitHub and Gitee releases,
+// and marks over the installer's install-*.png.
+// Usage: node build/companion-dev/docs-shots.mjs [--release | --tour | --guide]
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -53,7 +56,7 @@ class Page {
     while (Date.now() < end) { if (await this.run(expression)) return; await sleep(100); }
     throw new Error(`timed out waiting for ${what}`);
   }
-  async view(width, height, scale = 2) { await this.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }); }
+  async view(width, height, scale = 2) { this.metrics = [width, height, scale]; await this.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: scale, mobile: false }); }
   async go(url) { await this.send('Page.navigate', { url }); await this.until('document.readyState === "complete"', 'the page to load'); await this.run('document.fonts.ready.then(() => true)'); }
   // A band of the page, as wide as the panel, as a PNG file: from the top of one element (or of the page) to the bottom
   // of another, with some margin.
@@ -73,7 +76,42 @@ class Page {
     await fs.writeFile(path.join(out, file), Buffer.from(data, 'base64'));
     console.log(`  ${file}`);
   }
+  // Where to click, for the README's step-by-step guide: each mark is { at, n } with at a script expression for an
+  // element, outlined in red with its number n in a badge at its top left. unmark() takes them away again.
+  async mark(...marks) {
+    await this.run(`Promise.race([Promise.all(document.getAnimations().filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))), new Promise(r => setTimeout(r, 3000))]).then(() => (${MARK})([${marks.map(m => `{ el: ${m.at}, n: ${JSON.stringify(String(m.n))}, pad: ${m.pad ?? 5} }`).join(', ')}]))`);
+  }
+  async unmark() { await this.run(`document.querySelectorAll('.docs-mark').forEach(n => n.remove()), true`); }
+  // A shot with marks on it, the page left as it was.
+  async marked(file, marks, options) {
+    // Pages and lists slide in and scroll smoothly: the marks go on once everything has come to rest.
+    await sleep(900);
+    if (options === 'screen') {
+      await this.mark(...marks);
+      try { await this.screen(file); } finally { await this.unmark(); }
+      return;
+    }
+    // A capture beyond the window lays the page out as tall as it is, without a scroll bar, which can make it a little
+    // wider: the window grows to the whole page first, so the marks are measured on the layout that is captured.
+    const [width, height, scale] = this.metrics, y = await this.run('scrollY');
+    await this.send('Emulation.setDeviceMetricsOverride', { width, height: await this.run('document.documentElement.scrollHeight'), deviceScaleFactor: scale, mobile: false });
+    try { await this.mark(...marks); await this.shot(file, options); }
+    finally { await this.unmark(); await this.view(width, height, scale); await this.run(`scrollTo(0, ${y}), true`); }
+  }
 }
+
+// Draws the marks over the page, in page coordinates, above everything else; a badge stays inside the page.
+const MARK = `(marks => {
+  document.querySelectorAll('.docs-mark').forEach(n => n.remove());
+  const red = '#e5242b', put = (style, text) => { const n = document.createElement('div'); n.className = 'docs-mark'; Object.assign(n.style, { position: 'absolute', pointerEvents: 'none', boxSizing: 'border-box', zIndex: 2147483647 }, style); if (text) n.textContent = text; document.documentElement.append(n); };
+  for (const { el, n, pad } of marks) {
+    if (!el) throw new Error('nothing to mark for ' + n);
+    const r = el.getBoundingClientRect(), left = r.left + scrollX - pad, top = r.top + scrollY - pad;
+    put({ left: left + 'px', top: top + 'px', width: r.width + 2 * pad + 'px', height: r.height + 2 * pad + 'px', border: '3px solid ' + red, borderRadius: '9px', boxShadow: '0 0 0 2px rgba(255,255,255,.9)' });
+    put({ left: Math.max(2, left - 11) + 'px', top: Math.max(2, top - 11) + 'px', width: '24px', height: '24px', borderRadius: '50%', background: red, color: '#fff', font: '700 14px/24px "Segoe UI", system-ui, sans-serif', textAlign: 'center', boxShadow: '0 0 0 2px #fff' }, n);
+  }
+  return true;
+})`;
 
 // In every document: a stand-in for the host's message channel, so the page shows what it shows inside the companion
 // (its 收起 button) and hears what the host would tell it, and a few helpers that click and type as a user would.
@@ -146,6 +184,7 @@ async function tourShots() {
     await page.run(`__docs.hostSays({ type: 'tour' })`);
     await page.until(`Boolean(document.querySelector('.tourcard.welcome'))`, 'the welcome');
     await page.screen('tour-0-welcome.png');
+    await page.marked('guide-tour-welcome.png', [{ at: `__docs.byText('.tourcard button', '开始')`, n: 1 }], 'screen');
     const card = title => `document.querySelector('.tourcard .tourtitle')?.textContent === ${JSON.stringify(title)}`;
     await page.run(`__docs.byText('.tourcard button', '开始').click(), true`);
     await page.until(card('登录账户'), 'the sign-in step');
@@ -179,30 +218,46 @@ async function panelShots() {
     await page.go(url);
     await page.until('__docs.shown("#siteLogin")', 'the sign-in form');
     await page.shot('panel-site-login.png', { to: '.ver', margin: 24 });
+    await page.run(`__docs.fill('#siteEmail', ${JSON.stringify(DEMO.email)}) && __docs.fill('#sitePassword', ${JSON.stringify(DEMO.password)}) && (document.activeElement.blur(), true)`);
+    await page.marked('guide-login.png', [{ at: `document.querySelector('#siteEmail')`, n: 1 }, { at: `document.querySelector('#sitePassword')`, n: 2 }, { at: `document.querySelector('#siteLoginBtn')`, n: 3 }], { to: '#siteLogin', margin: 24 });
 
     // Signed in to the demo account: balance, groups, keys.
     await page.run(`__docs.fill('#siteEmail', ${JSON.stringify(DEMO.email)}) && __docs.fill('#sitePassword', ${JSON.stringify(DEMO.password)}) && __docs.click(document.querySelector('#siteLoginBtn'))`);
     await page.until('__docs.shown("#siteAccount") && document.querySelectorAll("#siteGroups .grow").length > 0 && document.querySelectorAll("#siteKeys .svc").length > 0', 'the account');
+    await page.until('document.querySelectorAll("#usageGrid .hc").length > 0 && document.querySelectorAll("#usageGroups .urow").length > 0', 'the usage');
     await page.run('scrollTo(0, 0), true');
     await page.shot('panel-site-account.png', { to: '#siteGroupsPart', margin: 16 });
+    // 用量: a day clicked, and a group of it opened to its models.
+    await page.run(`__docs.click([...document.querySelectorAll('#usageGrid .hc')].reverse().find(b => b.classList.contains('h4') || b.classList.contains('h3')))`);
+    await page.until(`!document.querySelector('#usageAll').hidden && document.querySelectorAll('#usageGroups .urow .uhead[aria-expanded]').length > 0`, 'the groups of the day');
+    await page.run(`__docs.click(document.querySelector('#usageGroups .urow .uhead[aria-expanded]'))`);
+    await page.until(`document.querySelectorAll('#usageGroups .umodel').length > 0`, 'the models of the group');
+    await page.run('scrollTo(0, 0), true');
+    await page.shot('panel-site-usage.png', { from: '.money', to: '#siteUsagePart', margin: 16 });
+    await page.run(`__docs.click(document.querySelector('#usageAll'))`);
+    await page.until(`document.querySelector('#usageAll').hidden`, 'all 13 weeks again');
     await page.shot('panel-site-keys.png', { from: ':has(> #siteKeyCount)', to: '.ver', margin: 16 });
 
     // 添加分组 on a group without a key: the panel asks before making one, then adds every model of the group.
     const row = `[...document.querySelectorAll('#siteGroups .grow')].find(r => r.querySelector('.gname')?.textContent === 'Claude Pro')`;
+    await page.marked('guide-group-add.png', [{ at: `${row}.querySelector('.gact button')`, n: 1 }], { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
     await page.run(`__docs.click(${row}.querySelector('.gact button'))`);
     await page.until(`Boolean(${row}?.querySelector('.gask'))`, 'the question under the group');
     await page.shot('panel-group-ask.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.marked('guide-group-ask.png', [{ at: `__docs.byText('button', '新建 Key 并选择模型', ${row})`, n: 1 }], { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
     await page.run(`__docs.click(__docs.byText('button', '新建 Key 并选择模型', ${row}))`);
     // The group's models open under its row; only the ticked ones go to ZCode.
     await page.until(`${row}?.querySelectorAll('#keyPick input[type=checkbox]').length > 0`, 'the group\'s models');
     await page.run(`__docs.tick('#keyPick', 2)`);
     await page.run('scrollTo(0, 0), true');
     await page.shot('panel-group-pick.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.marked('guide-group-pick.png', [{ at: `document.querySelector('#keyPick .list')`, n: 1, pad: 3 }, { at: `document.querySelector('#keyPickAdd')`, n: 2 }], { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
     await page.run(`__docs.click(document.querySelector('#keyPickAdd'))`);
     await page.until(`[...document.querySelectorAll('#keyPick .note')].some(n => n.textContent.includes('添加了') || n.classList.contains('fail'))`, 'the group to be added');
     await page.until(`!document.querySelector('#siteGroups button:disabled:not(#keyPickAdd)')`, 'the panel to be ready');
     await page.run('scrollTo(0, 0), true');
     await page.shot('panel-group-added.png', { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
+    await page.marked('guide-group-added.png', [{ at: `[...document.querySelectorAll('#keyPick .note')].find(n => n.textContent.includes('添加了'))`, n: 1 }], { from: '#siteGroupsPart', to: '#siteGroupsPart', margin: 8 });
 
     // A site key's models, opened under it and ticked.
     const key = `[...document.querySelectorAll('#siteKeys .svc')].find(k => k.querySelector('.svcname')?.textContent === 'Codex')`;
@@ -227,21 +282,39 @@ async function panelShots() {
     // 连接服务: an address and a key, the models found, a few ticked.
     await page.run(`__docs.click(document.querySelector('#connectTab'))`);
     await page.until('__docs.shown("#connectPage")', 'the connect page');
-    await page.run(`__docs.fill('#baseUrl', ${JSON.stringify(DEMO_SERVICE.baseUrl)}) && __docs.fill('#apiKey', ${JSON.stringify(DEMO_SERVICE.apiKey)}) && __docs.click(document.querySelector('#fetchBtn'))`);
+    await page.run(`__docs.fill('#baseUrl', ${JSON.stringify(DEMO_SERVICE.baseUrl)}) && __docs.fill('#apiKey', ${JSON.stringify(DEMO_SERVICE.apiKey)}) && (document.activeElement.blur(), scrollTo(0, 0), true)`);
+    await page.marked('guide-connect-form.png', [{ at: `document.querySelector('#connectTab')`, n: 1, pad: 3 }, { at: `document.querySelector('#baseUrl')`, n: 2, pad: 3 }, { at: `document.querySelector('#apiKey')`, n: 3, pad: 3 }, { at: `document.querySelector('#fetchBtn')`, n: 4, pad: 3 }], { to: '#connectForm', margin: 16 });
+    await page.run(`__docs.click(document.querySelector('#fetchBtn'))`);
     await page.until(`document.querySelectorAll('#list input[type=checkbox]').length >= 8`, 'the models');
     await page.run(`__docs.tick('#list', 3)`);
     await page.run('scrollTo(0, 0), true');
     await page.shot('panel-connect.png', { to: '#pickCard', margin: 16 });
+    await page.marked('guide-connect-pick.png', [{ at: `document.querySelector('#list')`, n: 1, pad: 3 }, { at: `document.querySelector('#importBtn')`, n: 2 }], { from: '#pickCard', to: '#pickCard', margin: 12 });
 
     // Added to ZCode: the services list with its keys behind dots, then one opened for 修改.
     await page.run(`__docs.click(document.querySelector('#importBtn'))`);
-    await page.until(`document.querySelector('#status')?.textContent.startsWith('已把')`, 'the import');
+    await page.until(`document.querySelector('#status')?.textContent.includes('添加了')`, 'the import');
     await page.until(`document.querySelectorAll('#savedList .svc').length >= 3`, 'the services list');
     await page.shot('panel-saved.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
     const service = `[...document.querySelectorAll('#savedList .svc')].find(s => s.textContent.includes('api.example.com'))`;
     await page.run(`__docs.click(__docs.byText('button', '修改', ${service}))`);
     await page.until(`Boolean(${service}?.querySelector('input'))`, 'the edit fields');
     await page.shot('panel-saved-edit.png', { from: '#savedCard', to: '#savedCard', margin: 8 });
+    await page.run(`__docs.click(__docs.byText('button', '取消', ${service}))`);
+
+    // The service's model count after the provider changed its list: its models are read at once and listed under it, a
+    // new one waiting unticked and a dropped one marked and unticked; ticking the new one and saving does both in one write.
+    await page.marked('guide-service-count.png', [{ at: `${service}.querySelector('button.svcmeta')`, n: 1, pad: 3 }], { from: '#savedCard', to: '#savedCard', margin: 8 });
+    demo.service.splice(demo.service.indexOf('deepseek-v4-pro'), 1, 'gpt-6-nano');
+    await page.run(`__docs.click(${service}.querySelector('button.svcmeta'))`);
+    await page.until(`document.querySelector('#svcPickAdd')?.textContent === '保存（移除 1 个）'`, 'the models of the service');
+    await page.run(`__docs.click(document.querySelector('#svcPick input[data-id="gpt-6-nano"]'))`);
+    await page.until(`document.querySelector('#svcPickAdd').textContent === '保存（添加 1 个、移除 1 个）'`, 'the save button');
+    await page.run(`document.querySelector('#svcPick .list').scrollTop = 0, true`);
+    await page.shot('panel-saved-models.png', { from: '#savedList .svc:has(#svcPick)', to: '#savedList .svc:has(#svcPick)', margin: 8 });
+    await page.marked('guide-service-pick.png', [{ at: `document.querySelector('#svcPick .list')`, n: 1, pad: 3 }, { at: `document.querySelector('#svcPickAdd')`, n: 2 }], { from: '#savedList .svc:has(#svcPick)', to: '#savedList .svc:has(#svcPick)', margin: 8 });
+    await page.run(`__docs.click(document.querySelector('#svcPickAdd'))`);
+    await page.until(`document.querySelector('#svcPick')?.textContent.includes('添加了 1 个模型、移除了 1 个模型')`, 'the save');
 
     // The footer once the host has found a newer version (an example number).
     await page.run(`__docs.hostSays({ type: 'update', version: '0.9.0', state: 'available', percent: 0 })`);
@@ -299,7 +372,52 @@ async function releaseShot() {
   }, { proxy: process.env.HTTPS_PROXY || process.env.https_proxy || '' });
 }
 
+// A screenshot already in docs/images with marks drawn over it at boxes { x, y, w, h } in its own pixels, numbered in order.
+async function annotate(page, source, file, boxes) {
+  const png = await fs.readFile(path.join(out, source)), width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+  await page.view(width, height, 1);
+  await page.go('data:text/html;charset=utf-8,' + encodeURIComponent(`<style>body{margin:0}#stage{position:relative;width:${width}px;height:${height}px}img{display:block}.t{position:absolute}</style><div id="stage"><img src="data:image/png;base64,${png.toString('base64')}" alt="">${boxes.map(b => `<div class="t" style="left:${b.x}px;top:${b.y}px;width:${b.w}px;height:${b.h}px"></div>`).join('')}</div>`));
+  await page.marked(file, boxes.map((b, i) => ({ at: `document.querySelectorAll('.t')[${i}]`, n: i + 1, pad: 4 })), { from: '#stage', to: '#stage', width });
+}
+
+// The README's guide from download to first use, with where to click marked: ZCode's own download page, this project's
+// GitHub and Gitee releases (live, through HTTPS_PROXY when set), and the installer's pages (marked over install-*.png).
+async function guideShots() {
+  await withEdge(async page => {
+    await page.view(1280, 820, 1.5);
+    await page.go('https://zcode.z.ai/cn');
+    const hero = `[...document.querySelectorAll('a, button')].find(e => e.textContent.trim().startsWith('立即下载'))`;
+    await page.until(`Boolean(${hero}) && document.querySelectorAll('#all-downloads a').length > 0`, 'the ZCode download page', 30000);
+    await page.run('scrollTo(0, 0), true');
+    await page.marked('guide-zcode-site.png', [{ at: hero, n: 1, pad: 6 }], 'screen');
+    const windows = `[...document.querySelectorAll('#all-downloads a')].find(a => /win-x64\\.exe$/.test(a.href))`;
+    await page.run(`document.querySelector('#all-downloads').scrollIntoView({ block: 'start' }), true`);
+    await page.marked('guide-zcode-all.png', [{ at: windows, n: 1 }], { from: '#all-downloads', to: '#all-downloads', margin: 24, width: 1280 });
+
+    const asset = `[...document.querySelectorAll('a')].find(a => /biubiuAI-Setup-.*\\.exe$/.test(a.getAttribute('href') || ''))`;
+    await page.go(`${REPO}/releases/latest`);
+    await page.until(`(document.querySelector('include-fragment[src*="expanded_assets"]')?.scrollIntoView({ block: 'center' }), Boolean(${asset}))`, 'the release assets', 60000);
+    // The release's title, then its Assets with the installer: the notes between them are left out.
+    await page.run(`(() => {
+      const row = ${asset}.closest('li') || ${asset}; row.id = 'docsAsset';
+      const list = row.closest('details') || row.parentElement; list.id ||= 'docsAssets';
+      return true;
+    })()`);
+    await page.marked('guide-github-assets.png', [{ at: `document.querySelector('#docsAsset')`, n: 1, pad: 3 }], { from: '#docsAssets', to: '#docsAssets', margin: 20, width: 1280 });
+
+    await page.go('https://gitee.com/drhhhao_0/Zcode-biubiuAI/releases');
+    await page.until(`Boolean(${asset})`, 'the Gitee release', 30000);
+    await page.run(`(${asset}.closest('.footer') || ${asset}.parentElement).id = 'docsGitee', ${asset}.scrollIntoView({ block: 'center' }), true`);
+    await page.marked('guide-gitee-assets.png', [{ at: asset, n: 1, pad: 4 }], { from: '#docsGitee', to: '#docsGitee', margin: 20, width: 760 });
+
+    // The installer's first page (安装) and its last (现在启动, 完成).
+    await annotate(page, 'install-1.png', 'guide-install-1.png', [{ x: 651, y: 510, w: 143, h: 52 }]);
+    await annotate(page, 'install-3.png', 'guide-install-3.png', [{ x: 50, y: 436, w: 218, h: 28 }, { x: 651, y: 510, w: 143, h: 52 }]);
+  }, { proxy: process.env.HTTPS_PROXY || process.env.https_proxy || '' });
+}
+
 await fs.mkdir(out, { recursive: true });
-if (process.argv.includes('--release')) await releaseShot();
+if (process.argv.includes('--guide')) await guideShots();
+else if (process.argv.includes('--release')) await releaseShot();
 else if (process.argv.includes('--tour')) await tourShots();
 else { await panelShots(); await tourShots(); }

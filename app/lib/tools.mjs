@@ -7,15 +7,17 @@
 // (with keyOnly, which the panel uses, site_add_group returns the key's id and adds no model).
 // site_delete_key deletes one site key on the site, and its services in ZCode, after the panel asked; it returns no key.
 // site_account with balanceOnly reads the balance alone, which the panel does every 30 seconds while it is shown.
+// site_usage reads what the account spent over the last 13 weeks (or one day of them), by day and group, or one group's models.
 import { PanelError } from './core.mjs';
 
-export const VERSION = '0.8.13';
-export const TOOL_NAMES = Object.freeze(['site_account', 'site_login', 'site_logout', 'site_add_group', 'site_remove_group', 'site_delete_key', 'list_providers', 'reveal_key', 'update_provider', 'delete_provider', 'fetch_models', 'get_models', 'test_model', 'import_models']);
+export const VERSION = '0.8.14';
+export const TOOL_NAMES = Object.freeze(['site_account', 'site_login', 'site_logout', 'site_add_group', 'site_remove_group', 'site_delete_key', 'site_usage', 'list_providers', 'reveal_key', 'update_provider', 'delete_provider', 'fetch_models', 'get_models', 'test_model', 'import_models']);
 export const PAGE_SIZE = 25;
 
 function summary(name, data) {
   switch (name) {
     case 'site_account': case 'site_login': return data.signedIn && !data.keys ? (data.error ? data.error : `已读取 ${data.site.name} 余额。`) : data.signedIn ? `已读取 ${data.site.name} 账户：${data.keys.length} 个 Key、${data.groups?.length || 0} 个分组${data.error ? `；${data.error}` : '。'}` : `尚未登录 ${data.site.name}。`;
+    case 'site_usage': return !data.signedIn ? `尚未登录 ${data.site.name}。` : data.error ? data.error : data.models ? `已读取分组的 ${data.models.length} 个模型的用量。` : `已读取${data.day ? ` ${data.day} 的` : '最近的'}用量。`;
     case 'site_logout': return `已退出 ${data.site.name}。`;
     case 'site_add_group': return data.keyId ? (data.createdKey ? `已在网站上为分组「${data.groupName}」新建 Key「${data.createdKey}」。` : `已找到分组「${data.groupName}」可用的 Key。`) : data.unchanged ? `分组「${data.groupName}」的模型已经都在 ZCode 里。` : `已把分组「${data.groupName}」的 ${data.added} 个模型添加到 ${data.providerName}${data.createdKey ? `，并在网站上新建了 Key「${data.createdKey}」` : ''}。`;
     case 'site_remove_group': return `已从 ZCode 删除分组「${data.groupName}」的 ${data.models} 个模型。`;
@@ -42,6 +44,7 @@ export async function callTool(biubiu, name, args = {}) {
     else if (name === 'site_add_group') data = await biubiu.siteAddGroup(input);
     else if (name === 'site_remove_group') data = await biubiu.siteRemoveGroup(input);
     else if (name === 'site_delete_key') data = await biubiu.siteDeleteKey(input);
+    else if (name === 'site_usage') data = await biubiu.siteUsage(input);
     else if (name === 'list_providers') data = await biubiu.providers();
     else if (name === 'reveal_key') data = await biubiu.revealKey(input);
     else if (name === 'update_provider') data = await biubiu.updateProvider(input);

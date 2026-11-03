@@ -31,9 +31,9 @@ using Microsoft.Win32;
 
 [assembly: System.Reflection.AssemblyTitle("biubiu AI")]
 [assembly: System.Reflection.AssemblyProduct("biubiu AI")]
-[assembly: System.Reflection.AssemblyVersion("0.8.13.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.13.0")]
-[assembly: System.Reflection.AssemblyInformationalVersion("0.8.13")]
+[assembly: System.Reflection.AssemblyVersion("0.8.14.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.14.0")]
+[assembly: System.Reflection.AssemblyInformationalVersion("0.8.14")]
 // build/companion-dev/SiteWindowCheck drives the site window against a stand-in site.
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("SiteWindowCheck")]
 
@@ -41,7 +41,7 @@ namespace BiubiuAI
 {
     static class Program
     {
-        public const string Version = "0.8.13";
+        public const string Version = "0.8.14";
         public const string ShowEventName = @"Local\BiubiuAI.Companion.Show";
         public const string QuitEventName = @"Local\BiubiuAI.Companion.Quit";
         public const string CollapseEventName = @"Local\BiubiuAI.Companion.Collapse";

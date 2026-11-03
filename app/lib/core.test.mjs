@@ -190,7 +190,7 @@ test('an import fetched before the key was changed in the services list does not
   assert.equal(JSON.parse(await fs.readFile(configPath, 'utf8')).config.providerConfigRules.providerRules[0].config.access.apiKey, 'typed-secret', 'the key a session brings may be imported again');
 });
 test('only the panel tools are callable and unknown names fail without throwing', async () => {
-  assert.deepEqual([...TOOL_NAMES].sort(), ['delete_provider', 'fetch_models', 'get_models', 'import_models', 'list_providers', 'reveal_key', 'site_account', 'site_add_group', 'site_delete_key', 'site_login', 'site_logout', 'site_remove_group', 'test_model', 'update_provider']);
+  assert.deepEqual([...TOOL_NAMES].sort(), ['delete_provider', 'fetch_models', 'get_models', 'import_models', 'list_providers', 'reveal_key', 'site_account', 'site_add_group', 'site_delete_key', 'site_login', 'site_logout', 'site_remove_group', 'site_usage', 'test_model', 'update_provider']);
   for (const name of ['open_biubiu_ai', 'nope', undefined]) {
     const r = await callTool(null, name);
     assert.equal(r.isError, true); assert.equal(r.content[0].text, '未知工具。');
@@ -210,8 +210,8 @@ test('simplified panel keeps the core flow; models are tested, not tuned', async
   assert.match(html, /id="pickCard" hidden/); assert.match(html, /id="search"[^>]*hidden/);
   // biubiu AI sets no model parameter by hand any more (they are changed in ZCode); 测试 stays, beside each model.
   for (const gone of ['advancedBtn', '调整参数', '还原识别值', 'modelSettings', 'function editor(', 'class="chip']) assert.ok(!html.includes(gone), gone);
-  assert.equal(html.split("call('test_model', { sessionId: ").length, 3, 'one 测试 on each page, with the model and nothing else');
-  assert.match(html, /line\.append\(row, testLink\(m, '测试', runTest\)\)/);
+  assert.equal(html.split("call('test_model', { sessionId: ").length, 4, 'one 测试 in each model list, with the model and nothing else');
+  assert.match(html, /line\.append\(row\); if \(!m\.gone\) line\.append\(testLink\(m, '测试', runTest\)\)/);
   for (const removed of ['class="hero"', 'empty-art', 'sourceNames', 'selectedTab', ['MODEL', 'HARBOR'].join(' ')]) assert.ok(!html.includes(removed), removed);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]; assert.equal(scripts.length, 1); assert.doesNotThrow(() => new vm.Script(scripts[0][1]));
   for (const tool of TOOL_NAMES) assert.ok(html.includes(`'${tool}'`), tool);
@@ -572,25 +572,76 @@ test('a site key\'s models open under it on the site page and are added from the
   assert.deepEqual(ticks().map(([id]) => id), ['claude-x']);
   assert.equal(html.split("call('site_delete_key'").length, 2);
 });
-test('an imported service shows its model names on click, without a request, and keeps them open across re-renders', async () => {
+test('an imported service\'s model count reads its models at once and lists them to tick under it; saving adds and removes in one write', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
-  const start = html.indexOf('  function serviceItem('), source = html.slice(start, html.indexOf('\n  }\n', start) + 4);
-  const node = tag => ({ tag, children: [], attrs: {}, append(...n) { this.children.push(...n); }, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] ?? null; } });
+  const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
+  const all = (n, match) => [...(match(n) ? [n] : []), ...n.children.flatMap(c => all(c, match))];
+  let focused = null;
+  const scrolled = [];
+  const node = tag => ({ tag, children: [], attrs: {}, dataset: {}, style: {}, hidden: false, disabled: false,
+    append(...n) { for (const c of n) c.parentElement = this; this.children.push(...n); }, replaceChildren(...n) { this.children = []; this.append(...n); }, setAttribute(k, v) { this.attrs[k] = String(v); }, focus() { focused = this; }, scrollIntoView(options) { scrolled.push(options.block); },
+    querySelectorAll(selector) { return selector === '[data-focus]' ? all(this, c => c.dataset.focus) : all(this, c => c.tag === 'input'); } });
   const el = (tag, cls, text) => { const n = node(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
-  const calls = [], changes = [], openModels = new Set(), find = (n, tag) => n.tag === tag ? n : n.children.map(c => find(c, tag)).find(Boolean);
-  const serviceChanges = p => { changes.push(p.id); return node('div'); };
-  const serviceItem = vm.runInNewContext(`(${source.trim()})`, { el, openModels, serviceChanges, MASK: '•', call: async name => { calls.push(name); return {}; } });
-  const p = { id: 'svc', name: '服务', baseUrl: 'https://svc.test/v1', hasKey: false, modelCount: 2, models: ['m-2', 'm-1'] };
-  let item = serviceItem(p, 0), toggle = find(item, 'button'), list = find(item, 'ul');
-  assert.equal(toggle.textContent, '2 个模型'); assert.equal(toggle.attrs['aria-expanded'], 'false'); assert.equal(toggle.attrs['aria-controls'], list.id); assert.equal(list.hidden, true);
-  assert.deepEqual(list.children.map(li => li.textContent), ['m-2', 'm-1']);
-  toggle.onclick(); assert.equal(toggle.attrs['aria-expanded'], 'true'); assert.equal(list.hidden, false);
-  item = serviceItem(p, 0); assert.equal(find(item, 'ul').hidden, false, 'still open after the list is rebuilt');
-  find(item, 'button').onclick(); assert.equal(find(item, 'ul').hidden, true); assert.equal(openModels.size, 0);
-  const older = serviceItem({ ...p, models: undefined }, 0);
-  assert.equal(find(older, 'button'), undefined); assert.equal(find(older, 'ul'), undefined, 'a server without model names leaves the count as text');
-  assert.deepEqual(changes, ['svc', 'svc'], 'nor does it get 修改 / 删除, which that server cannot do');
-  assert.deepEqual(calls, []);
+  const els = { savedCard: node('section'), savedCount: node('span'), savedList: node('div'), savedProvider: { value: '' } };
+  const calls = [], answers = {}, settle = () => new Promise(resolve => setImmediate(resolve)), changes = [];
+  const ctx = { el, $: id => id === 'svcPick' ? all(els.savedList, c => c.id === 'svcPick')[0] || null : id === 'svcPickAdd' ? all(els.savedList, c => c.id === 'svcPickAdd')[0] || null : els[id],
+    MASK: '•', window: {}, busy: false, action: '', bridge: () => {}, svcPick: null, providers: [], keyEye: () => node('span'), status() {}, pickSaved() { changes.push('form'); },
+    serviceChanges: p => { changes.push(p.id); return node('div'); }, describe: v => v.contextWindow ? `上下文 ${v.contextWindow}` : '未识别参数',
+    setBusy(value, kind = '') { ctx.busy = value; ctx.action = value ? kind : ''; }, loadProviders: async () => { calls.push(['list_providers']); ctx.renderServices(); },
+    call: async (name, args) => { calls.push([name, JSON.parse(JSON.stringify(args))]); const answer = answers[name]; if (answer instanceof Error) throw answer; return structuredClone(answer); } };
+  vm.runInNewContext(['renderServices', 'serviceItem', 'svcRows', 'svcChanges', 'svcAddButton', 'revealSvcPick', 'openSvcPick', 'saveSvcPick', 'testSvc', 'svcModels', 'modelChanges', 'saveLabel', 'allModels', 'testLink', 'testNote'].map(source).join('\n'), ctx);
+  const p = { id: 'svc', name: '服务', baseUrl: 'https://svc.test/v1', protocol: 'openai-chat-completions', hasKey: true, modelCount: 3, models: ['m-a', 'm-old', 'm-base'] };
+  ctx.providers = [p];
+  const item = () => els.savedList.children[0], toggle = () => all(item(), c => c.className === 'svcmeta')[0];
+  const ticks = () => all(item(), c => c.type === 'checkbox').map(t => [t.dataset.id, t.checked, t.disabled]), save = () => all(item(), c => c.id === 'svcPickAdd')[0];
+  const notes = () => all(item(), c => c.className === 'note' || c.className === 'note fail').map(c => c.textContent);
+
+  ctx.renderServices();
+  assert.deepEqual([toggle().tag, toggle().textContent, toggle().attrs['aria-expanded']], ['button', '3 个模型', 'false']);
+  assert.deepEqual([calls, changes], [[], ['svc']], 'nothing is read until the count is clicked');
+
+  // The count reads the service's models with its saved key: ones in ZCode ticked, a new one waiting, a dropped one last.
+  answers.fetch_models = { sessionId: 's1', count: 3, nextOffset: null, missing: ['m-old'], models: [{ id: 'm-a', metadata: { contextWindow: 200000 }, inZCode: true }, { id: 'm-base', metadata: {}, inZCode: true, builtin: true }, { id: 'm-new', metadata: {} }] };
+  toggle().onclick();
+  assert.deepEqual([ctx.busy, all(item(), c => c.className === 'empty').map(c => c.textContent), toggle().attrs['aria-expanded']], [true, ['正在读取模型…'], 'true']);
+  await settle();
+  assert.deepEqual(calls[0], ['fetch_models', { baseUrl: 'https://svc.test/v1', protocol: 'openai-chat-completions', existingProviderId: 'svc' }]);
+  assert.deepEqual(ticks(), [['m-a', true, false], ['m-base', true, true], ['m-new', false, false], ['m-old', false, false]], 'a built-in model stays ticked; one the service dropped starts unticked');
+  assert.equal(all(item(), c => c.className === 'found')[0].textContent, '服务 3 个 · 在用 2 个 · 停供 1 个');
+  assert.match(all(item(), c => c.className === 'meta').at(-1).textContent, /服务已不再提供/);
+  assert.match(all(item(), c => c.className === 'meta')[1].textContent, /^ZCode 内置/);
+  assert.equal(save().textContent, '保存（移除 1 个）'); assert.equal(focused, toggle(), 'focus stays on the count'); assert.ok(scrolled.includes('nearest'));
+  assert.equal(all(item(), c => c.tag === 'button' && c.dataset.test === 'm-old').length, 0, 'a dropped model cannot be tested');
+
+  // Ticking redraws the button; unticking every model is refused before it is sent.
+  const tick = id => { const t = all(item(), c => c.type === 'checkbox' && c.dataset.id === id)[0]; t.checked = !t.checked; t.onchange(); };
+  tick('m-new'); assert.equal(save().textContent, '保存（添加 1 个、移除 1 个）');
+  tick('m-a'); tick('m-new'); assert.equal(save().textContent, '保存（移除 2 个）', 'the built-in model keeps the service from emptying');
+  tick('m-a'); tick('m-new');
+
+  // Saving sends both lists in one write, then the list stays open as ZCode has it now.
+  answers.import_models = { added: 1, removed: 1, providerName: '服务' };
+  save().onclick(); await settle(); await settle();
+  assert.deepEqual(calls.slice(1), [['import_models', { sessionId: 's1', modelIds: ['m-new'], removeModelIds: ['m-old'], providerName: '服务' }], ['list_providers']]);
+  assert.deepEqual(ticks(), [['m-a', true, false], ['m-base', true, true], ['m-new', true, false]]);
+  assert.equal(save().textContent, '与 ZCode 一致'); assert.equal(save().disabled, true);
+  assert.ok(notes().some(n => n.startsWith('添加了 1 个模型、移除了 1 个模型')), JSON.stringify(notes()));
+  assert.equal(focused, save());
+
+  // A refusal shows under the list; the count closes the list again.
+  tick('m-a'); answers.import_models = new Error('「m-a」还是 ZCode 的默认模型');
+  save().onclick(); await settle();
+  assert.ok(notes().includes('「m-a」还是 ZCode 的默认模型'));
+  toggle().onclick(); assert.equal(ctx.svcPick, null); assert.equal(all(item(), c => c.className === 'keypick').length, 0);
+
+  // A service that cannot be read says why, with 重试, above the model names ZCode has for it.
+  answers.fetch_models = new Error('未找到可用的模型列表');
+  toggle().onclick(); await settle();
+  assert.deepEqual([notes(), all(item(), c => c.tag === 'li').map(li => li.textContent), all(item(), c => c.tag === 'button' && c.textContent === '重试').length], [['未找到可用的模型列表'], ['m-a', 'm-old', 'm-base'], 1]);
+
+  // A local server without model names leaves the count as text, with neither the list nor 修改 / 删除.
+  changes.length = 0; ctx.svcPick = null; ctx.providers = [{ ...p, models: undefined }]; ctx.renderServices();
+  assert.deepEqual([toggle().tag, changes], ['span', []]);
 });
 test('a service is changed or deleted from its own item: the key field starts empty and deleting asks first', async () => {
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
@@ -602,7 +653,7 @@ test('a service is changed or deleted from its own item: the key field starts em
   const button = (n, text) => all(n, c => c.tag === 'button' && c.textContent === text)[0];
   const settle = () => new Promise(resolve => setImmediate(resolve)), submit = form => form.onsubmit({ preventDefault() {} });
   const calls = [], statuses = [];
-  const ctx = { el, busy: false, openModels: new Set(['svc']), window: {}, $: () => ({ value: '' }), eyeIcons: () => node('svg'), eye: (b, shown) => b.setAttribute('aria-pressed', String(shown)),
+  const ctx = { el, busy: false, svcPick: { id: 'svc' }, window: {}, $: () => ({ value: '' }), eyeIcons: () => node('svg'), eye: (b, shown) => b.setAttribute('aria-pressed', String(shown)),
     status: text => statuses.push(text), render() {}, pickSaved() {}, setBusy: value => { ctx.busy = value; }, loadProviders: async () => { calls.push(['list_providers']); },
     call: async (name, args) => { calls.push([name, { ...args }]); return { providerName: '服务', keyChanged: true }; } };
   const serviceChanges = vm.runInNewContext(`(${source.trim()})`, ctx);
@@ -616,7 +667,7 @@ test('a service is changed or deleted from its own item: the key field starts em
   assert.deepEqual(calls, [], 'nothing is deleted until it is confirmed');
   button(foot, '删除').onclick(); button(foot, '确认删除').onclick(); await settle();
   assert.deepEqual(calls, [['delete_provider', { providerId: 'svc' }], ['list_providers']]);
-  assert.equal(ctx.openModels.has('svc'), false); assert.match(statuses.at(-1), /已从 ZCode 删除「服务」/); assert.equal(ctx.busy, false);
+  assert.equal(ctx.svcPick, null, 'the model list of a deleted service closes'); assert.match(statuses.at(-1), /已从 ZCode 删除「服务」/); assert.equal(ctx.busy, false);
 
   calls.length = 0;
   const info = node('dl'), edit = serviceChanges(p, 0, info);
@@ -660,6 +711,21 @@ test('reveal_key returns one listed provider key on request and nothing else', a
   }
   assert.equal(await fs.readFile(configPath, 'utf8'), before);
 });
+test('a saved service read again marks the models it has, lists the ones the service dropped, and saving adds and removes them', async t => {
+  const { biubiu, configPath } = await fixture(t);
+  const doc = seed(); const p = doc.config.providerConfigRules.providerRules[0]; p.config.personalModelIds = ['old-model', 'gone-model']; p.config.modelOrder = ['old-model', 'gone-model'];
+  doc.config.modelConfigRules.providerModelRules.push({ providerId: 'mine', modelId: 'gone-model', config: { enabled: true } });
+  await fs.writeFile(configPath, JSON.stringify(doc));
+  const r = await biubiu.fetchModels({ baseUrl: 'https://provider.test', protocol: 'anthropic-messages', existingProviderId: 'mine' });
+  assert.deepEqual(r.models.map(m => [m.id, Boolean(m.inZCode), Boolean(m.builtin)]), [['new-model', false, false], ['old-model', true, false]]);
+  assert.deepEqual(r.missing, ['gone-model']);
+  const done = await biubiu.importModels({ sessionId: r.sessionId, modelIds: ['new-model'], removeModelIds: ['gone-model'], providerName: '现有供应商' });
+  assert.deepEqual([done.added, done.removed], [1, 1]);
+  const saved = JSON.parse(await fs.readFile(configPath, 'utf8')), rule = saved.config.providerConfigRules.providerRules[0];
+  assert.deepEqual(rule.config.personalModelIds, ['old-model', 'new-model']);
+  assert.ok(!saved.config.modelConfigRules.providerModelRules.some(x => x.modelId === 'gone-model'), 'the removed model takes its settings along');
+  await assert.rejects(biubiu.importModels({ sessionId: r.sessionId, modelIds: [], removeModelIds: ['old-model'] }), /默认模型/);
+});
 test('template-only provider resolves its URL and reuses its key without duplicating built-in models', async t => {
   const requests = [];
   const { biubiu, configPath } = await fixture(t, async (url, opts) => { requests.push(url); assert.equal(opts.headers.Authorization, 'Bearer stored-secret'); return url === 'https://api.deepseek.com/models' ? Response.json({ data: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }] }) : new Response('', { status: 404 }); });
@@ -669,6 +735,7 @@ test('template-only provider resolves its URL and reuses its key without duplica
   assert.deepEqual(listed.models, ['deepseek-flash', 'deepseek-v4-pro']);
   const r = await biubiu.fetchModels({ baseUrl: listed.baseUrl, protocol: listed.protocol, existingProviderId: listed.id });
   assert.ok(requests.includes('https://api.deepseek.com/models'));
+  assert.ok(r.models.every(m => m.inZCode && m.builtin), 'built-in models are marked, so the panel does not offer to take them out');
   const imported = await biubiu.importModels({ sessionId: r.sessionId, modelIds: r.models.map(m => m.id) }); assert.equal(imported.added, 0);
   const saved = JSON.parse(await fs.readFile(configPath, 'utf8')); assert.deepEqual(saved.config.providerConfigRules.providerRules[0].config.personalModelIds, []); assert.equal(saved.config.providerConfigRules.providerRules[0].config.api, undefined);
 });
@@ -676,7 +743,7 @@ test('the site page opens with the account and its total top-ups beside 刷新 a
   const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
   const page = html.slice(html.indexOf('<section class="part" id="siteCard">'), html.indexOf('<div class="page" id="connectPage"'));
   assert.ok(page.length > 0 && !page.includes('<h2'), 'no heading: the tab names the site, and the link and the login note its address');
-  const order = ['id="siteLogin"', 'id="siteAccount"', 'id="siteInfo"', 'id="siteRefresh"', 'id="siteLogout"', 'class="balance"', 'id="siteBalance"', 'id="siteOpen"', 'id="siteError"', 'id="siteGroupsPart"', 'id="siteKeys"'].map(marker => page.indexOf(marker));
+  const order = ['id="siteLogin"', 'id="siteAccount"', 'id="siteInfo"', 'id="siteRefresh"', 'id="siteLogout"', 'class="balance"', 'id="siteBalance"', 'id="siteOpen"', 'id="usageHead"', 'id="usageCost"', 'id="usageGrid"', 'id="siteError"', 'id="siteUsagePart"', 'id="siteGroupsPart"', 'id="siteKeys"'].map(marker => page.indexOf(marker));
   assert.ok(order.every((at, i) => at > 0 && (i === 0 || at > order[i - 1])), JSON.stringify(order));
   assert.match(page, /<button class="link siteopen" id="siteOpen" type="button" hidden>/);
   const source = name => { const at = html.indexOf(`  function ${name}(`); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
@@ -749,4 +816,30 @@ test('使用教程 walks a new user from signing in to a group\'s models in ZCod
   assert.equal(next('zcode'), 'zcode', 'the last step waits for 完成');
   ctx.pick = null;
   assert.equal(next('models'), 'group', 'folding the models away goes back to choosing a group');
+});
+
+test('the account card shows the balance beside what was spent, over 13 weeks of GitHub-green days; 按分组 opens a group\'s models', async () => {
+  const html = await fs.readFile(path.join(root, 'panel.html'), 'utf8');
+  const source = name => { const at = html.search(new RegExp(`\\n  (async )?function ${name}\\(`)) + 1; assert.ok(at > 0, name); return html.slice(at, html.indexOf('\n  }\n', at) + 4); };
+  // The balance on the left and the spending on the right, in the account card, before the heat map.
+  const card = html.slice(html.indexOf('<div class="acct">'), html.indexOf('<div class="note fail" id="siteError"'));
+  assert.ok(card.indexOf('class="money"') < card.indexOf('id="siteBalance"') && card.indexOf('id="siteBalance"') < card.indexOf('id="usageCost"') && card.indexOf('id="usageCost"') < card.indexOf('id="usageGrid"'), 'one card');
+  assert.match(html, /:root\{--h0:var\(--fill\);--h1:#9be9a8;--h2:#40c463;--h3:#30a14e;--h4:#216e39\}/, 'GitHub\'s greens, light');
+  assert.match(html, /html\[data-theme=dark\]\{--h1:#0e4429;--h2:#006d32;--h3:#26a641;--h4:#39d353\}/, 'and dark');
+  assert.match(html, /const FOLDS = \{ siteUsageFold: 'siteUsageBody', siteGroupsFold/, '按分组 folds like 分组 and 站内 Key');
+  // Read after a full read of the account and after signing in, never with the 30-second balance; signing out drops it.
+  assert.match(source('loadSite'), /renderSite\(\); if \(site\.signedIn\) loadUsage\(\);/);
+  assert.match(html, /finally \{ setBusy\(false\); renderSite\(\); if \(seq === siteSeq && site\?\.signedIn\) loadUsage\(\); \}/);
+  assert.ok(!source('readBalance').includes('usage') && !source('readBalance').includes('Usage'));
+  assert.match(html, /asking = keyAsking = pick = null; resetUsage\(\);/);
+  assert.equal(html.split("call('site_usage'").length, 2, 'one place calls the tool');
+
+  const ctx = { money: n => typeof n === 'number' && Number.isFinite(n) ? n.toFixed(2) : '—' };
+  vm.runInNewContext(html.slice(html.indexOf('  const WEEKS = 13'), html.indexOf('  const usageReady')).replace(/^  let .*$/m, '').replace(/^  const usageDays.*$/m, '') + ';this.f = { usd, share, plusDays, dayName, WEEKS };', ctx);
+  const { usd, share, plusDays, dayName, WEEKS } = ctx.f;
+  assert.equal(WEEKS, 13);
+  assert.deepEqual([usd(0), usd(0.0007), usd(0.005), usd(1.5366)], ['0.00', '<0.01', '0.01', '1.54']);
+  assert.deepEqual([share(0, 0), share(1, 0), share(0.0007, 1.97), share(0.15, 1.97), share(1, 1)], ['0%', '0%', '<1%', '8%', '100%']);
+  assert.deepEqual([plusDays('2026-08-10', 90), plusDays('2026-12-31', 1)], ['2026-11-08', '2027-01-01']);
+  assert.deepEqual([dayName('2026-10-30'), dayName('2026-11-08')], ['10月30日 周五', '11月8日 周日']);
 });

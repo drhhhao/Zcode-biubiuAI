@@ -185,7 +185,7 @@ test('server exits when the host closes its stdin', async t => {
 test('helpers compare secrets in constant time and refuse a panel without inline assets', async () => {
   assert.equal(sameSecret('abc', 'abc'), true); assert.equal(sameSecret('abc', 'abd'), false); assert.equal(sameSecret(undefined, 'abc'), false); assert.equal(sameSecret('ab', 'abc'), false);
   assert.throws(() => renderPanel('<html></html>', { token: 't'.repeat(32), nonce: 'n' }));
-  assert.deepEqual([...APP_TOOLS].sort(), ['delete_provider', 'fetch_models', 'get_models', 'import_models', 'list_providers', 'reveal_key', 'site_account', 'site_add_group', 'site_delete_key', 'site_login', 'site_logout', 'site_remove_group', 'test_model', 'update_provider']);
+  assert.deepEqual([...APP_TOOLS].sort(), ['delete_provider', 'fetch_models', 'get_models', 'import_models', 'list_providers', 'reveal_key', 'site_account', 'site_add_group', 'site_delete_key', 'site_login', 'site_logout', 'site_remove_group', 'site_usage', 'test_model', 'update_provider']);
 });
 
 test('panel supports the companion bridge and the preview, and no longer the ZCode plugin host', async () => {

@@ -3,7 +3,7 @@
 // stay in this module's memory: overview() returns each key's and group's id, name, state and the ZCode address it would
 // use, and a key itself leaves only through key(id), which reveal_key (the eye button) and fetch_models use. groupKey()
 // picks the key a group is added with, and makes one on the site only when the panel asked the user first; deleteKey()
-// deletes one on the site, only after the panel asked too.
+// deletes one on the site, only after the panel asked too. usage() reads what the account spent, by day, group and model.
 // The sign-in (access and refresh token) lives in memory. When the desktop host passes a 32-byte session key, it is
 // also saved AES-256-GCM encrypted in the data directory, so it survives a restart; the preview and tests keep it in memory.
 // handoff() gives the site window the desktop host opens an access token, never the refresh token (see there).
@@ -46,6 +46,13 @@ const fatal = r => r.status === 'rejected' && !(r.reason instanceof PanelError &
 const tokens = data => typeof data?.accessToken === 'string' && data.accessToken && data.accessToken.length <= 8192 && typeof data.refreshToken === 'string' && data.refreshToken && data.refreshToken.length <= 8192 ? { accessToken: data.accessToken, refreshToken: data.refreshToken } : null;
 function expiry(token) {
   try { const exp = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).exp; return Number.isFinite(exp) ? exp * 1000 : null; } catch { return null; }
+}
+// The usage the panel shows: USAGE_WEEKS whole weeks, Monday first, the last one this week, up to today.
+export const USAGE_WEEKS = 13;
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export function usageRange(now = new Date()) {
+  const first = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (now.getDay() + 6) % 7 - 7 * (USAGE_WEEKS - 1));
+  return { start: ymd(first), end: ymd(now) };
 }
 async function readBody(response) {
   const reader = response.body?.getReader();
@@ -149,6 +156,39 @@ export class Site {
     }
   }
   balanceSummary(pid, accountId) { return this.api(`/client/platforms/${pid}/balance-summary?accountId=${encodeURIComponent(accountId)}`); }
+  // What the account spent, as the site's own usage page reads it, over the USAGE_WEEKS weeks up to today (whole weeks
+  // from a Monday, the machine's own date): each day and each group, with what was billed (actualCost), tokens and
+  // requests. With day, that one day of them. With groupId, that group's models instead, over the weeks or the day.
+  // A failed read comes back in error; only a lost sign-in signs out, as in overview().
+  async usage({ day, groupId } = {}) {
+    await this.restore();
+    if (!this.session) return { signedIn: false, site: this.info() };
+    const { start, end } = usageRange();
+    if (day != null && (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day) || day < start || day > end)) throw new PanelError(`只能查看最近 ${USAGE_WEEKS} 周里的某一天。`);
+    if (groupId != null && !((typeof groupId === 'string' || typeof groupId === 'number') && /^\d{1,12}$/.test(String(groupId)))) throw new PanelError('没有找到这个分组，请刷新账户后再试。');
+    const base = { signedIn: true, site: this.info(), start, end, ...(day ? { day } : {}) };
+    try {
+      const { pid, accountId } = await this.place();
+      const query = new URLSearchParams({ customerAccountId: accountId, startDate: day || start, endDate: day || end });
+      const spent = x => ({ cost: amount(x?.actualCost) ?? 0, tokens: amount(x?.totalTokens) ?? 0, requests: amount(x?.requests) ?? 0 });
+      const byCost = (a, b) => b.cost - a.cost;
+      if (groupId != null) {
+        query.set('groupId', String(groupId));
+        const data = await this.api(`/client/platforms/${pid}/usage/dashboard/models?${query}`);
+        return { ...base, groupId: String(groupId), models: list(data?.models).filter(m => m && typeof m === 'object').map(m => ({ name: clean(m.model) || '未知模型', ...spent(m) })).sort(byCost) };
+      }
+      query.set('granularity', 'day');
+      const data = await this.api(`/client/platforms/${pid}/usage/dashboard/snapshot-v2?${query}`);
+      const days = list(data?.trend).filter(d => typeof d?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date)).map(d => ({ date: d.date, ...spent(d) }));
+      const groups = list(data?.groups).filter(g => g && typeof g === 'object').map(g => ({ id: g.groupId == null ? null : String(g.groupId), name: clean(g.groupName) || '无分组', ...spent(g) })).sort(byCost);
+      const total = days.reduce((t, d) => ({ cost: t.cost + d.cost, tokens: t.tokens + d.tokens, requests: t.requests + d.requests }), { cost: 0, tokens: 0, requests: 0 });
+      return { ...base, total, days, groups };
+    } catch (e) {
+      if (e instanceof SignedOut) return { signedIn: false, site: this.info(), expired: true };
+      if (e instanceof PanelError) return { ...base, error: `用量读取失败：${e.message}` };
+      throw e;
+    }
+  }
   async listKeys(pid, accountId) {
     const route = `/client/platforms/${pid}/api-keys`, account = encodeURIComponent(accountId);
     const page = n => this.api(`${route}?customerAccountId=${account}&page=${n}&pageSize=${PAGE_SIZE}&keyScope=active`);

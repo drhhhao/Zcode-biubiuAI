@@ -126,6 +126,7 @@ export class BiubiuAI {
   async siteAccount({ balanceOnly = false } = {}) { const site = this.requireSite(); return balanceOnly === true ? site.balance() : this.markInZCode(await site.overview()); }
   async siteLogin(input) { return this.markInZCode(await this.requireSite().login(input)); }
   siteLogout() { return this.requireSite().logout(); }
+  siteUsage({ day, groupId } = {}) { return this.requireSite().usage({ day, groupId }); }
   // Marks each site key, and each site group, with the ZCode services that already hold it; the comparison stays on the server.
   // A group also names, by id only, the site key (keyId) the panel opens its models with, under the group, to choose which
   // of them ZCode uses: the key its service in ZCode uses, or for a group not in ZCode one of its keys that works.
@@ -274,16 +275,17 @@ export class BiubiuAI {
       let models;
       try { models = parseModels(await boundedJson(response)); } catch (e) { failures.push(e instanceof PanelError ? e.message : '无法读取响应'); continue; }
       // The service an import would add to; models it already has come back marked inZCode, and the ones it has that the
-      // service no longer lists come back in missing, so the panel can offer to take them out.
-      let providerId = existingProviderId, templateId, savedRules = [], saved = new Set(), personal = [];
+      // service no longer lists come back in missing, so the panel can offer to take them out; ZCode's built-in ones are
+      // marked builtin, as they cannot be taken out here.
+      let providerId = existingProviderId, templateId, savedRules = [], saved = new Set(), personal = [], builtin = new Set();
       try {
         const { doc } = await readConfig(this.configPath);
         const candidate = doc.config.providerConfigRules.providerRules.find(p => p.providerId === existingProviderId) || doc.config.providerConfigRules.providerRules.find(p => p.config?.api?.baseUrl && normalizeUrl(p.config.api.baseUrl) === baseUrl && p.config.api.type === protocol && keyMatches(p, { siteKey, apiKey }));
         providerId = candidate?.providerId; templateId = candidate?.templateId;
         savedRules = [...doc.config.modelConfigRules.providerModelRules, ...doc.config.modelConfigRules.manualProviderModelRules];
-        if (candidate) { const config = (await this.resolvedProvider(candidate)).config; saved = new Set(providerModels(config)); personal = [...saved].filter(id => config.personalModelIds?.includes(id)); }
+        if (candidate) { const config = (await this.resolvedProvider(candidate)).config; saved = new Set(providerModels(config)); personal = [...saved].filter(id => config.personalModelIds?.includes(id)); builtin = new Set(config.builtinModelIds || []); }
       } catch {}
-      models = (await this.metadataCatalog.enrich(models, { baseUrl, protocol, providerId, templateId, savedRules })).map(m => saved.has(m.id) ? { ...m, inZCode: true } : m);
+      models = (await this.metadataCatalog.enrich(models, { baseUrl, protocol, providerId, templateId, savedRules })).map(m => saved.has(m.id) ? { ...m, inZCode: true, ...(builtin.has(m.id) ? { builtin: true } : {}) } : m);
       const listedIds = new Set(models.map(m => m.id)), missing = personal.filter(id => !listedIds.has(id));
       const now = Date.now();
       for (const [id, s] of this.sessions) if (now - s.created > 30 * 60 * 1000) this.sessions.delete(id);

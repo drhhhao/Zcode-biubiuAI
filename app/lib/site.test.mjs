@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { BiubiuAI } from './core.mjs';
-import { Site, SITE, SESSION_FILE } from './site.mjs';
+import { Site, SITE, SESSION_FILE, usageRange } from './site.mjs';
 import { callTool } from './tools.mjs';
 import { MetadataCatalog } from './metadata.mjs';
 
@@ -70,6 +70,16 @@ function hub({ keys = someKeys(), groups = someGroups(), neverSynced = false } =
       const key = siteKey(state.nextKey++, group.platform, { name: body.name, groupName: group.name });
       state.keys.push(key); group.keyIds.push(key.id);
       return Response.json({ id: key.id, name: key.name, key: key.key, status: 'active' });
+    }
+    // The usage page's reads: the days and groups of a range, and the models of a range, of one group with groupId.
+    if (u.pathname === '/api/client/platforms/5/usage/dashboard/snapshot-v2' && u.searchParams.get('customerAccountId') === '9') {
+      if (state.failUsage) return fail(state.failUsage, '用量统计暂不可用');
+      return Response.json({ startDate: u.searchParams.get('startDate'), endDate: u.searchParams.get('endDate'), granularity: 'day', trend: [
+        { date: u.searchParams.get('endDate'), requests: 3, totalTokens: 1200, cost: 1, actualCost: '0.5' }, { date: u.searchParams.get('startDate'), requests: 1, totalTokens: 100, cost: 0.5, actualCost: 0.25 }, { date: 'yesterday', requests: 9, actualCost: 9 }],
+      groups: [{ groupId: 72, groupName: 'GPT 组 ', requests: 1, totalTokens: 100, actualCost: 0.25 }, { groupId: 71, groupName: 'Claude 组', requests: 3, totalTokens: 1200, actualCost: 0.5 }, { groupId: null, groupName: '', requests: 0, totalTokens: 0, actualCost: 0 }] });
+    }
+    if (u.pathname === '/api/client/platforms/5/usage/dashboard/models' && u.searchParams.get('customerAccountId') === '9') {
+      return Response.json({ models: [{ model: 'claude-b', requests: 1, totalTokens: 200, actualCost: 0.1 }, { model: ' claude-a ', requests: 2, totalTokens: 1000, actualCost: 0.4 }, null] });
     }
     return fail(404, 'not found');
   };
@@ -763,4 +773,49 @@ test('添加 in the panel only finds or makes the group\'s key, by keyOnly, and 
   const account = (await callTool(biubiu, 'site_account')).structuredContent;
   assert.equal(account.groups.find(g => g.id === '74').keyId, '100');
   assert.ok(account.keys.some(k => k.id === '100'));
+});
+
+test('site_usage reads what the account spent over 13 weeks by day and group, one day of it, or one group\'s models', async t => {
+  // Whole weeks from a Monday, the last one this week, up to today.
+  assert.deepEqual(usageRange(new Date(2026, 10, 3, 9)), { start: '2026-08-10', end: '2026-11-03' });
+  assert.deepEqual(usageRange(new Date(2026, 10, 8, 23)), { start: '2026-08-10', end: '2026-11-08' }, 'a Sunday ends the week');
+  assert.deepEqual(usageRange(new Date(2026, 10, 9, 0, 5)), { start: '2026-08-17', end: '2026-11-09' }, 'a Monday starts the next one');
+  const { biubiu, state } = await setup(t);
+  assert.deepEqual((await callTool(biubiu, 'site_usage')).structuredContent, { signedIn: false, site: { origin: ORIGIN, host: 'ro.biubiu007.com', name: SITE.name } });
+  assert.equal(state.calls.length, 0, 'nothing is sent before signing in');
+  await login(biubiu);
+  const { start, end } = usageRange(), site = { origin: ORIGIN, host: 'ro.biubiu007.com', name: SITE.name };
+  let before = state.calls.length;
+  const r = await callTool(biubiu, 'site_usage');
+  assert.equal(r.isError, undefined, r.content[0].text);
+  assert.deepEqual(state.calls.slice(before).map(c => [c.path, c.query]), [['/api/client/platforms/5/usage/dashboard/snapshot-v2', { customerAccountId: '9', startDate: start, endDate: end, granularity: 'day' }]]);
+  assert.deepEqual(r.structuredContent, { signedIn: true, site, start, end, total: { cost: 0.75, tokens: 1300, requests: 4 },
+    days: [{ date: end, cost: 0.5, tokens: 1200, requests: 3 }, { date: start, cost: 0.25, tokens: 100, requests: 1 }],
+    groups: [{ id: '71', name: 'Claude 组', cost: 0.5, tokens: 1200, requests: 3 }, { id: '72', name: 'GPT 组', cost: 0.25, tokens: 100, requests: 1 }, { id: null, name: '无分组', cost: 0, tokens: 0, requests: 0 }] }, 'what was billed (actualCost), groups by it');
+  assert.equal(r.content[0].text, '已读取最近的用量。');
+
+  before = state.calls.length;
+  const day = (await callTool(biubiu, 'site_usage', { day: end })).structuredContent;
+  assert.deepEqual(state.calls.slice(before).map(c => c.query), [{ customerAccountId: '9', startDate: end, endDate: end, granularity: 'day' }]);
+  assert.deepEqual([day.day, day.start, day.end], [end, start, end]);
+  before = state.calls.length;
+  const models = await callTool(biubiu, 'site_usage', { groupId: '71' });
+  assert.deepEqual(state.calls.slice(before).map(c => [c.path, c.query]), [['/api/client/platforms/5/usage/dashboard/models', { customerAccountId: '9', startDate: start, endDate: end, groupId: '71' }]]);
+  assert.deepEqual(models.structuredContent, { signedIn: true, site, start, end, groupId: '71', models: [{ name: 'claude-a', cost: 0.4, tokens: 1000, requests: 2 }, { name: 'claude-b', cost: 0.1, tokens: 200, requests: 1 }] });
+  assert.equal(models.content[0].text, '已读取分组的 2 个模型的用量。');
+  before = state.calls.length;
+  await callTool(biubiu, 'site_usage', { groupId: 72, day: start });
+  assert.deepEqual(state.calls.slice(before).map(c => c.query), [{ customerAccountId: '9', startDate: start, endDate: start, groupId: '72' }]);
+
+  // Only a day of the 13 weeks, and a group by its number; nothing is sent otherwise.
+  before = state.calls.length;
+  for (const args of [{ day: '2020-01-01' }, { day: '2999-01-01' }, { day: 'today' }, { groupId: '71&x=1' }, { groupId: { id: 71 } }]) assert.equal((await callTool(biubiu, 'site_usage', args)).isError, true, JSON.stringify(args));
+  assert.equal(state.calls.length, before);
+
+  state.failUsage = 502;
+  const failed = await callTool(biubiu, 'site_usage');
+  assert.deepEqual([failed.isError, failed.structuredContent.signedIn, failed.structuredContent.error, failed.content[0].text], [undefined, true, '用量读取失败：用量统计暂不可用', '用量读取失败：用量统计暂不可用']);
+  assert.deepEqual(secretsIn(JSON.stringify([r, day, models, failed]), state), []);
+  state.failUsage = 0; state.access.clear(); state.failRefresh = 401;
+  assert.deepEqual((await callTool(biubiu, 'site_usage')).structuredContent, { signedIn: false, site, expired: true }, 'a refused renewal signs out');
 });

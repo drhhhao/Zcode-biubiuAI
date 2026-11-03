@@ -28,9 +28,47 @@ export function demoBackend() {
   let balance = 128.5;
   const models = { anthropic: ['claude-haiku-5-5', 'claude-opus-5-5', 'claude-sonnet-5-5'], openai: ['gpt-6', 'gpt-6-codex', 'gpt-6-mini'], grok: ['grok-5', 'grok-5-mini'] };
   const reply = (data, status = 200) => Promise.resolve(Response.json(data, { status }));
+  // The demo account's use, made up from each date: a few groups' models on most weekdays, fewer at weekends, so a day,
+  // a group and the 13 weeks the panel shows add up.
+  const usedModels = { 101: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], 102: ['gpt-6-codex', 'gpt-6'], 104: ['claude-sonnet-5-5'] };
+  const PRICE = { 'claude-opus-5-5': 9, 'claude-sonnet-5-5': 3, 'claude-haiku-5-5': 0.8, 'gpt-6-codex': 2.5, 'gpt-6': 2 };
+  function used(date) {
+    let seed = [...date].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 7);
+    const random = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
+    const weekend = [0, 6].includes(new Date(`${date}T00:00:00`).getDay());
+    if (random() < (weekend ? 0.7 : 0.15)) return [];
+    const busy = 0.3 + random() * 1.2, out = [];
+    for (const [group, ids] of Object.entries(usedModels)) {
+      const g = groups.find(g => g.upstreamGroupId === Number(group));
+      for (const model of ids) {
+        if (random() < 0.4) continue;
+        const requests = 1 + Math.floor(random() * 50 * busy), totalTokens = requests * (15000 + Math.floor(random() * 45000));
+        out.push({ groupId: g.upstreamGroupId, groupName: g.name, model, requests, totalTokens, actualCost: totalTokens / 1e6 * PRICE[model] * g.effectiveMultiplier * 0.4 });
+      }
+    }
+    return out;
+  }
+  function usedBetween(start, end) {
+    const out = [], today = new Date().toISOString().slice(0, 10);
+    for (let d = new Date(`${start}T12:00:00Z`); d.toISOString().slice(0, 10) <= end && d.toISOString().slice(0, 10) <= today; d.setUTCDate(d.getUTCDate() + 1)) out.push(...used(d.toISOString().slice(0, 10)).map(u => ({ ...u, date: d.toISOString().slice(0, 10) })));
+    return out;
+  }
+  function sum(rows, by) {
+    const all = new Map();
+    for (const r of rows) { const k = r[by], t = all.get(k) || { [by]: k, groupName: r.groupName, requests: 0, totalTokens: 0, actualCost: 0 }; t.requests += r.requests; t.totalTokens += r.totalTokens; t.actualCost += r.actualCost; all.set(k, t); }
+    return [...all.values()];
+  }
 
   function siteFetch(url, options) {
-    const { pathname } = new URL(url), body = options.body ? JSON.parse(options.body) : {};
+    const { pathname, searchParams } = new URL(url), body = options.body ? JSON.parse(options.body) : {};
+    if (pathname === '/api/client/platforms/1/usage/dashboard/snapshot-v2') {
+      const rows = usedBetween(searchParams.get('startDate'), searchParams.get('endDate'));
+      return reply({ trend: sum(rows, 'date').map(({ groupName, ...d }) => d), groups: sum(rows, 'groupId') });
+    }
+    if (pathname === '/api/client/platforms/1/usage/dashboard/models') {
+      const rows = usedBetween(searchParams.get('startDate'), searchParams.get('endDate')).filter(r => !searchParams.get('groupId') || String(r.groupId) === searchParams.get('groupId'));
+      return reply({ models: sum(rows, 'model').map(({ groupName, ...m }) => m) });
+    }
     if (pathname === '/api/client/platforms/1/groups') return reply({ items: groups.map(({ keyIds, ...g }) => ({ ...g, apiKeys: keyIds.map(id => keys.find(k => k.id === id)).map(k => ({ id: k.id, name: k.name, key: k.key })) })), apiKeySync: { neverSynced: false } });
     const made = /^\/api\/client\/platforms\/1\/groups\/(\d+)\/keys$/.exec(pathname);
     if (made && options.method === 'POST') {
@@ -73,6 +111,7 @@ export function demoBackend() {
     return Promise.resolve(Response.json({ data: sampleIds.map(id => ({ id, ...(id.startsWith('deepseek') ? { context_window: 1048576, max_output_tokens: 393216, effort: { supported_levels: ['low', 'high', 'max'], default_level: 'high' }, input_modalities: ['text'] } : {}) })) }));
   }
 
-  // models is each platform's list on the demo gateway; the tutorial changes it to show a group the site has changed.
-  return { isDemo, siteFetch, serviceFetch, models };
+  // models is each platform's list on the demo gateway and service the demo service's; the tutorial changes them to show a
+  // group the site has changed and a service that has changed its models.
+  return { isDemo, siteFetch, serviceFetch, models, service: sampleIds };
 }

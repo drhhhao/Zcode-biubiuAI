@@ -138,19 +138,51 @@ button.svcmeta[aria-expanded=true]::after{margin-bottom:-1px;transform:rotate(-1
 .acct{margin-top:2px;padding:16px 16px 14px}
 .siteme{display:flex;align-items:flex-start;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}.siteme .svcinfo{flex:1;min-width:0;padding-top:3px}.siteme .svcinfo dd{font:600 13.5px/1.5 var(--sans);font-variant-numeric:tabular-nums}
 .siteacts{display:flex;gap:2px;flex:none;margin:-1px -10px 0 0}
-.balance{padding-top:14px}.balance .sub{display:block}
+.balance{padding-top:14px;min-width:0}.balance .sub{display:block}
 .amount{display:block;margin-top:2px;font:700 42px/1.1 var(--rounded);letter-spacing:-.025em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+/* 用量, in the account card: the balance on the left, what was spent on the right, then a day a square over 13 weeks in
+   GitHub's greens (the user's choice), a column a week from Monday. Hovering a day shows it on the right; a click keeps
+   it, and 按分组 below shows that day. */
+.money{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.spent{padding-top:14px;min-width:0;text-align:right}.spent .sub{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.umeta{display:block;margin-top:4px;font-size:12px;line-height:1.5;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:root{--h0:var(--fill);--h1:#9be9a8;--h2:#40c463;--h3:#30a14e;--h4:#216e39}
+html[data-theme=dark]{--h1:#0e4429;--h2:#006d32;--h3:#26a641;--h4:#39d353}
+.usage{margin-top:16px;animation:enter .35s var(--ease)}
+.heat{display:grid;grid-template-columns:auto repeat(13,minmax(0,1fr));gap:4px;font-size:11px;line-height:14px;color:var(--muted)}
+.heat .mon{grid-row:1;white-space:nowrap;overflow:visible}.heat .wk{grid-column:1;align-self:center;padding-right:4px;white-space:nowrap}
+.hc{display:block;width:100%;aspect-ratio:1;padding:0;border:0;border-radius:4px;background:var(--h0);cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+.hc:hover{transform:scale(1.12)}.hc[aria-pressed=true]{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px var(--ink)}.hc:focus-visible{outline-offset:1px;border-radius:4px}
+.h0{background:var(--h0)}.h1{background:var(--h1)}.h2{background:var(--h2)}.h3{background:var(--h3)}.h4{background:var(--h4)}
+.heatfoot{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-height:28px;margin-top:8px}.heatfoot .link{margin:0 auto 0 -10px}
+.legend{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted)}.legend i{width:10px;height:10px;border-radius:3px}.legend i:first-child{margin-left:4px}.legend i:last-child{margin-right:4px}
+/* 按分组: each group's share of what was spent, with a bar; a group opens its models under it, one at a time. */
+.ulist{border-radius:var(--round-lg);background:var(--card)}
+.urow{position:relative}.urow+.urow::before{content:'';position:absolute;top:0;left:16px;right:0;height:1px;background:var(--line)}
+.uhead{display:flex;align-items:baseline;gap:10px;width:100%;padding:13px 14px 0 16px;border:0;background:none;color:var(--ink);text-align:left}
+.uhead:disabled{opacity:1;cursor:default}.uhead:focus-visible{outline-offset:-2px;border-radius:var(--round-sm)}
+.uname{flex:1;min-width:0;font:700 15px/1.4 var(--display);overflow-wrap:anywhere}
+.upct{flex:none;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ucost{flex:none;font:700 15px/1.4 var(--rounded);font-variant-numeric:tabular-nums}
+.uhead[aria-expanded]::after{content:'';flex:none;align-self:center;width:6px;height:6px;margin:0 2px 3px 2px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(45deg);transition:transform .35s var(--ease),margin .35s var(--ease)}
+.uhead[aria-expanded=true]::after{margin-bottom:-2px;transform:rotate(-135deg)}
+.ubar{height:4px;margin:8px 14px 13px 16px;border-radius:2px;background:var(--fill);overflow:hidden}.ubar i{display:block;height:100%;border-radius:2px;background:var(--ink);transition:width .5s var(--ease)}
+.umodels{margin:0 12px 12px;padding:2px 12px;border-radius:var(--round-sm);background:var(--bg);animation:enter .35s var(--ease)}
+.umodel{position:relative;padding:9px 0 0}.umodel+.umodel{border-top:1px solid var(--line)}
+.umodel .uhead{padding:0}.umodel .uname{font:500 12.5px/1.5 var(--mono)}.umodel .ucost{font-size:13px}
+.umodel .ubar{height:3px;margin:6px 0 9px}
+.umodels .note{margin:8px 0}.ulist .empty{padding:20px 16px}
 .siteopen{display:inline-flex;align-items:baseline;gap:6px;margin:10px 0 0 -10px;color:var(--accent-ink)}:is(.link,.hide).siteopen:hover:not(:disabled){background:var(--accent-wash)}
 .siteopen .arrow{font:13px/1 var(--sans);transition:transform .35s var(--ease)}.siteopen:hover .arrow{transform:translate(2px,-2px)}
 /* What scrolls into view on the site page stops below the tabs, which stay at the top. */
-#siteError,#siteGroups .grow,#siteKeys .svc{scroll-margin-top:72px}
+#siteError,#siteGroups .grow,#usageGroups .urow,#siteKeys .svc,#savedList .svc,#pickCard,#status{scroll-margin-top:72px}
 .sitehead{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:26px 4px 8px}.sitehead .sub{font-size:13px;font-weight:600;color:var(--ink)}.sitehead .count{margin-left:0}
-/* 分组 and 站内 Key fold under their headings, so a long account does not make the page long. */
+/* 按分组, 分组 and 站内 Key fold under their headings, so a long account does not make the page long. */
 .fold{display:inline-flex;align-items:center;margin:-4px 0 -4px -10px;padding:4px 10px;border:0;border-radius:999px;background:transparent;transition:background-color .2s var(--ease),transform .25s var(--ease)}
 .fold:hover{background:var(--fill)}.fold:active{transform:scale(.96)}.fold:focus-visible{border-radius:999px}
 .fold::after{content:'';width:6px;height:6px;margin:0 2px 1px 9px;border:solid var(--muted);border-width:0 1.5px 1.5px 0;transform:rotate(-135deg);transition:transform .35s var(--ease),margin .35s var(--ease)}
 .fold[aria-expanded=false]::after{margin-bottom:4px;transform:rotate(45deg)}
-:is(#siteGroupsBody,#siteKeysBody):not([hidden]){animation:enter .35s var(--ease)}
+:is(#siteUsageBody,#siteGroupsBody,#siteKeysBody):not([hidden]){animation:enter .35s var(--ease)}
 /* 分组: one card per platform; a row asks its own questions below its name. */
 .gplat{margin-top:12px}.gplathead{padding:0 4px 6px;font-size:11.5px;font-weight:600;line-height:16px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .grow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:12px 14px 12px 16px}
@@ -233,8 +265,15 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
 </form>
 <div id="siteAccount" hidden>
 <div class="acct"><div class="siteme"><dl class="svcinfo" id="siteInfo"></dl><div class="siteacts"><button class="link" id="siteRefresh" type="button" data-site>刷新</button><button class="link" id="siteLogout" type="button" data-site>退出登录</button></div></div>
-<div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div></div>
+<div class="money"><div class="balance"><span class="sub">余额</span><span class="amount" id="siteBalance">—</span><button class="link siteopen" id="siteOpen" type="button" hidden><span id="siteOpenText">打开网站</span><span class="arrow" aria-hidden="true">↗</span></button></div>
+<div class="spent" id="usageHead" aria-live="polite"><span class="sub" id="usageLabel">近 13 周花费</span><span class="amount" id="usageCost">—</span><span class="umeta" id="usageMeta"></span></div></div>
+<div class="usage" id="usageBox" hidden><div class="heat" id="usageGrid" role="group" aria-label="每天的花费"></div>
+<div class="heatfoot"><button class="link" id="usageAll" type="button" hidden>回到全部</button><span class="legend" aria-hidden="true">少<i class="h0"></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i>多</span></div></div></div>
 <div class="note fail" id="siteError" hidden></div>
+<div id="siteUsagePart" hidden>
+<div class="sitehead"><button class="fold" id="siteUsageFold" type="button" aria-expanded="true" aria-controls="siteUsageBody"><span class="sub">按分组</span></button><span class="count" id="usageWhen"></span></div>
+<div id="siteUsageBody"><div class="ulist" id="usageGroups" role="list" aria-label="各分组的花费"></div></div>
+</div>
 <div id="siteGroupsPart" hidden>
 <div class="sitehead"><button class="fold" id="siteGroupsFold" type="button" aria-expanded="true" aria-controls="siteGroupsBody"><span class="sub">分组</span></button><span class="count" id="siteGroupCount"></span></div>
 <div id="siteGroupsBody">
@@ -270,7 +309,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
 <div class="listhead"><span id="found"></span><span><button class="link" id="selectAll" type="button">全选</button></span></div>
 <input class="input" id="search" type="search" placeholder="搜索模型" aria-label="搜索模型" autocomplete="off" hidden>
 <div class="list" id="list" role="group" aria-label="可用模型"></div>
-<div class="foot"><button class="primary" id="importBtn" type="button" disabled>添加到 ZCode</button><div class="note">按列出的参数加入 ZCode，修改前自动备份。「测试」会用少量额度。</div></div>
+<div class="foot"><button class="primary" id="importBtn" type="button" disabled>添加到 ZCode</button><div class="note" id="pickNote">修改前自动备份</div></div>
 </section>
 <div class="status" id="status" role="status" aria-live="polite"></div>
 <section class="part" id="savedCard" hidden>
@@ -278,7 +317,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
 <div id="savedList" role="list" aria-label="已导入的服务"></div>
 </section>
 </div>
-<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.13</span><button class="link tourlink" id="tourLink" type="button" hidden>使用教程</button><button class="link update" id="updateLink" type="button" hidden></button></div>
+<div class="ver"><svg class="mark" viewBox="189.9 217.5 644.2 589" aria-hidden="true"><path d="M 289.6 779.3 C 273.2 728.6 256.1 680.8 245.4 630.2 C 234.1 577 234.9 535.1 241.4 500.4 L 218.5 392.6 C 212 362 228.5 334.9 253.1 329.6 C 277.7 324.4 303.8 342.5 310.3 373.1 L 326.4 448.9 L 548.6 401.7 C 576.5 395.8 603.9 413.6 609.9 441.5 C 615.8 469.4 598 496.9 570.1 502.8 L 461 526 C 497.5 521 517.3 555.7 504.1 585 C 495.5 603.5 479.3 612.5 462.1 616.1 C 495.4 616 511.8 647.3 499.3 673.6 C 489.7 693.7 466.8 704.1 441.3 708.1 C 422.7 712.1 414 723.7 415.9 752.5" fill="none" stroke="currentColor" stroke-width="54.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M 742.1 330.4 C 750.9 376.9 778.6 404.5 825.1 413.4 C 778.6 422.3 750.9 449.9 742.1 496.4 C 733.2 449.9 705.6 422.3 659.1 413.4 C 705.6 404.5 733.2 376.9 742.1 330.4 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/><path d="M 766.8 226.5 C 770.9 248.1 783.7 260.9 805.3 265 C 783.7 269.1 770.9 282 766.8 303.5 C 762.7 282 749.8 269.1 728.3 265 C 749.8 260.9 762.7 248.1 766.8 226.5 Z" fill="#EA580C" stroke="#EA580C" stroke-width="18" stroke-linejoin="round"/></svg><span>biubiu AI v0.8.14</span><button class="link tourlink" id="tourLink" type="button" hidden>使用教程</button><button class="link update" id="updateLink" type="button" hidden></button></div>
 </main>
 <template id="eyeIcons"><svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><svg class="eye-shut" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg></template>
 <script>
@@ -306,7 +345,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
   // panel, or no local service at all), so only the connect page is left, without the tabs.
   let page = 'site', siteMissing = false;
   // selected and tests are the connect page's ticked models and 测试 results, by model id.
-  const selected = new Set(), tests = new Map(), openModels = new Set();
+  const selected = new Set(), tests = new Map();
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   const tokens = n => n >= 1000000 ? `${+(n / 1000000).toFixed(2)}M` : n >= 1000 ? `${+(n / 1000).toFixed(1)}K` : String(n);
   const validCount = n => Number.isInteger(n) && n >= 1 && n <= LIMIT;
@@ -360,8 +399,8 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     const next = { ArrowRight: names[(i + 1) % names.length], ArrowLeft: names[(i + names.length - 1) % names.length], Home: names[0], End: names[names.length - 1] }[e.key];
     if (next) { e.preventDefault(); showPage(next, true); }
   });
-  // 分组 and 站内 Key fold under their headings; each stays as the user left it until the panel reloads.
-  const FOLDS = { siteGroupsFold: 'siteGroupsBody', siteKeysFold: 'siteKeysBody' };
+  // 按分组, 分组 and 站内 Key fold under their headings; each stays as the user left it until the panel reloads.
+  const FOLDS = { siteUsageFold: 'siteUsageBody', siteGroupsFold: 'siteGroupsBody', siteKeysFold: 'siteKeysBody' };
   function fold(button, open) { button.setAttribute('aria-expanded', String(open)); button.title = open ? '收起' : '展开'; $(FOLDS[button.id]).hidden = !open; }
   for (const id of Object.keys(FOLDS)) { const b = $(id); fold(b, true); b.onclick = () => fold(b, b.getAttribute('aria-expanded') !== 'true'); }
   async function call(name, args = {}) {
@@ -384,46 +423,64 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     for (const id of ['savedProvider', 'baseUrl', 'apiKey', 'toggleKey', 'protocol', 'providerName']) $(id).disabled = busy || !bridge;
     $('fetchBtn').disabled = busy || !bridge || !$('baseUrl').value.trim();
     $('fetchBtn').textContent = busy && action === 'fetch' ? '正在获取模型…' : '获取模型';
-    $('importBtn').disabled = busy || !result || !selected.size;
-    $('importBtn').textContent = busy && action === 'import' ? '正在添加…' : selected.size ? `添加到 ZCode（${selected.size} 个）` : '添加到 ZCode';
+    const c = connectChanges();
+    $('importBtn').disabled = busy || !result || (!c.adds.length && !c.drops.length) || c.empty;
+    $('importBtn').textContent = busy && action === 'import' ? '正在保存…' : saveLabel(c);
     $('search').disabled = busy;
     for (const n of $('savedList').querySelectorAll('[data-change]')) n.disabled = busy || !bridge;
     for (const id of ['siteEmail', 'sitePassword']) $(id).disabled = busy || !bridge;
     $('siteLoginBtn').disabled = busy || !bridge || !$('siteEmail').value.trim() || !$('sitePassword').value;
     $('siteLoginBtn').textContent = busy && action === 'site-login' ? '正在登录…' : '登录';
     for (const n of $('siteCard').querySelectorAll('[data-site]')) n.disabled = busy || !bridge;
-    addButton($('keyPickAdd'));
+    addButton($('keyPickAdd')); svcAddButton($('svcPickAdd'));
   }
   function setBusy(value, kind = '') { busy = value; action = value ? kind : ''; updateControls(); }
   function eye(button, shown, what = ' Key') { button.setAttribute('aria-pressed', String(shown)); button.setAttribute('aria-label', (shown ? '隐藏' : '显示') + what); button.title = shown ? '隐藏 Key' : '显示 Key'; }
   function hideKey() { $('apiKey').type = 'password'; eye($('toggleKey'), false); }
   function invalidate() { result = null; selected.clear(); tests.clear(); $('search').value = ''; render(); status(''); }
-  function visible() { const q = $('search').hidden ? '' : $('search').value.toLowerCase().trim(); return (result?.models || []).filter(m => m.id.toLowerCase().includes(q)); }
+  // The fetch's rows: the models the service lists, then the ones its service in ZCode has that it no longer lists (gone).
+  // A model already in that service starts ticked; unticking it takes it out on saving, except ZCode's built-in ones.
+  function connectRows() { return result ? [...result.models, ...(result.missing || []).map(id => ({ id, inZCode: true, gone: true }))] : []; }
+  function connectChanges() { return modelChanges(connectRows(), selected); }
+  // What saving a list would change: models to add (ticked, not in ZCode) and to take out (in ZCode, unticked, not built
+  // in). held counts the models in ZCode; keeping none of them is refused, as deleting the service does that.
+  function modelChanges(rows, ticked) {
+    const held = rows.filter(m => m.inZCode);
+    return { held: held.length, adds: rows.filter(m => !m.inZCode && ticked.has(m.id)).map(m => m.id), drops: held.filter(m => !m.builtin && !ticked.has(m.id)).map(m => m.id), empty: held.length > 0 && !rows.some(m => ticked.has(m.id)) };
+  }
+  // 添加到 ZCode with the count while none is in ZCode, else 保存 with what changes.
+  function saveLabel(c) {
+    const changes = [c.adds.length ? `添加 ${c.adds.length} 个` : '', c.drops.length ? `移除 ${c.drops.length} 个` : ''].filter(Boolean).join('、');
+    return c.empty ? '至少保留一个模型' : !c.held ? (c.adds.length ? `添加到 ZCode（${c.adds.length} 个）` : '添加到 ZCode') : changes ? `保存（${changes}）` : '与 ZCode 一致';
+  }
+  function visible() { const q = $('search').hidden ? '' : $('search').value.toLowerCase().trim(); return connectRows().filter(m => m.id.toLowerCase().includes(q)); }
   function render() {
     const has = !!result;
     $('pickCard').hidden = !has;
     updateControls();
     const list = $('list'); list.replaceChildren();
     if (!has) return;
-    const total = result.models.length;
-    $('found').textContent = !total ? '这个服务没有返回模型' : selected.size ? `找到 ${total} 个，已选 ${selected.size} 个` : `找到 ${total} 个，勾选要用的模型`;
-    $('search').hidden = total <= 8;
+    const rows = connectRows(), total = result.models.length, using = rows.filter(m => m.inZCode && !m.gone).length, gone = rows.length - total;
+    $('found').textContent = !rows.length ? '这个服务没有返回模型' : using || gone ? `服务 ${total} 个 · 在用 ${using} 个${gone ? ` · 停供 ${gone} 个` : ''}` : selected.size ? `找到 ${total} 个，已选 ${selected.size} 个` : `找到 ${total} 个，勾选要用的模型`;
+    $('search').hidden = rows.length <= 8;
     const models = visible();
     for (const m of models) list.append(modelItem(m));
-    if (total && !models.length) list.append(el('div', 'empty', '没有匹配的模型'));
-    const all = models.length > 0 && models.every(m => selected.has(m.id));
+    if (rows.length && !models.length) list.append(el('div', 'empty', '没有匹配的模型'));
+    $('pickNote').textContent = using || gone ? '勾选即用，取消即移除' : '修改前自动备份';
+    const free = models.filter(m => !m.builtin), all = free.length > 0 && free.every(m => selected.has(m.id));
     $('selectAll').textContent = all ? '取消全选' : '全选';
-    $('selectAll').disabled = busy || !models.length;
+    $('selectAll').disabled = busy || !free.length;
   }
   function focusModel(id) { for (const n of $('list').querySelectorAll('input[type=checkbox]')) if (n.dataset.id === id) { n.focus(); break; } }
   // A model of the fetch: its tick, its name with the parameters it would get, and 测试, whose outcome shows below it.
   function modelItem(m) {
     const picked = selected.has(m.id), item = el('div', 'model' + (picked ? ' picked' : '')), line = el('div', 'line');
     const row = el('label', 'row'), box = el('input'), info = el('span', 'info'), tested = tests.get(m.id);
-    box.type = 'checkbox'; box.checked = picked; box.disabled = busy; box.dataset.id = m.id;
+    box.type = 'checkbox'; box.checked = picked; box.disabled = busy || !!m.builtin; box.dataset.id = m.id;
     box.addEventListener('change', () => { if (box.checked) selected.add(m.id); else selected.delete(m.id); render(); focusModel(m.id); });
-    info.append(el('span', 'id', m.id), el('span', 'meta', describe(m.metadata || {}))); row.append(box, info);
-    line.append(row, testLink(m, '测试', runTest)); item.append(line);
+    info.append(el('span', 'id', m.id), el('span', 'meta', m.gone ? '服务已不再提供，还在 ZCode 里' : `${m.builtin ? 'ZCode 内置 · ' : m.inZCode ? '已在 ZCode · ' : ''}${describe(m.metadata || {})}`)); row.append(box, info);
+    // A model the service no longer lists cannot be tested through it.
+    line.append(row); if (!m.gone) line.append(testLink(m, '测试', runTest)); item.append(line);
     if (tested) item.append(testNote(tested));
     return item;
   }
@@ -469,46 +526,56 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     watchBalance();
   }
   document.addEventListener('visibilitychange', () => panelShown(!document.hidden));
-  $('selectAll').onclick = () => { const models = visible(), all = models.every(m => selected.has(m.id)); for (const m of models) if (all) selected.delete(m.id); else selected.add(m.id); render(); };
-  $('connectForm').addEventListener('submit', async e => {
-    e.preventDefault();
+  $('selectAll').onclick = () => { const models = visible().filter(m => !m.builtin), all = models.every(m => selected.has(m.id)); for (const m of models) if (all) selected.delete(m.id); else selected.add(m.id); render(); };
+  // Reads the service's models now. The ones its service in ZCode already has come back ticked, and the ones it has that
+  // the service no longer lists come after them, so a fetch shows what the service has changed since.
+  async function fetchConnect() {
     if (busy || !bridge || !$('baseUrl').value.trim()) return;
     invalidate(); setBusy(true, 'fetch'); status('正在连接服务，通常只要几秒…');
     try {
       const fetched = await call('fetch_models', { baseUrl: $('baseUrl').value.trim(), apiKey: $('apiKey').value.trim(), protocol: $('protocol').value, existingProviderId: $('savedProvider').value });
-      const models = await allModels(fetched);
-      result = { ...fetched, models, nextOffset: null };
+      const models = await allModels(fetched), held = models.filter(m => m.inZCode).map(m => m.id);
+      result = { ...fetched, models, missing: Array.isArray(fetched.missing) ? fetched.missing : [], nextOffset: null };
       hideKey(); $('search').value = '';
       if (!$('providerName').value.trim()) $('providerName').value = hostname(result.baseUrl) || hostname($('baseUrl').value.trim());
-      if (models.length === 1) selected.add(models[0].id);
+      for (const id of held.length || result.missing.length || models.length !== 1 ? held : [models[0].id]) selected.add(id);
       status('');
     } catch (err) { status(err.message, true); }
     finally { setBusy(false); render(); }
-  });
+  }
+  $('connectForm').addEventListener('submit', e => { e.preventDefault(); fetchConnect(); });
+  // Adds the newly ticked models and takes the unticked ones out, in one write; the list stays open as ZCode has it now.
   $('importBtn').onclick = async () => {
-    if (busy || !result || !selected.size) return;
-    const ids = [...selected];
+    const c = connectChanges(), current = result;
+    if (busy || !current || (!c.adds.length && !c.drops.length) || c.empty) return;
     setBusy(true, 'import'); render();
     try {
-      const providerName = $('providerName').value.trim() || hostname(result.baseUrl) || '我的模型服务';
-      const data = await call('import_models', { sessionId: result.sessionId, modelIds: ids, providerName });
-      status(window.__BIUBIU_PREVIEW__ ? `预览：已添加 ${data.added} 个模型。真实 ZCode 配置没有改动。` : data.unchanged ? '这些模型已经在 ZCode 里了，不需要重复添加。' : `已把 ${data.added} 个模型添加到「${data.providerName}」。原配置已自动备份。在 ZCode 的模型选择器里就能选到；如果没看到，重新打开模型选择器。`);
+      const providerName = $('providerName').value.trim() || hostname(current.baseUrl) || '我的模型服务';
+      const data = await call('import_models', { sessionId: current.sessionId, modelIds: c.adds, removeModelIds: c.drops, providerName });
+      if (result === current) {
+        for (const m of current.models) m.inZCode = !!m.builtin || selected.has(m.id);
+        current.missing = current.missing.filter(id => selected.has(id));
+      }
+      const done = [data.added ? `添加了 ${data.added} 个模型` : '', data.removed ? `移除了 ${data.removed} 个模型` : ''].filter(Boolean).join('、');
+      status(window.__BIUBIU_PREVIEW__ ? `预览：「${data.providerName}」${done || '没有变化'}。真实 ZCode 配置没有改动。` : data.unchanged ? '和 ZCode 里的一致，配置没有改动。' : `「${data.providerName}」${done}。原配置已自动备份；在 ZCode 的模型选择器里就能看到，没看到的话重新打开模型选择器。`);
       await loadProviders();
     } catch (e) { status(e.message, true); }
     finally { setBusy(false); render(); }
   };
-  function renderServices() {
+  // focus names the control to focus again after the list is rebuilt (its data-focus).
+  function renderServices(focus) {
     $('savedCard').hidden = !providers.length; $('savedCount').textContent = `${providers.length} 个`;
     $('savedList').replaceChildren(...providers.map(serviceItem));
+    if (focus) for (const n of $('savedList').querySelectorAll('[data-focus]')) if (n.dataset.focus === focus) { n.focus(); break; }
   }
   // The list never holds a key: one is fetched when its eye is clicked and dropped when it is hidden again.
-  // Model names arrive with list_providers, so opening a service's model list sends no request; it stays open across re-renders.
+  // The model count opens the service's models under it (svcModels); the open list stays open across re-renders.
   function serviceItem(p, i) {
     const item = el('div', 'svc'), head = el('div', 'svchead'), info = el('dl', 'svcinfo'), secret = el('dd', 'secret'), text = el('span', 'masked', p.hasKey ? MASK : '未保存');
-    const models = Array.isArray(p.models) ? p.models : [], count = `${p.modelCount} 个模型`;
+    const count = `${p.modelCount} 个模型`, open = svcPick?.id === p.id;
     // A local server started before this panel version sends no model names and has no tools to change or delete
     // a service, so the count stays plain text and the item offers neither.
-    const toggle = el(models.length ? 'button' : 'span', 'svcmeta', count);
+    const toggle = el(Array.isArray(p.models) ? 'button' : 'span', 'svcmeta', count);
     item.setAttribute('role', 'listitem');
     const index = el('span', 'svcidx', String(i + 1).padStart(2, '0'));
     index.setAttribute('aria-hidden', 'true');
@@ -517,16 +584,117 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     if (p.hasKey) secret.append(keyEye(text, `「${p.name}」的 Key`, { providerId: p.id }, message => { status(message, true); loadProviders(); }));
     info.append(el('dt', '', '地址'), el('dd', '', p.baseUrl), el('dt', '', 'Key'), secret);
     item.append(head, info);
-    if (Array.isArray(p.models)) item.append(serviceChanges(p, i, info));
-    if (models.length) {
-      const list = el('ul', 'svcmodels');
-      list.id = `svcModels${i}`; list.setAttribute('aria-label', `「${p.name}」的模型`); list.append(...models.map(id => el('li', '', id)));
-      toggle.type = 'button'; toggle.setAttribute('aria-label', `「${p.name}」的 ${count}`); toggle.setAttribute('aria-controls', list.id);
-      const show = open => { list.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); toggle.title = open ? '收起模型列表' : '显示模型列表'; if (open) openModels.add(p.id); else openModels.delete(p.id); };
-      toggle.onclick = () => show(list.hidden);
-      show(openModels.has(p.id)); item.append(list);
-    }
+    if (!Array.isArray(p.models)) return item;
+    item.append(serviceChanges(p, i, info));
+    toggle.type = 'button'; toggle.dataset.focus = `${p.id}:toggle`; toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? `收起「${p.name}」的模型` : `读取「${p.name}」的模型并勾选，现有 ${count}`);
+    toggle.title = open ? '收起' : '读取服务的模型，勾选要用的';
+    toggle.onclick = () => { if (busy) return; if (open) { svcPick = null; renderServices(`${p.id}:toggle`); } else openSvcPick(p); };
+    if (open) item.append(svcModels(p));
     return item;
+  }
+  // An imported service's models, read from the service the moment its count is clicked: the ones in ZCode come ticked,
+  // the ones the service added wait unticked, and the ones in ZCode the service no longer lists come last, unticked.
+  // Saving adds the ticked and takes the unticked out in one write; ZCode's built-in models stay. One list is open at a
+  // time. svcPick is { id, loading, result, selected, query, message, error, tests, testing }.
+  let svcPick = null;
+  function svcRows() { return svcPick?.result ? [...svcPick.result.models, ...svcPick.result.missing.map(id => ({ id, inZCode: true, gone: true }))] : []; }
+  function svcChanges() { return modelChanges(svcRows(), svcPick?.selected || new Set()); }
+  function svcAddButton(add) {
+    if (!add) return;
+    const c = svcChanges();
+    add.disabled = busy || !bridge || (!c.adds.length && !c.drops.length) || c.empty;
+    add.textContent = busy && action === 'svc-add' ? '正在保存…' : saveLabel(c);
+  }
+  function revealSvcPick() { $('svcPick')?.parentElement?.scrollIntoView({ block: 'nearest' }); }
+  async function openSvcPick(p) {
+    if (busy || !bridge) return;
+    const here = () => svcPick?.id === p.id;
+    svcPick = { id: p.id, loading: true }; setBusy(true, 'svc-pick'); renderServices(`${p.id}:toggle`); revealSvcPick();
+    try {
+      const fetched = await call('fetch_models', { baseUrl: p.baseUrl, protocol: p.protocol, existingProviderId: p.id });
+      const models = await allModels(fetched), missing = Array.isArray(fetched.missing) ? fetched.missing : [];
+      if (here()) svcPick = { id: p.id, result: { ...fetched, models, missing, nextOffset: null }, selected: new Set(models.filter(m => m.inZCode).map(m => m.id)), query: '', message: '', error: '', tests: new Map(), testing: '' };
+    } catch (e) { if (here()) svcPick = { id: p.id, error: e.message }; }
+    finally { setBusy(false); renderServices(`${p.id}:toggle`); revealSvcPick(); }
+  }
+  async function saveSvcPick(p) {
+    const current = svcPick, c = svcChanges();
+    if (busy || !bridge || current?.id !== p.id || !current.result || (!c.adds.length && !c.drops.length) || c.empty) return;
+    setBusy(true, 'svc-add'); current.message = current.error = '';
+    try {
+      const data = await call('import_models', { sessionId: current.result.sessionId, modelIds: c.adds, removeModelIds: c.drops, providerName: p.name });
+      for (const m of current.result.models) m.inZCode = !!m.builtin || current.selected.has(m.id);
+      current.result.missing = current.result.missing.filter(id => current.selected.has(id));
+      const done = [data.added ? `添加了 ${data.added} 个模型` : '', data.removed ? `移除了 ${data.removed} 个模型` : ''].filter(Boolean).join('、');
+      current.message = window.__BIUBIU_PREVIEW__ ? `预览：${done || '没有变化'}。真实 ZCode 配置没有改动。` : data.unchanged ? '和 ZCode 里的一致，配置没有改动。' : `${done}，原配置已自动备份。没看到的话重新打开 ZCode 的模型选择器。`;
+      // A connect form that had this service selected starts over, so its earlier fetch is not saved over this one.
+      const here = $('savedProvider').value === p.id;
+      await loadProviders(); if (here) pickSaved();
+    } catch (e) { current.error = e.message; }
+    finally { setBusy(false); renderServices(`${p.id}:add`); }
+  }
+  async function testSvc(p, m) {
+    const current = svcPick;
+    if (busy || !bridge || current?.id !== p.id || !current.result) return;
+    current.testing = m.id; setBusy(true, 'svc-test'); renderServices();
+    try { current.tests.set(m.id, await call('test_model', { sessionId: current.result.sessionId, modelId: m.id })); }
+    catch (e) { current.tests.set(m.id, { ok: false, error: e.message }); }
+    finally { current.testing = ''; setBusy(false); renderServices(`${p.id}:test:${m.id}`); }
+  }
+  // The open list under a service. A tick redraws only the list and the save button. When the service cannot be read,
+  // the reason shows with 重试, above the model names ZCode has for it.
+  function svcModels(p) {
+    const box = el('div', 'keypick'), current = svcPick;
+    const button = (cls, text, focus, onclick) => { const b = el('button', cls, text); b.type = 'button'; b.dataset.change = ''; b.dataset.focus = `${p.id}:${focus}`; b.disabled = busy || !bridge; b.onclick = onclick; return b; };
+    box.id = 'svcPick'; box.setAttribute('role', 'group'); box.setAttribute('aria-label', `「${p.name}」的模型`);
+    if (current.loading) { box.append(el('div', 'empty', '正在读取模型…')); return box; }
+    if (!current.result) {
+      const bar = el('div', 'svcbar'); bar.append(button('small', '重试', 'retry', () => openSvcPick(p)));
+      box.append(el('div', 'note fail', current.error || '没有读到模型，请重试。'), bar);
+      if (p.models.length) { const names = el('ul', 'svcmodels'); names.setAttribute('aria-label', `ZCode 里「${p.name}」的模型`); names.append(...p.models.map(id => el('li', '', id))); box.append(names); }
+      return box;
+    }
+    const rows = svcRows(), offered = current.result.models.length, head = el('div', 'listhead'), found = el('span', 'found'), links = el('span'), list = el('div', 'list'), foot = el('div', 'foot'), add = el('button', 'primary');
+    const shown = () => { const q = current.query.toLowerCase().trim(); return rows.filter(m => m.id.toLowerCase().includes(q)); };
+    const all = button('link', '全选', 'all', () => { const free = shown().filter(m => !m.builtin), every = free.every(m => current.selected.has(m.id)); for (const m of free) if (every) current.selected.delete(m.id); else current.selected.add(m.id); draw(); });
+    add.id = 'svcPickAdd'; add.type = 'button'; add.dataset.focus = `${p.id}:add`; add.onclick = () => saveSvcPick(p);
+    list.setAttribute('role', 'group'); list.setAttribute('aria-label', `「${p.name}」的模型，勾选的在 ZCode 里使用`);
+    links.append(all); head.append(found, links); box.append(head);
+    if (rows.length > 8) {
+      const search = el('input', 'input search');
+      search.type = 'search'; search.placeholder = '搜索模型'; search.autocomplete = 'off'; search.value = current.query; search.dataset.change = ''; search.disabled = busy || !bridge;
+      search.setAttribute('aria-label', `搜索「${p.name}」的模型`);
+      search.oninput = () => { current.query = search.value; draw(); };
+      box.append(search);
+    }
+    function draw(focus) {
+      const visible = shown(), free = visible.filter(m => !m.builtin), using = rows.filter(m => m.inZCode && !m.gone).length, gone = rows.length - offered;
+      found.textContent = `服务 ${offered} 个 · 在用 ${using} 个${gone ? ` · 停供 ${gone} 个` : ''}`;
+      all.hidden = !free.length; all.textContent = free.length && free.every(m => current.selected.has(m.id)) ? '取消全选' : '全选';
+      list.replaceChildren(...visible.map(m => {
+        const item = el('div', 'model' + (current.selected.has(m.id) ? ' picked' : '')), line = el('div', 'line'), row = el('label', 'row'), tick = el('input'), info = el('span', 'info'), tested = current.tests.get(m.id);
+        tick.type = 'checkbox'; tick.checked = current.selected.has(m.id); tick.dataset.id = m.id;
+        // ZCode's built-in models cannot be taken out here, so their tick stays fixed, even after the panel was busy.
+        if (m.builtin) tick.disabled = true; else { tick.dataset.change = ''; tick.disabled = busy || !bridge; }
+        tick.onchange = () => { if (tick.checked) current.selected.add(m.id); else current.selected.delete(m.id); draw(m.id); };
+        info.append(el('span', 'id', m.id), el('span', 'meta', m.gone ? '服务已不再提供，还在 ZCode 里' : `${m.builtin ? 'ZCode 内置 · ' : m.inZCode ? '已在 ZCode · ' : ''}${describe(m.metadata || {})}`));
+        row.append(tick, info); line.append(row);
+        // A model the service no longer lists cannot be tested through it.
+        if (!m.gone) { const test = testLink(m, current.testing === m.id ? '测试中…' : '测试', model => testSvc(p, model)); test.dataset.change = ''; test.dataset.focus = `${p.id}:test:${m.id}`; line.append(test); }
+        item.append(line);
+        if (tested) item.append(testNote(tested));
+        return item;
+      }), ...(visible.length ? [] : [el('div', 'empty', '没有匹配的模型')]));
+      svcAddButton(add);
+      if (focus) for (const n of list.querySelectorAll('input[type=checkbox]')) if (n.dataset.id === focus) { n.focus(); break; }
+    }
+    foot.append(add, el('div', 'note', '勾选即用，取消即移除'));
+    if (current.message) foot.append(el('div', 'note', current.message));
+    if (current.error) foot.append(el('div', 'note fail', current.error));
+    box.append(list, foot);
+    draw();
+    return box;
   }
   // 修改 and 删除 open inside the item. Neither survives a re-render, so a typed key is dropped whenever the list is
   // rebuilt, which includes the panel hiding. The key field starts empty; leaving it empty keeps the saved key.
@@ -544,6 +712,8 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
       setBusy(true, 'change'); render(); error.hidden = true; trigger.textContent = label;
       try {
         const message = await work(), here = $('savedProvider').value === p.id;
+        // Its open model list was read with the old address or key, so it closes.
+        if (svcPick?.id === p.id) svcPick = null;
         await loadProviders(); if (here) pickSaved();
         status(message);
       } catch (e) { if (error.isConnected) { error.textContent = e.message; error.hidden = false; } else status(e.message, true); }
@@ -583,7 +753,6 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
       error.hidden = true;
       drop.onclick = () => run(drop, '正在删除…', async () => {
         const data = await call('delete_provider', { providerId: p.id });
-        openModels.delete(p.id);
         return window.__BIUBIU_PREVIEW__ ? `预览：已删除「${data.providerName}」。真实 ZCode 配置没有改动。` : `已从 ZCode 删除「${data.providerName}」。原配置已自动备份。`;
       }, error);
       open(el('div', 'svcask', `从 ZCode 删除「${p.name}」和它的 ${p.modelCount} 个模型？删除前会自动备份。`), error, bar(cancel, drop));
@@ -616,8 +785,9 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     if (!site) return;
     renderBalance();
     $('siteLogin').hidden = !!site.signedIn; $('siteAccount').hidden = !site.signedIn;
-    if (!site.signedIn) { pick = keyAsking = null; $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `用 ${site.site?.host || '网站'} 账号登录`; updateControls(); return; }
+    if (!site.signedIn) { pick = keyAsking = null; if (usage) resetUsage(); $('siteNote').textContent = site.expired ? '登录已过期，请重新登录。' : `用 ${site.site?.host || '网站'} 账号登录`; updateControls(); return; }
     renderOpen();
+    renderUsage();
     $('siteError').textContent = site.error || ''; $('siteError').hidden = !site.error;
     renderGroups();
     renderKeys();
@@ -663,6 +833,177 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
       else if (!data.error) { site.balance = data.balance; site.totalRecharged = data.totalRecharged; renderBalance(); }
     } catch {}
     finally { balanceReading = false; balanceAt = Date.now(); watchBalance(); }
+  }
+  // 用量: what the account spent over the last 13 weeks, read with site_usage after each full read of the account (on
+  // 刷新, signing in, and at most once a minute as the panel shows), never with the 30-second balance. usage is that read:
+  // { loading } first, then its result, or { error }. A day clicked (usageDay) is read on its own into usageDays; a
+  // group opened under 按分组 (usageOpen) reads its models into usageModels, by day and group. A new read drops both.
+  // usageHover is the day under the pointer, shown on the right of the balance until the pointer leaves the squares.
+  const WEEKS = 13, WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+  let usage = null, usageSeq = 0, usageDay = null, usageHover = null, usageOpen = null, usageFocus = null;
+  const usageDays = new Map(), usageModels = new Map();
+  const usd = n => n > 0 && n < 0.005 ? '<0.01' : money(n);
+  const share = (n, all) => !(all > 0) || !(n > 0) ? '0%' : n / all < 0.01 ? '<1%' : `${Math.round(n / all * 100)}%`;
+  const dayOf = text => { const [y, m, d] = text.split('-').map(Number); return new Date(y, m - 1, d); };
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const plusDays = (text, n) => { const d = dayOf(text); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+  const dayName = text => { const d = dayOf(text); return `${d.getMonth() + 1}月${d.getDate()}日 周${WEEKDAYS[d.getDay()]}`; };
+  const usageReady = () => !!usage && !usage.loading && !usage.error && typeof usage.start === 'string';
+  const usageOn = date => usage?.days?.find(d => d.date === date) || { date, cost: 0, tokens: 0, requests: 0 };
+  function resetUsage() { usageSeq++; usage = usageDay = usageHover = usageOpen = usageFocus = null; usageDays.clear(); usageModels.clear(); renderUsage(); }
+  // A failed read comes back as { error }; one that finds the sign-in gone reads the account again, which turns the
+  // page into the login form.
+  async function usageCall(args) {
+    try { return await call('site_usage', args); } catch (e) { return { signedIn: true, error: e.message }; }
+  }
+  async function loadUsage() {
+    if (!bridge || !site?.signedIn) return;
+    const seq = ++usageSeq;
+    if (!usageReady()) { usage = { loading: true }; renderUsage(); }
+    const data = await usageCall({});
+    if (seq !== usageSeq) return;
+    if (!data.signedIn) { resetUsage(); await loadSite(); return; }
+    usageDays.clear(); usageModels.clear(); usage = data;
+    if (usageDay && !(usageReady() && data.start <= usageDay && usageDay <= data.end)) usageDay = usageOpen = null;
+    renderUsage();
+    if (usageDay) readUsageDay(usageDay);
+    if (usageOpen) readUsageModels(usageOpen);
+  }
+  async function readUsageDay(day) {
+    const seq = usageSeq;
+    // A day without any use has nothing to read.
+    if (!usageOn(day).requests) { usageDays.set(day, { groups: [] }); renderUsage(); return; }
+    usageDays.set(day, { loading: true }); renderUsage();
+    const data = await usageCall({ day });
+    if (seq !== usageSeq) return;
+    if (!data.signedIn) { resetUsage(); await loadSite(); return; }
+    usageDays.set(day, data); renderUsage();
+  }
+  const modelsKey = id => `${usageDay || ''}|${id}`;
+  async function readUsageModels(id) {
+    const seq = usageSeq, key = modelsKey(id), day = usageDay;
+    usageModels.set(key, { loading: true }); renderUsage();
+    const data = await usageCall({ groupId: id, ...(day ? { day } : {}) });
+    if (seq !== usageSeq) return;
+    if (!data.signedIn) { resetUsage(); await loadSite(); return; }
+    usageModels.set(key, data); renderUsage();
+  }
+  function renderUsage() {
+    $('siteUsagePart').hidden = !site?.signedIn || !usage;
+    renderUsageHead(); renderHeat(); renderUsageGroups();
+  }
+  // The right of the balance: the 13 weeks' spending, or the day under the pointer, else the day clicked.
+  function renderUsageHead() {
+    const day = usageReady() ? usageHover || usageDay : null, spent = !usageReady() ? null : day ? usageOn(day) : usage.total;
+    $('usageLabel').textContent = day ? dayName(day) : '近 13 周花费';
+    $('usageCost').textContent = spent ? usd(spent.cost) : '—';
+    $('usageMeta').textContent = !spent ? (usage?.loading ? '正在读取…' : '') : spent.requests ? `${tokens(spent.tokens)} tokens · ${spent.requests.toLocaleString('zh-CN')} 次` : '没有用量';
+    $('usageAll').hidden = !usageDay;
+    $('usageWhen').textContent = usageDay ? dayName(usageDay) : usageReady() ? '近 13 周' : '';
+  }
+  // One square a day, a column a week from Monday, darker the more was spent (by the square root of the share of the
+  // most spent in a day, so small days still show). The squares are one tab stop; the arrow keys move between days.
+  function renderHeat() {
+    const box = $('usageBox'), grid = $('usageGrid');
+    box.hidden = !site?.signedIn || !usageReady();
+    if (box.hidden) { grid.replaceChildren(); return; }
+    const start = usage.start, end = usage.end, costs = new Map(usage.days.map(d => [d.date, d.cost])), max = Math.max(0, ...costs.values());
+    const nodes = [], months = [];
+    for (let w = 0; w < WEEKS; w++) { const m = dayOf(plusDays(start, w * 7)).getMonth(); if (!months.length || months[months.length - 1].m !== m) months.push({ w, m }); }
+    if (months.length > 1 && months[1].w - months[0].w < 3) months.shift();
+    for (const { w, m } of months) { const t = el('span', 'mon', `${m + 1}月`); t.style.gridColumn = `${w + 2} / span 3`; nodes.push(t); }
+    for (const [i, name] of [[0, '周一'], [2, '周三'], [4, '周五'], [6, '周日']]) { const t = el('span', 'wk', name); t.style.gridRow = String(i + 2); nodes.push(t); }
+    const focusDay = usageFocus && usageFocus >= start && usageFocus <= end ? usageFocus : usageDay || end;
+    for (let i = 0; i < WEEKS * 7; i++) {
+      const date = plusDays(start, i);
+      if (date > end) break;
+      const cost = costs.get(date) || 0, level = cost > 0 && max > 0 ? Math.max(1, Math.min(4, Math.ceil(Math.sqrt(cost / max) * 4))) : 0;
+      const b = el('button', `hc h${level}`);
+      b.type = 'button'; b.dataset.day = date; b.style.gridColumn = String(Math.floor(i / 7) + 2); b.style.gridRow = String(i % 7 + 2);
+      b.setAttribute('aria-pressed', String(date === usageDay)); b.tabIndex = date === focusDay ? 0 : -1;
+      b.setAttribute('aria-label', `${dayName(date)}，花费 ${usd(cost)}`);
+      nodes.push(b);
+    }
+    const had = grid.contains(document.activeElement) ? document.activeElement.dataset.day : null;
+    grid.replaceChildren(...nodes);
+    if (had) grid.querySelector(`[data-day="${had}"]`)?.focus();
+  }
+  function pickDay(day) {
+    usageDay = day; usageOpen = null; if (day) usageFocus = day;
+    if (day && !(usageDays.get(day) && !usageDays.get(day).error)) readUsageDay(day); else renderUsage();
+  }
+  {
+    const grid = $('usageGrid'), dayAt = e => e.target.closest?.('.hc')?.dataset.day;
+    grid.addEventListener('pointerover', e => { const d = dayAt(e); if (d && d !== usageHover) { usageHover = d; renderUsageHead(); } });
+    grid.addEventListener('pointerleave', () => { if (usageHover) { usageHover = null; renderUsageHead(); } });
+    grid.addEventListener('click', e => { const d = dayAt(e); if (d) pickDay(d === usageDay ? null : d); });
+    grid.addEventListener('keydown', e => {
+      const d = dayAt(e), step = { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -7, ArrowRight: 7 }[e.key];
+      if (!d || !step) return;
+      e.preventDefault();
+      const b = grid.querySelector(`[data-day="${plusDays(d, step)}"]`);
+      if (b) { for (const c of grid.querySelectorAll('.hc')) c.tabIndex = -1; b.tabIndex = 0; usageFocus = b.dataset.day; b.focus(); }
+    });
+    $('usageAll').onclick = () => pickDay(null);
+  }
+  // A line of what was spent: a name, its share, the amount and a bar of the share.
+  function spendLine(button, name, cost, all) {
+    const head = el(button ? 'button' : 'div', 'uhead'), bar = el('div', 'ubar'), fill = el('i');
+    head.append(el('span', 'uname', name), el('span', 'upct', share(cost, all)), el('span', 'ucost', usd(cost)));
+    fill.style.width = all > 0 && cost > 0 ? `${Math.max(1.5, cost / all * 100)}%` : '0';
+    bar.append(fill);
+    return [head, bar];
+  }
+  function usageTrouble(text, retry) {
+    const box = el('div', 'empty'), again = el('button', 'link', '重试');
+    again.type = 'button'; again.onclick = retry;
+    box.append(el('div', '', text), again);
+    return box;
+  }
+  // 按分组: the groups of the 13 weeks, or of the day clicked, by what they spent; one opens its models under it.
+  function renderUsageGroups() {
+    const list = $('usageGroups'), source = usageDay ? usageDays.get(usageDay) : usage, nodes = [];
+    if (!site?.signedIn || !usage) { list.replaceChildren(); return; }
+    if (!source || source.loading) nodes.push(el('div', 'empty', '正在读取用量…'));
+    else if (source.error) nodes.push(usageTrouble(source.error, () => usageDay ? readUsageDay(usageDay) : loadUsage()));
+    else if (!source.groups?.length) nodes.push(el('div', 'empty', usageDay ? '这天没有用量' : '这段时间没有用量'));
+    else {
+      const all = source.groups.reduce((t, g) => t + g.cost, 0);
+      for (const g of source.groups) {
+        const row = el('div', 'urow'), [head, bar] = spendLine(true, g.name, g.cost, all);
+        row.setAttribute('role', 'listitem'); head.type = 'button';
+        if (g.id == null) head.disabled = true;
+        else {
+          const open = usageOpen === g.id;
+          head.dataset.group = g.id; head.setAttribute('aria-expanded', String(open));
+          head.setAttribute('aria-label', `${g.name}，花费 ${usd(g.cost)}，${open ? '收起' : '查看'}各模型`);
+          head.onclick = () => openUsageGroup(g.id);
+        }
+        row.append(head, bar);
+        if (usageOpen === g.id) row.append(usageModelList(g.id));
+        nodes.push(row);
+      }
+    }
+    const had = list.contains(document.activeElement) ? document.activeElement.dataset.group : null;
+    list.replaceChildren(...nodes);
+    if (had) list.querySelector(`[data-group="${had}"]`)?.focus();
+  }
+  function usageModelList(id) {
+    const box = el('div', 'umodels'), m = usageModels.get(modelsKey(id));
+    if (!m || m.loading) box.append(el('div', 'note', '正在读取模型…'));
+    else if (m.error) box.append(usageTrouble(m.error, () => readUsageModels(id)));
+    else if (!m.models?.length) box.append(el('div', 'note', '没有模型用量'));
+    else {
+      const all = m.models.reduce((t, x) => t + x.cost, 0);
+      for (const x of m.models) { const line = el('div', 'umodel'); line.append(...spendLine(false, x.name, x.cost, all)); box.append(line); }
+    }
+    return box;
+  }
+  function openUsageGroup(id) {
+    usageOpen = usageOpen === id ? null : id;
+    const m = usageOpen && usageModels.get(modelsKey(id));
+    if (usageOpen && !(m && !m.error)) readUsageModels(id); else renderUsage();
+    if (usageOpen) requestAnimationFrame(() => $('usageGroups').querySelector(`[data-group="${id}"]`)?.closest('.urow')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
   }
   // 站内 Key: a key's models open under it and 删除 asks under it, both here on the site page. Both stay open when the
   // list is drawn again, as long as the key is still listed; focus goes back to the button named. A group's models open
@@ -986,7 +1327,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
   async function loadSite(force = true) {
     if (!bridge || (!force && Date.now() - siteAt < 60000)) return;
     const seq = ++siteSeq; balanceAt = Date.now();
-    try { const data = await call('site_account'); if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); if (siteMissing) { siteMissing = false; renderPages(); } $('tourLink').hidden = false; renderSite(); } }
+    try { const data = await call('site_account'); if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); if (siteMissing) { siteMissing = false; renderPages(); } $('tourLink').hidden = false; renderSite(); if (site.signedIn) loadUsage(); } }
     catch { if (!site) noSite(); }
   }
   for (const id of ['siteEmail', 'sitePassword']) $(id).addEventListener('input', () => { $('siteLoginError').hidden = true; updateControls(); });
@@ -998,7 +1339,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     setBusy(true, 'site-login'); $('siteLoginError').hidden = true;
     try { const data = await call('site_login', { email, password }); $('sitePassword').value = ''; if (seq === siteSeq) { site = data; siteAt = balanceAt = Date.now(); } }
     catch (err) { $('siteLoginError').textContent = err.message; $('siteLoginError').hidden = false; }
-    finally { setBusy(false); renderSite(); }
+    finally { setBusy(false); renderSite(); if (seq === siteSeq && site?.signedIn) loadUsage(); }
   });
   $('siteRefresh').onclick = async () => {
     if (busy || !bridge) return;
@@ -1010,7 +1351,7 @@ html[data-theme=dark] .tourcard{box-shadow:0 10px 30px rgb(0 0 0/.5),inset 0 0 0
     if (busy || !bridge) return;
     const seq = ++siteSeq; let problem = '';
     setBusy(true, 'site');
-    try { const data = await call('site_logout'); if (seq === siteSeq) { site = data; siteAt = 0; } asking = keyAsking = pick = null; siteStatus(''); keyStatus(''); tellHost?.('site-signed-out'); }
+    try { const data = await call('site_logout'); if (seq === siteSeq) { site = data; siteAt = 0; } asking = keyAsking = pick = null; resetUsage(); siteStatus(''); keyStatus(''); tellHost?.('site-signed-out'); }
     catch (e) { problem = e.message; }
     finally { setBusy(false); renderSite(); if (problem) siteProblem(problem); }
   };
